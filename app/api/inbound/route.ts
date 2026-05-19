@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { cleanMail } from '@/lib/mail-cleaner';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,9 +12,6 @@ export async function POST(req: NextRequest) {
     const betreff = payload.Subject || '(kein Betreff)';
     const bodyText = payload.TextBody || '';
     const bodyHtml = payload.HtmlBody || '';
-
-    // Empfänger-Adresse aus dem Payload (z.B. max@inbound.auftragswerk.app)
-    // Daraus erkennen wir später, zu welchem Betrieb die Mail gehört
     const toEmail = payload.ToFull?.[0]?.Email || payload.To || '';
 
     // Betrieb anhand der inbound_email finden
@@ -31,7 +29,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Anfrage in DB speichern
+    // 🆕 Mail säubern
+    const cleaned = cleanMail(bodyText, bodyHtml);
+    console.log(
+      `Mail gesäubert: ${cleaned.original_length} → ${cleaned.cleaned_length} Zeichen ` +
+      `(-${cleaned.reduction_percent}%), Sprache: ${cleaned.detected_language}`
+    );
+
+    // Anfrage in DB speichern (jetzt mit cleaned_text in raw_payload)
     const { data, error } = await supabaseAdmin
       .from('anfragen')
       .insert({
@@ -40,9 +45,19 @@ export async function POST(req: NextRequest) {
         von_email: vonEmail,
         von_name: vonName,
         betreff: betreff,
-        body_text: bodyText,
+        body_text: cleaned.cleaned_text, // 🆕 gesäuberter Text
         body_html: bodyHtml,
-        raw_payload: payload,
+        raw_payload: {
+          ...payload,
+          _cleaner_meta: {
+            original_length: cleaned.original_length,
+            cleaned_length: cleaned.cleaned_length,
+            reduction_percent: cleaned.reduction_percent,
+            has_quoted_content: cleaned.has_quoted_content,
+            has_signature: cleaned.has_signature,
+            detected_language: cleaned.detected_language,
+          },
+        },
         status: 'neu',
       })
       .select()
@@ -50,15 +65,31 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error('DB Fehler:', error);
+      
+      // 🆕 Fehler protokollieren
+      await supabaseAdmin.from('processing_errors').insert({
+        betrieb_id: betrieb.id,
+        schritt: 'mail_parse',
+        fehler_text: error.message,
+        fehler_details: { payload_sample: { from: vonEmail, subject: betreff } },
+      });
+      
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     console.log('Anfrage gespeichert:', data.id);
 
-    // TODO: Hier kommt später der Claude-Call (Klassifikation + Entwurf)
-    // Das machen wir an Tag 2
+    // TODO Phase A Schritt 3: Hier kommt der Claude-Call (Klassifikation)
+    // TODO Phase B: Antwortentwurf generieren
 
-    return NextResponse.json({ success: true, anfrage_id: data.id });
+    return NextResponse.json({ 
+      success: true, 
+      anfrage_id: data.id,
+      cleaner_stats: {
+        reduction_percent: cleaned.reduction_percent,
+        language: cleaned.detected_language,
+      },
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
     console.error('Webhook Fehler:', message);
@@ -66,7 +97,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Für Health-Checks
 export async function GET() {
   return NextResponse.json({ status: 'webhook ready' });
 }
