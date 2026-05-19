@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { cleanMail } from '@/lib/mail-cleaner';
 
+// Schwelle: ab dieser Mail-Länge nutzen wir den Cleaner für Claude-Input
+const CLEAN_THRESHOLD = 3000;
+
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
@@ -29,14 +32,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 🆕 Mail säubern
-    const cleaned = cleanMail(bodyText, bodyHtml);
-    console.log(
-      `Mail gesäubert: ${cleaned.original_length} → ${cleaned.cleaned_length} Zeichen ` +
-      `(-${cleaned.reduction_percent}%), Sprache: ${cleaned.detected_language}`
-    );
+    // Cleaner-Logik: NUR bei riesigen Mails als Fallback für Claude-Input
+    // Original-Mail bleibt IMMER in body_text erhalten (für Max im Dashboard)
+    let bodyTextClean: string | null = null;
+    let cleanerMeta: Record<string, unknown> | null = null;
 
-    // Anfrage in DB speichern (jetzt mit cleaned_text in raw_payload)
+    if (bodyText.length > CLEAN_THRESHOLD) {
+      const cleaned = cleanMail(bodyText, bodyHtml);
+      bodyTextClean = cleaned.cleaned_text;
+      cleanerMeta = {
+        original_length: cleaned.original_length,
+        cleaned_length: cleaned.cleaned_length,
+        reduction_percent: cleaned.reduction_percent,
+        has_quoted_content: cleaned.has_quoted_content,
+        has_signature: cleaned.has_signature,
+        detected_language: cleaned.detected_language,
+        reason: 'mail_too_large_for_claude',
+      };
+      console.log(
+        `Mail über Schwelle (${bodyText.length} Zeichen) - Cleaner aktiv: ` +
+        `${cleaned.original_length} → ${cleaned.cleaned_length} (-${cleaned.reduction_percent}%)`
+      );
+    }
+
+    // Anfrage in DB speichern – ORIGINAL bleibt in body_text
     const { data, error } = await supabaseAdmin
       .from('anfragen')
       .insert({
@@ -45,19 +64,12 @@ export async function POST(req: NextRequest) {
         von_email: vonEmail,
         von_name: vonName,
         betreff: betreff,
-        body_text: cleaned.cleaned_text, // 🆕 gesäuberter Text
+        body_text: bodyText,
+        body_text_clean: bodyTextClean,
         body_html: bodyHtml,
-        raw_payload: {
-          ...payload,
-          _cleaner_meta: {
-            original_length: cleaned.original_length,
-            cleaned_length: cleaned.cleaned_length,
-            reduction_percent: cleaned.reduction_percent,
-            has_quoted_content: cleaned.has_quoted_content,
-            has_signature: cleaned.has_signature,
-            detected_language: cleaned.detected_language,
-          },
-        },
+        raw_payload: cleanerMeta
+          ? { ...payload, _cleaner_meta: cleanerMeta }
+          : payload,
         status: 'neu',
       })
       .select()
@@ -65,30 +77,24 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error('DB Fehler:', error);
-      
-      // 🆕 Fehler protokollieren
+
       await supabaseAdmin.from('processing_errors').insert({
         betrieb_id: betrieb.id,
         schritt: 'mail_parse',
         fehler_text: error.message,
         fehler_details: { payload_sample: { from: vonEmail, subject: betreff } },
       });
-      
+
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     console.log('Anfrage gespeichert:', data.id);
 
-    // TODO Phase A Schritt 3: Hier kommt der Claude-Call (Klassifikation)
-    // TODO Phase B: Antwortentwurf generieren
-
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       anfrage_id: data.id,
-      cleaner_stats: {
-        reduction_percent: cleaned.reduction_percent,
-        language: cleaned.detected_language,
-      },
+      original_length: bodyText.length,
+      cleaner_used: bodyTextClean !== null,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
