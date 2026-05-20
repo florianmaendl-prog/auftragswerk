@@ -6,6 +6,7 @@ import { klassifiziereAnfrage } from '@/lib/klassifikation';
 const CLEAN_THRESHOLD = 3000;
 
 export async function POST(req: NextRequest) {
+  console.log("DEBUG: Neuer Webhook-Code v2 läuft");
   try {
     const payload = await req.json();
 
