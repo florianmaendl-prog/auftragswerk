@@ -5,8 +5,10 @@ import { klassifiziereAnfrage } from '@/lib/klassifikation';
 
 const CLEAN_THRESHOLD = 3000;
 
+export const maxDuration = 30;
+
 export async function POST(req: NextRequest) {
-  console.log("DEBUG: Neuer Webhook-Code v2 läuft");
+  console.log("DEBUG: Neuer Webhook-Code v3 mit await");
   try {
     const payload = await req.json();
 
@@ -85,9 +87,8 @@ export async function POST(req: NextRequest) {
 
     console.log('Anfrage gespeichert:', anfrage.id);
 
-    // Klassifikation triggern (im Hintergrund, ohne auf Antwort zu warten)
-    // Postmark soll schnell 200 OK kriegen, damit kein Retry passiert
-    klassifiziereAnfrage(
+    // Klassifikation SYNCHRON – Vercel killt sonst die Function nach return
+    const result = await klassifiziereAnfrage(
       {
         id: anfrage.id,
         von_email: anfrage.von_email,
@@ -97,22 +98,20 @@ export async function POST(req: NextRequest) {
         body_text_clean: anfrage.body_text_clean,
       },
       betrieb
-    ).then((result) => {
-      if (result.success) {
-        console.log(`✓ Klassifikation fertig für ${anfrage.id}: ${result.klassifikation?.kategorie}`);
-      } else {
-        console.error(`✗ Klassifikation fehlgeschlagen für ${anfrage.id}: ${result.error}`);
-      }
-    }).catch((err) => {
-      console.error('Klassifikation Promise-Fehler:', err);
-    });
+    );
+
+    if (result.success) {
+      console.log(`✓ Klassifikation fertig für ${anfrage.id}: ${result.klassifikation?.kategorie}`);
+    } else {
+      console.error(`✗ Klassifikation fehlgeschlagen für ${anfrage.id}: ${result.error}`);
+    }
 
     return NextResponse.json({
       success: true,
       anfrage_id: anfrage.id,
       original_length: bodyText.length,
       cleaner_used: bodyTextClean !== null,
-      klassifikation: 'async im Hintergrund gestartet',
+      klassifikation: result.success ? result.klassifikation?.kategorie : 'fehlgeschlagen',
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
