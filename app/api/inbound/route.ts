@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { cleanMail } from '@/lib/mail-cleaner';
+import { klassifiziereAnfrage } from '@/lib/klassifikation';
 
-// Schwelle: ab dieser Mail-Länge nutzen wir den Cleaner für Claude-Input
 const CLEAN_THRESHOLD = 3000;
 
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
 
-    // Postmark Inbound Format parsen
     const vonEmail = payload.FromFull?.Email || payload.From || 'unbekannt@example.com';
     const vonName = payload.FromFull?.Name || '';
     const betreff = payload.Subject || '(kein Betreff)';
@@ -17,10 +16,10 @@ export async function POST(req: NextRequest) {
     const bodyHtml = payload.HtmlBody || '';
     const toEmail = payload.ToFull?.[0]?.Email || payload.To || '';
 
-    // Betrieb anhand der inbound_email finden
+    // Betrieb finden
     const { data: betrieb } = await supabaseAdmin
       .from('betriebe')
-      .select('id')
+      .select('id, name, branche, was_wir_machen, was_wir_nicht_machen, region, mindestauftragswert')
       .eq('inbound_email', toEmail)
       .single();
 
@@ -32,8 +31,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Cleaner-Logik: NUR bei riesigen Mails als Fallback für Claude-Input
-    // Original-Mail bleibt IMMER in body_text erhalten (für Max im Dashboard)
+    // Cleaner nur bei riesigen Mails
     let bodyTextClean: string | null = null;
     let cleanerMeta: Record<string, unknown> | null = null;
 
@@ -49,14 +47,10 @@ export async function POST(req: NextRequest) {
         detected_language: cleaned.detected_language,
         reason: 'mail_too_large_for_claude',
       };
-      console.log(
-        `Mail über Schwelle (${bodyText.length} Zeichen) - Cleaner aktiv: ` +
-        `${cleaned.original_length} → ${cleaned.cleaned_length} (-${cleaned.reduction_percent}%)`
-      );
     }
 
     // Anfrage in DB speichern – ORIGINAL bleibt in body_text
-    const { data, error } = await supabaseAdmin
+    const { data: anfrage, error: insertError } = await supabaseAdmin
       .from('anfragen')
       .insert({
         betrieb_id: betrieb.id,
@@ -75,26 +69,49 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
 
-    if (error) {
-      console.error('DB Fehler:', error);
+    if (insertError) {
+      console.error('DB Fehler:', insertError);
 
       await supabaseAdmin.from('processing_errors').insert({
         betrieb_id: betrieb.id,
         schritt: 'mail_parse',
-        fehler_text: error.message,
+        fehler_text: insertError.message,
         fehler_details: { payload_sample: { from: vonEmail, subject: betreff } },
       });
 
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    console.log('Anfrage gespeichert:', data.id);
+    console.log('Anfrage gespeichert:', anfrage.id);
+
+    // Klassifikation triggern (im Hintergrund, ohne auf Antwort zu warten)
+    // Postmark soll schnell 200 OK kriegen, damit kein Retry passiert
+    klassifiziereAnfrage(
+      {
+        id: anfrage.id,
+        von_email: anfrage.von_email,
+        von_name: anfrage.von_name,
+        betreff: anfrage.betreff,
+        body_text: anfrage.body_text,
+        body_text_clean: anfrage.body_text_clean,
+      },
+      betrieb
+    ).then((result) => {
+      if (result.success) {
+        console.log(`✓ Klassifikation fertig für ${anfrage.id}: ${result.klassifikation?.kategorie}`);
+      } else {
+        console.error(`✗ Klassifikation fehlgeschlagen für ${anfrage.id}: ${result.error}`);
+      }
+    }).catch((err) => {
+      console.error('Klassifikation Promise-Fehler:', err);
+    });
 
     return NextResponse.json({
       success: true,
-      anfrage_id: data.id,
+      anfrage_id: anfrage.id,
       original_length: bodyText.length,
       cleaner_used: bodyTextClean !== null,
+      klassifikation: 'async im Hintergrund gestartet',
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
