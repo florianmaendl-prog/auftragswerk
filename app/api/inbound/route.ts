@@ -9,7 +9,7 @@ const CLEAN_THRESHOLD = 3000;
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
-  console.log('DEBUG: Webhook v4 (Klassifikation + Entwurf)');
+  console.log('DEBUG: Webhook v7 (Klassifikation + Routing strict + Entwurf + Threading)');
   try {
     const payload = await req.json();
 
@@ -20,11 +20,25 @@ export async function POST(req: NextRequest) {
     const bodyHtml = payload.HtmlBody || '';
     const toEmail = payload.ToFull?.[0]?.Email || payload.To || '';
 
+    // Mail-Header für Threading extrahieren
+    const headers = Array.isArray(payload.Headers) ? payload.Headers : [];
+    const getHeader = (name: string): string | null => {
+      const h = headers.find(
+        (h: { Name?: string }) => h.Name?.toLowerCase() === name.toLowerCase()
+      );
+      return h?.Value || null;
+    };
+
+    const messageId = payload.MessageID
+      ? `<${payload.MessageID}@inbound.postmarkapp.com>`
+      : getHeader('Message-ID');
+    const inReplyTo = getHeader('In-Reply-To');
+
     // Betrieb finden
     const { data: betrieb } = await supabaseAdmin
       .from('betriebe')
       .select(
-        'id, name, inhaber, branche, was_wir_machen, was_wir_nicht_machen, region, mindestauftragswert, ton_beispiele, signatur'
+        'id, name, inhaber, branche, was_wir_machen, was_wir_nicht_machen, region, mindestauftragswert, ton_beispiele, signatur, inbound_email'
       )
       .eq('inbound_email', toEmail)
       .single();
@@ -35,6 +49,24 @@ export async function POST(req: NextRequest) {
         { error: 'Kein Betrieb für diese Adresse konfiguriert' },
         { status: 404 }
       );
+    }
+
+    // Reply-Erkennung
+    let existierendeAnfrageId: string | null = null;
+    if (inReplyTo) {
+      const { data: vorgaengerNachricht } = await supabaseAdmin
+        .from('nachrichten')
+        .select('anfrage_id')
+        .eq('message_id', inReplyTo)
+        .eq('betrieb_id', betrieb.id)
+        .maybeSingle();
+
+      if (vorgaengerNachricht) {
+        existierendeAnfrageId = vorgaengerNachricht.anfrage_id;
+        console.log(
+          `↩ Reply erkannt für Anfrage ${existierendeAnfrageId} (In-Reply-To: ${inReplyTo})`
+        );
+      }
     }
 
     // Cleaner nur bei riesigen Mails
@@ -55,99 +87,201 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    // Anfrage in DB speichern – ORIGINAL bleibt in body_text
-    const { data: anfrage, error: insertError } = await supabaseAdmin
-      .from('anfragen')
-      .insert({
-        betrieb_id: betrieb.id,
-        kanal: 'mail',
-        von_email: vonEmail,
-        von_name: vonName,
-        betreff: betreff,
-        body_text: bodyText,
-        body_text_clean: bodyTextClean,
-        body_html: bodyHtml,
-        raw_payload: cleanerMeta
-          ? { ...payload, _cleaner_meta: cleanerMeta }
-          : payload,
-        status: 'neu',
-      })
-      .select()
-      .single();
+    let anfrageId: string;
+    let istReply = false;
 
-    if (insertError) {
-      console.error('DB Fehler:', insertError);
+    if (existierendeAnfrageId) {
+      anfrageId = existierendeAnfrageId;
+      istReply = true;
 
-      await supabaseAdmin.from('processing_errors').insert({
-        betrieb_id: betrieb.id,
-        schritt: 'mail_parse',
-        fehler_text: insertError.message,
-        fehler_details: { payload_sample: { from: vonEmail, subject: betreff } },
-      });
+      await supabaseAdmin
+        .from('anfragen')
+        .update({ status: 'reply_eingegangen' })
+        .eq('id', anfrageId);
 
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
-    }
-
-    console.log('Anfrage gespeichert:', anfrage.id);
-
-    // SCHRITT 1: Klassifikation (synchron – Vercel killt sonst nach return)
-    const klassRes = await klassifiziereAnfrage(
-      {
-        id: anfrage.id,
-        von_email: anfrage.von_email,
-        von_name: anfrage.von_name,
-        betreff: anfrage.betreff,
-        body_text: anfrage.body_text,
-        body_text_clean: anfrage.body_text_clean,
-      },
-      betrieb
-    );
-
-    if (!klassRes.success) {
-      console.error(`✗ Klassifikation fehlgeschlagen für ${anfrage.id}: ${klassRes.error}`);
-      return NextResponse.json({
-        success: true,
-        anfrage_id: anfrage.id,
-        klassifikation: 'fehlgeschlagen',
-        entwurf: 'übersprungen',
-      });
-    }
-
-    console.log(`✓ Klassifikation fertig für ${anfrage.id}: ${klassRes.klassifikation?.kategorie}`);
-
-    // SCHRITT 2: Entwurf NUR bei Kundenanfragen
-    let entwurfStatus = 'nicht_relevant';
-
-    if (klassRes.klassifikation?.kategorie === 'kundenanfrage') {
-      // Klassifikation aus DB holen (mit ID für analyse_id Verknüpfung)
-      const { data: klassifikation } = await supabaseAdmin
-        .from('analysen')
-        .select('*')
-        .eq('anfrage_id', anfrage.id)
-        .order('analysiert_am', { ascending: false })
-        .limit(1)
+      console.log(`↩ Reply wird an Anfrage ${anfrageId} angehängt`);
+    } else {
+      const { data: anfrage, error: insertError } = await supabaseAdmin
+        .from('anfragen')
+        .insert({
+          betrieb_id: betrieb.id,
+          kanal: 'mail',
+          von_email: vonEmail,
+          von_name: vonName,
+          betreff: betreff,
+          body_text: bodyText,
+          body_text_clean: bodyTextClean,
+          body_html: bodyHtml,
+          raw_payload: cleanerMeta ? { ...payload, _cleaner_meta: cleanerMeta } : payload,
+          status: 'neu',
+        })
+        .select()
         .single();
 
-      if (klassifikation) {
-        const entwurfRes = await generiereEntwurf(anfrage, klassifikation, betrieb);
+      if (insertError || !anfrage) {
+        console.error('DB Fehler:', insertError);
+        await supabaseAdmin.from('processing_errors').insert({
+          betrieb_id: betrieb.id,
+          schritt: 'mail_parse',
+          fehler_text: insertError?.message || 'unbekannt',
+          fehler_details: { payload_sample: { from: vonEmail, subject: betreff } },
+        });
+        return NextResponse.json(
+          { error: insertError?.message || 'Insert fehlgeschlagen' },
+          { status: 500 }
+        );
+      }
 
-        if (entwurfRes.success) {
-          console.log(`✓ Entwurf fertig für ${anfrage.id}`);
-          entwurfStatus = 'erstellt';
-        } else {
-          console.error(`✗ Entwurf fehlgeschlagen für ${anfrage.id}: ${entwurfRes.error}`);
-          entwurfStatus = 'fehlgeschlagen';
+      anfrageId = anfrage.id;
+      console.log('Neue Anfrage gespeichert:', anfrageId);
+    }
+
+    // Nachricht in nachrichten-Tabelle speichern
+    await supabaseAdmin.from('nachrichten').insert({
+      anfrage_id: anfrageId,
+      betrieb_id: betrieb.id,
+      typ: 'eingang',
+      von_email: vonEmail,
+      von_name: vonName,
+      an_email: toEmail,
+      betreff: betreff,
+      body_text: bodyText,
+      body_html: bodyHtml,
+      message_id: messageId,
+      in_reply_to: inReplyTo,
+      status: 'gespeichert',
+      raw_payload: payload,
+    });
+
+    // SCHRITT 2: Klassifikation
+    const { data: anfrageFuerKlass } = await supabaseAdmin
+      .from('anfragen')
+      .select('id, von_email, von_name, betreff, body_text, body_text_clean')
+      .eq('id', anfrageId)
+      .single();
+
+    if (!anfrageFuerKlass) {
+      return NextResponse.json({ error: 'Anfrage nicht gefunden nach Insert' }, { status: 500 });
+    }
+
+    const klassInput = istReply
+      ? {
+          id: anfrageFuerKlass.id,
+          von_email: vonEmail,
+          von_name: vonName,
+          betreff: betreff,
+          body_text: bodyText,
+          body_text_clean: bodyTextClean,
+        }
+      : {
+          id: anfrageFuerKlass.id,
+          von_email: anfrageFuerKlass.von_email,
+          von_name: anfrageFuerKlass.von_name,
+          betreff: anfrageFuerKlass.betreff,
+          body_text: anfrageFuerKlass.body_text,
+          body_text_clean: anfrageFuerKlass.body_text_clean,
+        };
+
+    const klassRes = await klassifiziereAnfrage(klassInput, betrieb);
+
+    if (!klassRes.success) {
+      console.error(`✗ Klassifikation fehlgeschlagen: ${klassRes.error}`);
+      return NextResponse.json({
+        success: true,
+        anfrage_id: anfrageId,
+        ist_reply: istReply,
+        klassifikation: 'fehlgeschlagen',
+      });
+    }
+
+    console.log(
+      `✓ Klassifikation: ${klassRes.klassifikation?.kategorie} (Reply: ${istReply})`
+    );
+
+    // SCHRITT 3: Premium-Routing nach Klassifikation
+    //   - kundenanfrage + gewerk_match='passt' + confidence>=0.6 → Entwurf bauen → entwurf_bereit
+    //   - kundenanfrage 'unklar' / 'passt_nicht' / low confidence → manuell_pruefen
+    //   - rechnung / bestellung_versand / innung_behoerde → info
+    //   - sonstiges → manuell_pruefen
+    //   - werbung → aussortiert
+    const klass = klassRes.klassifikation;
+    const INFO_KATEGORIEN = ['rechnung', 'bestellung_versand', 'innung_behoerde'];
+    const MANUELL_KATEGORIEN = ['sonstiges'];
+    const AUSSORTIERT_KATEGORIEN = ['werbung'];
+
+    let neuerStatus = 'neu';
+    let entwurfStatus:
+      | 'erstellt'
+      | 'fehlgeschlagen'
+      | 'nicht_relevant'
+      | 'manuell_pruefen'
+      | 'info'
+      | 'aussortiert' = 'nicht_relevant';
+
+    if (klass?.kategorie === 'kundenanfrage') {
+      // Premium-Logik: NUR 'passt' (nicht 'unklar', nicht 'passt_nicht') geht zu Freigabe
+      const passungOk = klass.gewerk_match === 'passt';
+      const confidenceOk = (klass.confidence ?? 0) >= 0.6;
+
+      if (!passungOk || !confidenceOk) {
+        neuerStatus = 'manuell_pruefen';
+        entwurfStatus = 'manuell_pruefen';
+        console.log(
+          `⚠ Kundenanfrage zu unsicher (passung=${klass.gewerk_match}, confidence=${klass.confidence}) → manuell_pruefen`
+        );
+      } else {
+        const { data: klassifikation } = await supabaseAdmin
+          .from('analysen')
+          .select('*')
+          .eq('anfrage_id', anfrageId)
+          .order('analysiert_am', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (klassifikation) {
+          const entwurfRes = await generiereEntwurf(anfrageFuerKlass, klassifikation, betrieb);
+
+          if (entwurfRes.success) {
+            console.log(`✓ Entwurf fertig`);
+            entwurfStatus = 'erstellt';
+            neuerStatus = 'entwurf_bereit';
+          } else {
+            console.error(`✗ Entwurf fehlgeschlagen: ${entwurfRes.error}`);
+            entwurfStatus = 'fehlgeschlagen';
+            neuerStatus = 'manuell_pruefen';
+          }
         }
       }
-    } else {
-      console.log(`Kein Entwurf nötig (Kategorie: ${klassRes.klassifikation?.kategorie})`);
+    } else if (klass && INFO_KATEGORIEN.includes(klass.kategorie)) {
+      neuerStatus = 'info';
+      entwurfStatus = 'info';
+      console.log(`📌 Kategorie ${klass.kategorie} → info`);
+    } else if (klass && MANUELL_KATEGORIEN.includes(klass.kategorie)) {
+      neuerStatus = 'manuell_pruefen';
+      entwurfStatus = 'manuell_pruefen';
+      console.log(`⚠ Kategorie ${klass.kategorie} → manuell_pruefen`);
+    } else if (klass && AUSSORTIERT_KATEGORIEN.includes(klass.kategorie)) {
+      neuerStatus = 'aussortiert';
+      entwurfStatus = 'aussortiert';
+      console.log(`🗑 Kategorie ${klass.kategorie} → aussortiert`);
+    }
+
+    // Status setzen – außer Reply (steht schon reply_eingegangen)
+    // und außer entwurf_bereit (generiereEntwurf hat das schon erledigt)
+    if (!istReply && neuerStatus !== 'neu' && neuerStatus !== 'entwurf_bereit') {
+      await supabaseAdmin
+        .from('anfragen')
+        .update({ status: neuerStatus })
+        .eq('id', anfrageId);
     }
 
     return NextResponse.json({
       success: true,
-      anfrage_id: anfrage.id,
-      kategorie: klassRes.klassifikation?.kategorie,
-      gewerk_match: klassRes.klassifikation?.gewerk_match,
+      anfrage_id: anfrageId,
+      ist_reply: istReply,
+      kategorie: klass?.kategorie,
+      gewerk_match: klass?.gewerk_match,
+      status: neuerStatus,
       entwurf: entwurfStatus,
     });
   } catch (err: unknown) {
