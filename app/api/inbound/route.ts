@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { cleanMail } from '@/lib/mail-cleaner';
 import { klassifiziereAnfrage } from '@/lib/klassifikation';
+import { generiereEntwurf } from '@/lib/entwurf';
 
 const CLEAN_THRESHOLD = 3000;
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
-  console.log("DEBUG: Neuer Webhook-Code v3 mit await");
+  console.log('DEBUG: Webhook v4 (Klassifikation + Entwurf)');
   try {
     const payload = await req.json();
 
@@ -22,7 +23,9 @@ export async function POST(req: NextRequest) {
     // Betrieb finden
     const { data: betrieb } = await supabaseAdmin
       .from('betriebe')
-      .select('id, name, branche, was_wir_machen, was_wir_nicht_machen, region, mindestauftragswert')
+      .select(
+        'id, name, inhaber, branche, was_wir_machen, was_wir_nicht_machen, region, mindestauftragswert, ton_beispiele, signatur'
+      )
       .eq('inbound_email', toEmail)
       .single();
 
@@ -87,8 +90,8 @@ export async function POST(req: NextRequest) {
 
     console.log('Anfrage gespeichert:', anfrage.id);
 
-    // Klassifikation SYNCHRON – Vercel killt sonst die Function nach return
-    const result = await klassifiziereAnfrage(
+    // SCHRITT 1: Klassifikation (synchron – Vercel killt sonst nach return)
+    const klassRes = await klassifiziereAnfrage(
       {
         id: anfrage.id,
         von_email: anfrage.von_email,
@@ -100,18 +103,52 @@ export async function POST(req: NextRequest) {
       betrieb
     );
 
-    if (result.success) {
-      console.log(`✓ Klassifikation fertig für ${anfrage.id}: ${result.klassifikation?.kategorie}`);
+    if (!klassRes.success) {
+      console.error(`✗ Klassifikation fehlgeschlagen für ${anfrage.id}: ${klassRes.error}`);
+      return NextResponse.json({
+        success: true,
+        anfrage_id: anfrage.id,
+        klassifikation: 'fehlgeschlagen',
+        entwurf: 'übersprungen',
+      });
+    }
+
+    console.log(`✓ Klassifikation fertig für ${anfrage.id}: ${klassRes.klassifikation?.kategorie}`);
+
+    // SCHRITT 2: Entwurf NUR bei Kundenanfragen
+    let entwurfStatus = 'nicht_relevant';
+
+    if (klassRes.klassifikation?.kategorie === 'kundenanfrage') {
+      // Klassifikation aus DB holen (mit ID für analyse_id Verknüpfung)
+      const { data: klassifikation } = await supabaseAdmin
+        .from('analysen')
+        .select('*')
+        .eq('anfrage_id', anfrage.id)
+        .order('analysiert_am', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (klassifikation) {
+        const entwurfRes = await generiereEntwurf(anfrage, klassifikation, betrieb);
+
+        if (entwurfRes.success) {
+          console.log(`✓ Entwurf fertig für ${anfrage.id}`);
+          entwurfStatus = 'erstellt';
+        } else {
+          console.error(`✗ Entwurf fehlgeschlagen für ${anfrage.id}: ${entwurfRes.error}`);
+          entwurfStatus = 'fehlgeschlagen';
+        }
+      }
     } else {
-      console.error(`✗ Klassifikation fehlgeschlagen für ${anfrage.id}: ${result.error}`);
+      console.log(`Kein Entwurf nötig (Kategorie: ${klassRes.klassifikation?.kategorie})`);
     }
 
     return NextResponse.json({
       success: true,
       anfrage_id: anfrage.id,
-      original_length: bodyText.length,
-      cleaner_used: bodyTextClean !== null,
-      klassifikation: result.success ? result.klassifikation?.kategorie : 'fehlgeschlagen',
+      kategorie: klassRes.klassifikation?.kategorie,
+      gewerk_match: klassRes.klassifikation?.gewerk_match,
+      entwurf: entwurfStatus,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
