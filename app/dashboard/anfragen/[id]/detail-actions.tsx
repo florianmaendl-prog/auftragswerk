@@ -38,7 +38,7 @@ const STATUS_LABELS: Record<string, { label: string; icon: string }> = {
   reply_eingegangen: { label: 'Im Gespräch', icon: '💬' },
   erledigt: { label: 'Erledigt', icon: '✅' },
   aussortiert: { label: 'Aussortiert', icon: '🗑️' },
-];
+};
 
 // Quick-Erledigt-Button: nur bei Workflow-Schritten, die natürlich "fertig" werden können
 const STATUS_MIT_ERLEDIGT_BUTTON = new Set([
