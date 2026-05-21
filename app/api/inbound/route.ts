@@ -9,7 +9,7 @@ const CLEAN_THRESHOLD = 3000;
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
-  console.log('DEBUG: Webhook v7 (Klassifikation + Routing strict + Entwurf + Threading)');
+  console.log('DEBUG: Webhook v8 (Threading via References + In-Reply-To)');
   try {
     const payload = await req.json();
 
@@ -33,6 +33,20 @@ export async function POST(req: NextRequest) {
       ? `<${payload.MessageID}@inbound.postmarkapp.com>`
       : getHeader('Message-ID');
     const inReplyTo = getHeader('In-Reply-To');
+    const referencesHeader = getHeader('References');
+
+    // Sammle ALLE möglichen Threading-IDs:
+    // - In-Reply-To: direkte Antwort-ID
+    // - References: chronologische Liste aller Vorgänger-IDs
+    // Postmark transformiert beim Versand die Message-ID auf @mtasv.net,
+    // ABER die Original-ID (z.B. @pm-bounces.auftragswerk.app) landet
+    // meist auch in References. Daher beide Header durchsuchen.
+    const threadingIds = new Set<string>();
+    if (inReplyTo) threadingIds.add(inReplyTo);
+    if (referencesHeader) {
+      const matches = referencesHeader.match(/<[^>]+>/g);
+      if (matches) matches.forEach((id) => threadingIds.add(id));
+    }
 
     // Betrieb finden
     const { data: betrieb } = await supabaseAdmin
@@ -52,19 +66,31 @@ export async function POST(req: NextRequest) {
     }
 
     // Reply-Erkennung
+    // Suche nach Vorgänger-Nachrichten anhand aller bekannten Threading-IDs.
+    // Match auf message_id ODER in_reply_to, damit auch tiefere
+    // Konversations-Threads (Reply auf Reply auf Reply) richtig zugeordnet werden.
     let existierendeAnfrageId: string | null = null;
-    if (inReplyTo) {
+    if (threadingIds.size > 0) {
+      const idsArray = Array.from(threadingIds);
+      const quotedIds = idsArray.map((id) => `"${id}"`).join(',');
+
       const { data: vorgaengerNachricht } = await supabaseAdmin
         .from('nachrichten')
-        .select('anfrage_id')
-        .eq('message_id', inReplyTo)
+        .select('anfrage_id, message_id, in_reply_to')
         .eq('betrieb_id', betrieb.id)
+        .or(`message_id.in.(${quotedIds}),in_reply_to.in.(${quotedIds})`)
+        .order('erstellt_am', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (vorgaengerNachricht) {
         existierendeAnfrageId = vorgaengerNachricht.anfrage_id;
         console.log(
-          `↩ Reply erkannt für Anfrage ${existierendeAnfrageId} (In-Reply-To: ${inReplyTo})`
+          `↩ Reply erkannt für Anfrage ${existierendeAnfrageId} (matched via ${idsArray.length} threading-IDs)`
+        );
+      } else {
+        console.log(
+          `⚠ Keine Vorgänger-Anfrage gefunden für threading-IDs: ${idsArray.join(', ')}`
         );
       }
     }
