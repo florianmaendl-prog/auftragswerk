@@ -26,11 +26,13 @@ type TabId =
   | 'eingang'
   | 'freigabe'
   | 'manuell'
-  | 'info'
-  | 'versendet'
   | 'gespraech'
+  | 'versendet'
+  | 'info'
   | 'erledigt'
   | 'aussortiert';
+
+type GroupId = 'zu_tun' | 'tracking' | 'archiv';
 
 type TabConfig = {
   id: TabId;
@@ -38,57 +40,92 @@ type TabConfig = {
   icon: string;
   statuses: string[];
   description: string;
+  group: GroupId;
 };
 
-const TABS: TabConfig[] = [
+type GroupConfig = {
+  id: GroupId;
+  label: string;
+  description: string;
+};
+
+const GROUPS: GroupConfig[] = [
   {
-    id: 'eingang',
-    label: 'Eingang',
-    icon: '📥',
-    statuses: ['neu'],
-    description: 'Neu eingegangen, Klassifikation läuft noch',
+    id: 'zu_tun',
+    label: 'Zu tun',
+    description: 'Hier brauchst du Action',
   },
+  {
+    id: 'tracking',
+    label: 'Tracking',
+    description: 'Läuft – nur beobachten',
+  },
+  {
+    id: 'archiv',
+    label: 'Archiv',
+    description: 'Abgeschlossen',
+  },
+];
+
+const TABS: TabConfig[] = [
+  // ZU TUN-Bereich
   {
     id: 'freigabe',
     label: 'Freigabe',
-    icon: '✏️',
+    icon: '🔵',
     statuses: ['entwurf_bereit'],
-    description: 'Entwurf bereit zum Senden',
+    description: 'KI-Entwurf bereit – du gibst frei oder passt an',
+    group: 'zu_tun',
   },
   {
     id: 'manuell',
     label: 'Manuell prüfen',
-    icon: '⚠️',
+    icon: '🟡',
     statuses: ['manuell_pruefen'],
-    description: 'KI unsicher – du musst entscheiden',
+    description: 'KI unsicher – du musst selbst antworten',
+    group: 'zu_tun',
+  },
+  {
+    id: 'gespraech',
+    label: 'Kunde geantwortet',
+    icon: '🟢',
+    statuses: ['reply_eingegangen'],
+    description: 'Reaktion auf deine versendete Mail – hier liegt Geld',
+    group: 'zu_tun',
+  },
+  {
+    id: 'eingang',
+    label: 'Neu',
+    icon: '📥',
+    statuses: ['neu'],
+    description: 'Frisch eingegangen, Klassifikation läuft noch',
+    group: 'zu_tun',
+  },
+  // TRACKING-Bereich
+  {
+    id: 'versendet',
+    label: 'Versendet',
+    icon: '📨',
+    statuses: ['versendet'],
+    description: 'Mail raus – warten auf Kunden-Antwort',
+    group: 'tracking',
   },
   {
     id: 'info',
     label: 'Info',
-    icon: '📌',
+    icon: 'ℹ️',
     statuses: ['info'],
-    description: 'Rechnungen, Innung, Behörden, Bestellungen',
+    description: 'Rechnungen, Bestellungen, Innung, Behörden – nur zur Kenntnis',
+    group: 'tracking',
   },
-  {
-    id: 'versendet',
-    label: 'Versendet',
-    icon: '📤',
-    statuses: ['versendet'],
-    description: 'Mail raus, warten auf Kunden-Antwort',
-  },
-  {
-    id: 'gespraech',
-    label: 'Im Gespräch',
-    icon: '💬',
-    statuses: ['reply_eingegangen'],
-    description: 'Kunde hat geantwortet',
-  },
+  // ARCHIV-Bereich
   {
     id: 'erledigt',
     label: 'Erledigt',
     icon: '✅',
     statuses: ['erledigt'],
     description: 'Abgeschlossen, archiviert',
+    group: 'archiv',
   },
   {
     id: 'aussortiert',
@@ -96,6 +133,7 @@ const TABS: TabConfig[] = [
     icon: '🗑️',
     statuses: ['aussortiert'],
     description: 'Werbung, Spam',
+    group: 'archiv',
   },
 ];
 
@@ -133,7 +171,6 @@ function gewerkBadge(gewerk: string | null) {
 
 function confidenceBadge(confidence: number | null) {
   if (confidence === null || confidence >= 0.8) return null;
-  // Warn-Badge für mittlere Confidence (60-80%)
   const pct = Math.round(confidence * 100);
   return (
     <span
@@ -194,10 +231,10 @@ export default async function InboxPage({
   const params = await searchParams;
   const activeTabId = (TABS.find((t) => t.id === params.tab)?.id ?? 'freigabe') as TabId;
   const activeTab = TABS.find((t) => t.id === activeTabId)!;
+  const activeGroupId = activeTab.group;
 
   const supabase = await createClient();
 
-  // Alle Anfragen holen – aber NICHT die im Papierkorb (geloescht_am IS NULL)
   const { data: alle, error } = await supabase
     .from('anfragen')
     .select(
@@ -218,6 +255,7 @@ export default async function InboxPage({
 
   const items = (alle as AnfrageWithJoins[]) || [];
 
+  // Counts pro Tab
   const counts: Record<TabId, number> = TABS.reduce(
     (acc, tab) => {
       acc[tab.id] = items.filter((a) => tab.statuses.includes(a.status)).length;
@@ -226,7 +264,20 @@ export default async function InboxPage({
     {} as Record<TabId, number>
   );
 
+  // Counts pro Gruppe (Summe aller Tabs in der Gruppe)
+  const groupCounts: Record<GroupId, number> = GROUPS.reduce(
+    (acc, group) => {
+      acc[group.id] = TABS.filter((t) => t.group === group.id).reduce(
+        (sum, t) => sum + counts[t.id],
+        0
+      );
+      return acc;
+    },
+    {} as Record<GroupId, number>
+  );
+
   const filtered = items.filter((a) => activeTab.statuses.includes(a.status));
+  const subTabs = TABS.filter((t) => t.group === activeGroupId);
 
   return (
     <div className="container mx-auto py-8 px-6 max-w-5xl">
@@ -237,10 +288,48 @@ export default async function InboxPage({
         </p>
       </div>
 
-      {/* Tabs */}
-      <div className="mb-6 overflow-x-auto">
+      {/* HAUPTREIHE: Gruppen (Zu tun / Tracking / Archiv) */}
+      <div className="mb-3 overflow-x-auto">
         <div className="flex gap-1 border-b border-border min-w-max">
-          {TABS.map((tab) => {
+          {GROUPS.map((group) => {
+            const isActive = group.id === activeGroupId;
+            const groupCount = groupCounts[group.id];
+            // Beim Klick auf eine Gruppe: ersten Sub-Tab dieser Gruppe öffnen
+            const firstTabOfGroup = TABS.find((t) => t.group === group.id)!;
+            return (
+              <Link
+                key={group.id}
+                href={`/dashboard?tab=${firstTabOfGroup.id}`}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors whitespace-nowrap',
+                  isActive
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                )}
+              >
+                <span>{group.label}</span>
+                {groupCount > 0 && (
+                  <span
+                    className={cn(
+                      'inline-flex items-center justify-center rounded-full text-xs font-medium px-1.5 min-w-[1.25rem] h-5',
+                      isActive
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {groupCount}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* SUB-TABS: Tabs innerhalb der aktiven Gruppe */}
+      <div className="mb-4 overflow-x-auto">
+        <div className="flex gap-1 min-w-max">
+          {subTabs.map((tab) => {
             const count = counts[tab.id];
             const isActive = tab.id === activeTabId;
             return (
@@ -248,10 +337,10 @@ export default async function InboxPage({
                 key={tab.id}
                 href={`/dashboard?tab=${tab.id}`}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
+                  'flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors whitespace-nowrap',
                   isActive
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                    ? 'bg-muted text-foreground font-medium'
+                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                 )}
               >
                 <span>{tab.icon}</span>
@@ -262,7 +351,7 @@ export default async function InboxPage({
                       'inline-flex items-center justify-center rounded-full text-xs font-medium px-1.5 min-w-[1.25rem] h-5',
                       isActive
                         ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
+                        : 'bg-muted-foreground/10 text-muted-foreground'
                     )}
                   >
                     {count}
