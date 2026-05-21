@@ -50,14 +50,9 @@ export default function DashboardShell({
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className="px-6 py-6 border-b border-sidebar-border">
-          <Link href="/dashboard" className="block">
-            <div className="font-semibold tracking-tight text-[19px] leading-none text-sidebar-foreground">
-              Auftragswerk
-            </div>
-            <div className="text-[11px] text-sidebar-foreground/60 mt-1.5 leading-none whitespace-nowrap">
-              Büroassistenz fürs Handwerk
-            </div>
+        <div className="h-16 flex items-center px-6 border-b border-sidebar-border">
+          <Link href="/dashboard" className="font-bold tracking-tight uppercase text-lg">
+            Auftragswerk
           </Link>
         </div>
 
@@ -140,14 +135,7 @@ export default function DashboardShell({
           >
             ☰
           </Button>
-          <div className="text-center">
-            <div className="font-semibold tracking-tight text-base leading-none">
-              Auftragswerk
-            </div>
-            <div className="text-[10px] text-muted-foreground leading-none mt-1 whitespace-nowrap">
-              Büroassistenz fürs Handwerk
-            </div>
-          </div>
+          <span className="font-bold tracking-tight uppercase">Auftragswerk</span>
           <div className="w-10" />
         </header>
 
