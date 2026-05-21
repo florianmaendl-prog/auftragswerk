@@ -149,11 +149,12 @@ export default async function AnfrageDetailPage({
       anfrage.entwuerfe[0]
     : null;
 
-  // Reply-Editor: IMMER zeigen, AUSSER:
-  // - Anfrage ist erledigt/aussortiert (Konversation beendet)
-  // - Im Papierkorb (zuerst wiederherstellen)
+  // Iron Rule: IMMER ein Feld rechts, außer bei beendeten Anfragen
+  //   - WENN Entwurf existiert → EntwurfEditor (mit KI-Vorschlag, editierbar)
+  //   - SONST WENN Anfrage aktiv → ReplyEditor (leer, manuell schreiben)
+  //   - SONST (erledigt/aussortiert/papierkorb) → kein Feld (Konversation beendet)
   const istBeendet = anfrage.status === 'erledigt' || anfrage.status === 'aussortiert';
-  const zeigeReplyEditor = !istBeendet && !anfrage.geloescht_am;
+  const istAktiv = !istBeendet && !anfrage.geloescht_am;
 
   return (
     <div className="container mx-auto py-6 px-6 max-w-7xl">
@@ -345,7 +346,7 @@ export default async function AnfrageDetailPage({
           )}
         </div>
 
-        {/* RECHTS: Entwurf + Reply-Editor (immer sichtbar wenn aktiv) */}
+        {/* RECHTS: EIN Feld – entweder Entwurf-Editor ODER leerer Reply-Editor */}
         <div className="space-y-4">
           {entwurf ? (
             <EntwurfEditor
@@ -360,51 +361,28 @@ export default async function AnfrageDetailPage({
               anfrageId={anfrage.id}
               empfaenger={anfrage.von_email}
             />
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Entwurf</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Für diese Anfrage wurde noch kein automatischer Entwurf generiert.
-                  {klass?.kategorie === 'kundenanfrage' &&
-                    klass?.gewerk_match === 'passt_nicht' && (
-                      <>
-                        {' '}
-                        Die Anfrage passt laut KI nicht zum Gewerk – du kannst unten manuell
-                        antworten (z.B. höfliche Absage) oder die Anfrage als{' '}
-                        <strong>erledigt</strong> markieren.
-                      </>
-                    )}
-                  {klass?.kategorie === 'kundenanfrage' &&
-                    klass?.gewerk_match === 'unklar' && (
-                      <>
-                        {' '}
-                        Die KI ist sich beim Gewerk-Match unsicher – schreib unten eine
-                        Rückfrage oder antworte direkt.
-                      </>
-                    )}
-                  {klass?.kategorie && klass?.kategorie !== 'kundenanfrage' && (
-                    <>
-                      {' '}
-                      Anfrage ist als <strong>{klass.kategorie}</strong> klassifiziert – kein
-                      automatischer Entwurf nötig. Bei Bedarf kannst du unten antworten.
-                    </>
-                  )}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Reply-Editor: IMMER sichtbar (außer erledigt/aussortiert/papierkorb) */}
-          {zeigeReplyEditor && (
+          ) : istAktiv ? (
             <ReplyEditor
               anfrageId={anfrage.id}
               empfaenger={anfrage.von_email}
               empfaengerName={anfrage.von_name}
               urspruenglicherBetreff={anfrage.betreff || ''}
             />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Antwort</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  {anfrage.geloescht_am
+                    ? 'Diese Anfrage liegt im Papierkorb. Erst wiederherstellen, dann antworten.'
+                    : anfrage.status === 'erledigt'
+                    ? 'Diese Anfrage ist als erledigt markiert. Status zurücksetzen, um zu antworten.'
+                    : 'Diese Anfrage wurde aussortiert. Status ändern, um zu antworten.'}
+                </p>
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>

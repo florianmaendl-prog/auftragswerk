@@ -9,7 +9,7 @@ const CLEAN_THRESHOLD = 3000;
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
-  console.log('DEBUG: Webhook v8 (Threading via References + In-Reply-To)');
+  console.log('DEBUG: Webhook v9 (Threading + Entwurf immer bei Kundenanfragen)');
   try {
     const payload = await req.json();
 
@@ -35,12 +35,9 @@ export async function POST(req: NextRequest) {
     const inReplyTo = getHeader('In-Reply-To');
     const referencesHeader = getHeader('References');
 
-    // Sammle ALLE möglichen Threading-IDs:
-    // - In-Reply-To: direkte Antwort-ID
-    // - References: chronologische Liste aller Vorgänger-IDs
+    // Sammle ALLE möglichen Threading-IDs (References + In-Reply-To).
     // Postmark transformiert beim Versand die Message-ID auf @mtasv.net,
-    // ABER die Original-ID (z.B. @pm-bounces.auftragswerk.app) landet
-    // meist auch in References. Daher beide Header durchsuchen.
+    // aber die Original-ID landet meist auch in References.
     const threadingIds = new Set<string>();
     if (inReplyTo) threadingIds.add(inReplyTo);
     if (referencesHeader) {
@@ -65,10 +62,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Reply-Erkennung
-    // Suche nach Vorgänger-Nachrichten anhand aller bekannten Threading-IDs.
-    // Match auf message_id ODER in_reply_to, damit auch tiefere
-    // Konversations-Threads (Reply auf Reply auf Reply) richtig zugeordnet werden.
+    // Reply-Erkennung über alle gesammelten Threading-IDs.
+    // Match auf message_id ODER in_reply_to (tiefe Konversations-Threads).
     let existierendeAnfrageId: string | null = null;
     if (threadingIds.size > 0) {
       const idsArray = Array.from(threadingIds);
@@ -224,12 +219,23 @@ export async function POST(req: NextRequest) {
       `✓ Klassifikation: ${klassRes.klassifikation?.kategorie} (Reply: ${istReply})`
     );
 
-    // SCHRITT 3: Premium-Routing nach Klassifikation
-    //   - kundenanfrage + gewerk_match='passt' + confidence>=0.6 → Entwurf bauen → entwurf_bereit
-    //   - kundenanfrage 'unklar' / 'passt_nicht' / low confidence → manuell_pruefen
-    //   - rechnung / bestellung_versand / innung_behoerde → info
-    //   - sonstiges → manuell_pruefen
-    //   - werbung → aussortiert
+    // SCHRITT 3: Premium-Routing
+    //
+    // Neue Logik (Premium-Vision: Max kriegt IMMER einen Vorschlag):
+    //
+    //   KUNDENANFRAGEN bekommen IMMER einen Entwurf:
+    //     - gewerk_match='passt' + confidence >= 0.6 → Entwurf + Tab 'Freigabe'
+    //     - gewerk_match='unklar' → Rückfrage-Entwurf + Tab 'Manuell prüfen'
+    //     - gewerk_match='passt_nicht' → Höflicher Absage-Entwurf + Tab 'Manuell prüfen'
+    //     - low confidence (<0.6) → Vorschlags-Entwurf + Tab 'Manuell prüfen'
+    //
+    //   ANDERE KATEGORIEN: kein Entwurf nötig
+    //     - rechnung/bestellung/innung → Tab 'Info'
+    //     - sonstiges → Tab 'Manuell prüfen' (Max entscheidet selbst)
+    //     - werbung → Tab 'Aussortiert'
+    //
+    //   Max kann den Entwurf jederzeit ändern oder ignorieren und manuell schreiben.
+
     const klass = klassRes.klassifikation;
     const INFO_KATEGORIEN = ['rechnung', 'bestellung_versand', 'innung_behoerde'];
     const MANUELL_KATEGORIEN = ['sonstiges'];
@@ -245,37 +251,46 @@ export async function POST(req: NextRequest) {
       | 'aussortiert' = 'nicht_relevant';
 
     if (klass?.kategorie === 'kundenanfrage') {
-      // Premium-Logik: NUR 'passt' (nicht 'unklar', nicht 'passt_nicht') geht zu Freigabe
-      const passungOk = klass.gewerk_match === 'passt';
-      const confidenceOk = (klass.confidence ?? 0) >= 0.6;
+      // IMMER Entwurf bauen für Kundenanfragen – egal ob passt, unklar, passt_nicht
+      const { data: klassifikation } = await supabaseAdmin
+        .from('analysen')
+        .select('*')
+        .eq('anfrage_id', anfrageId)
+        .order('analysiert_am', { ascending: false })
+        .limit(1)
+        .single();
 
-      if (!passungOk || !confidenceOk) {
-        neuerStatus = 'manuell_pruefen';
-        entwurfStatus = 'manuell_pruefen';
-        console.log(
-          `⚠ Kundenanfrage zu unsicher (passung=${klass.gewerk_match}, confidence=${klass.confidence}) → manuell_pruefen`
-        );
-      } else {
-        const { data: klassifikation } = await supabaseAdmin
-          .from('analysen')
-          .select('*')
-          .eq('anfrage_id', anfrageId)
-          .order('analysiert_am', { ascending: false })
-          .limit(1)
-          .single();
+      if (klassifikation) {
+        const entwurfRes = await generiereEntwurf(anfrageFuerKlass, klassifikation, betrieb);
 
-        if (klassifikation) {
-          const entwurfRes = await generiereEntwurf(anfrageFuerKlass, klassifikation, betrieb);
+        if (entwurfRes.success) {
+          console.log(
+            `✓ Entwurf fertig (gewerk_match=${klass.gewerk_match}, confidence=${klass.confidence})`
+          );
+          entwurfStatus = 'erstellt';
 
-          if (entwurfRes.success) {
-            console.log(`✓ Entwurf fertig`);
-            entwurfStatus = 'erstellt';
+          // Routing-Status: passt + confidence ok → Freigabe; sonst Manuell prüfen
+          const passungOk = klass.gewerk_match === 'passt';
+          const confidenceOk = (klass.confidence ?? 0) >= 0.6;
+
+          if (passungOk && confidenceOk) {
             neuerStatus = 'entwurf_bereit';
           } else {
-            console.error(`✗ Entwurf fehlgeschlagen: ${entwurfRes.error}`);
-            entwurfStatus = 'fehlgeschlagen';
+            // Entwurf ist da, aber Max soll nochmal drüber schauen
             neuerStatus = 'manuell_pruefen';
+            // generiereEntwurf hat status='entwurf_bereit' gesetzt – korrigieren
+            await supabaseAdmin
+              .from('anfragen')
+              .update({ status: 'manuell_pruefen' })
+              .eq('id', anfrageId);
+            console.log(
+              `⚠ Entwurf liegt vor, aber unsicher (passung=${klass.gewerk_match}, confidence=${klass.confidence}) → manuell_pruefen`
+            );
           }
+        } else {
+          console.error(`✗ Entwurf fehlgeschlagen: ${entwurfRes.error}`);
+          entwurfStatus = 'fehlgeschlagen';
+          neuerStatus = 'manuell_pruefen';
         }
       }
     } else if (klass && INFO_KATEGORIEN.includes(klass.kategorie)) {
@@ -293,7 +308,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Status setzen – außer Reply (steht schon reply_eingegangen)
-    // und außer entwurf_bereit (generiereEntwurf hat das schon erledigt)
+    // und außer entwurf_bereit (generiereEntwurf hat das schon gesetzt)
     if (!istReply && neuerStatus !== 'neu' && neuerStatus !== 'entwurf_bereit') {
       await supabaseAdmin
         .from('anfragen')
