@@ -1,35 +1,50 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase-browser';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
-  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setStatus('sending');
+    if (isLoading) return;
+
+    setIsLoading(true);
     setErrorMsg('');
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      password,
     });
 
     if (error) {
-      setStatus('error');
-      setErrorMsg(error.message);
-    } else {
-      setStatus('sent');
+      setIsLoading(false);
+      // User-freundliche Fehlermeldungen
+      if (error.message.includes('Invalid login credentials')) {
+        setErrorMsg('Email oder Passwort falsch.');
+      } else if (error.message.includes('Email not confirmed')) {
+        setErrorMsg('Bitte bestätige zuerst deine Email-Adresse.');
+      } else {
+        setErrorMsg(error.message);
+      }
+      return;
     }
+
+    // Erfolgreich eingeloggt → Dashboard
+    router.push('/dashboard');
+    router.refresh();
   }
 
   return (
@@ -37,44 +52,63 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-bold tracking-tighter uppercase mb-2">Auftragswerk</h1>
-          <p className="text-muted-foreground">Assistenz, die mitdenkt.</p>
+          <p className="text-muted-foreground">Die Büroassistenz fürs Handwerk.</p>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>Anmelden</CardTitle>
             <CardDescription>
-              Wir schicken dir einen Link per E-Mail. Kein Passwort nötig.
+              Email und Passwort eingeben um dich einzuloggen.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {status === 'sent' ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <p className="text-sm">
-                  ✓ Link an <strong>{email}</strong> geschickt.
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Schau in dein Postfach (auch Spam-Ordner) und klick auf den Link.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
+                <Label htmlFor="email">Email</Label>
                 <Input
+                  id="email"
                   type="email"
                   placeholder="deine@email.de"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  disabled={status === 'sending'}
+                  disabled={isLoading}
+                  autoComplete="email"
                 />
-                <Button type="submit" className="w-full" disabled={status === 'sending'}>
-                  {status === 'sending' ? 'Wird gesendet...' : 'Link per E-Mail schicken'}
-                </Button>
-                {status === 'error' && (
-                  <p className="text-sm text-destructive">Fehler: {errorMsg}</p>
-                )}
-              </form>
-            )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Passwort</Label>
+                  <Link
+                    href="/passwort-vergessen"
+                    className="text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+                  >
+                    Passwort vergessen?
+                  </Link>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  autoComplete="current-password"
+                  minLength={6}
+                />
+              </div>
+
+              {errorMsg && (
+                <p className="text-sm text-destructive">{errorMsg}</p>
+              )}
+
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Anmelden...' : 'Anmelden'}
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>
