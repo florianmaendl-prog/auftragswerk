@@ -10,8 +10,14 @@ export const maxDuration = 30;
  * Body: { entwurf_id: string }
  *
  * Versendet einen Entwurf via Postmark.
- * Setzt Reply-To auf die Postmark-Inbound-Adresse, damit Kunden-Antworten
- * automatisch wieder ins System fließen (Threading).
+ *
+ * From-Adresse:
+ *   - Wenn betrieb.sender_email + betrieb.sender_verified → von dieser Adresse
+ *   - Sonst → Fallback auf POSTMARK_FROM_EMAIL
+ *
+ * Reply-To:
+ *   - betrieb.inbound_email (Postmark-Inbound), damit Kunden-Antworten zurückkommen
+ *   - Fallback: POSTMARK_REPLY_TO
  */
 export async function POST(req: NextRequest) {
   try {
@@ -54,7 +60,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Anfrage + Betrieb holen
+    // 4. Anfrage holen
     const { data: anfrage } = await supabase
       .from('anfragen')
       .select('id, von_email, von_name')
@@ -65,13 +71,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Anfrage nicht gefunden' }, { status: 404 });
     }
 
+    // 5. Betrieb holen (mit Custom-Sender-Feldern)
     const { data: betrieb } = await supabaseAdmin
       .from('betriebe')
-      .select('inbound_email, name')
+      .select('inbound_email, name, sender_email, sender_name, sender_verified')
       .eq('id', entwurf.betrieb_id)
       .single();
 
-    // 5. Letzte eingehende Nachricht für Threading (In-Reply-To)
+    // 6. From-Adresse bestimmen
+    //    Priorität: betrieb.sender_email (wenn verified)
+    //    Fallback: POSTMARK_FROM_EMAIL aus Env
+    const useCustomSender = Boolean(
+      betrieb?.sender_verified && betrieb?.sender_email
+    );
+    const fromEmail = useCustomSender
+      ? betrieb!.sender_email!
+      : process.env.POSTMARK_FROM_EMAIL || 'info@auftragswerk.app';
+    const fromName = useCustomSender
+      ? betrieb!.sender_name || betrieb!.name || 'Auftragswerk'
+      : process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
+
+    // 7. Letzte eingehende Nachricht für Threading (In-Reply-To)
     const { data: letzteEingangsnachricht } = await supabase
       .from('nachrichten')
       .select('message_id')
@@ -81,7 +101,7 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    // 6. Komplette Thread-References
+    // 8. Komplette Thread-References
     const { data: alleNachrichten } = await supabase
       .from('nachrichten')
       .select('message_id')
@@ -93,20 +113,17 @@ export async function POST(req: NextRequest) {
       .map((n) => n.message_id)
       .filter((id): id is string => Boolean(id));
 
-    // 7. Reply-To bestimmen
-    //    Priorität: betrieb.inbound_email (Postmark-Inbound für DIESEN Betrieb)
-    //    Fallback: env POSTMARK_REPLY_TO
+    // 9. Reply-To bestimmen (Postmark-Inbound-Adresse für Threading-Returns)
     const replyToAddress =
-      betrieb?.inbound_email ||
-      process.env.POSTMARK_REPLY_TO ||
-      undefined;
+      betrieb?.inbound_email || process.env.POSTMARK_REPLY_TO || undefined;
+    const replyToName = betrieb?.name || fromName;
 
-    const replyToName = betrieb?.name || process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
-
-    // 8. Mail versenden via Postmark
+    // 10. Mail versenden via Postmark
     const sendResult = await sendMail({
       to: anfrage.von_email,
       toName: anfrage.von_name || undefined,
+      fromEmail: fromEmail,
+      fromName: fromName,
       subject: entwurf.betreff_vorschlag,
       bodyText: entwurf.body_text,
       replyTo: replyToAddress,
@@ -135,10 +152,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 9. Versendete Nachricht speichern (für Threading + Verlauf)
+    // 11. Versendete Nachricht speichern (für Threading + Verlauf)
     const versendetAm = new Date().toISOString();
-    const fromEmail = process.env.POSTMARK_FROM_EMAIL || 'info@auftragswerk.app';
-    const fromName = process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
 
     const { error: nachrichtError } = await supabaseAdmin.from('nachrichten').insert({
       anfrage_id: anfrage.id,
@@ -162,7 +177,7 @@ export async function POST(req: NextRequest) {
       console.error('Nachricht-Insert-Fehler (Mail wurde aber versendet):', nachrichtError);
     }
 
-    // 10. Entwurf-Status updaten
+    // 12. Entwurf-Status updaten
     await supabaseAdmin
       .from('entwuerfe')
       .update({
@@ -173,20 +188,25 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', entwurf.id);
 
-    // 11. Anfrage-Status updaten → 'versendet'
+    // 13. Anfrage-Status updaten → 'versendet'
     await supabaseAdmin
       .from('anfragen')
       .update({ status: 'versendet' })
       .eq('id', anfrage.id);
 
-    console.log(`✓ Mail versendet: ${sendResult.postmarkMessageId} an ${anfrage.von_email} (ReplyTo: ${replyToAddress})`);
+    console.log(
+      `✓ Mail versendet: ${sendResult.postmarkMessageId} an ${anfrage.von_email} ` +
+      `(From: ${fromEmail}, ReplyTo: ${replyToAddress}, CustomSender: ${useCustomSender})`
+    );
 
     return NextResponse.json({
       success: true,
       message_id: sendResult.messageId,
       postmark_message_id: sendResult.postmarkMessageId,
       empfaenger: anfrage.von_email,
+      from: fromEmail,
       reply_to: replyToAddress,
+      custom_sender: useCustomSender,
     });
   } catch (err) {
     console.error('Versand-Fehler:', err);

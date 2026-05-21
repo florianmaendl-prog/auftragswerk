@@ -12,6 +12,8 @@ export const maxDuration = 30;
  * Versendet eine MANUELL geschriebene Antwort (kein Entwurf nötig).
  * Hängt sich als neueste Nachricht in den Thread und setzt
  * Threading-Header korrekt, damit Kunden-Antworten zurückkommen.
+ *
+ * From-Adresse: Wenn betrieb.sender_verified → von betrieb.sender_email, sonst Env-Fallback.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -47,12 +49,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Anfrage nicht gefunden' }, { status: 404 });
     }
 
-    // Betrieb holen für Reply-To
+    // Betrieb holen (mit Custom-Sender-Feldern)
     const { data: betrieb } = await supabaseAdmin
       .from('betriebe')
-      .select('inbound_email, name')
+      .select('inbound_email, name, sender_email, sender_name, sender_verified')
       .eq('id', anfrage.betrieb_id)
       .single();
+
+    // From-Adresse bestimmen
+    const useCustomSender = Boolean(
+      betrieb?.sender_verified && betrieb?.sender_email
+    );
+    const fromEmail = useCustomSender
+      ? betrieb!.sender_email!
+      : process.env.POSTMARK_FROM_EMAIL || 'info@auftragswerk.app';
+    const fromName = useCustomSender
+      ? betrieb!.sender_name || betrieb!.name || 'Auftragswerk'
+      : process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
 
     // Letzte eingehende Nachricht für In-Reply-To
     const { data: letzteEingangsnachricht } = await supabase
@@ -79,13 +92,14 @@ export async function POST(req: NextRequest) {
     // Reply-To Adresse
     const replyToAddress =
       betrieb?.inbound_email || process.env.POSTMARK_REPLY_TO || undefined;
-    const replyToName =
-      betrieb?.name || process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
+    const replyToName = betrieb?.name || fromName;
 
     // Mail versenden
     const sendResult = await sendMail({
       to: anfrage.von_email,
       toName: anfrage.von_name || undefined,
+      fromEmail: fromEmail,
+      fromName: fromName,
       subject: betreff,
       bodyText: bodyText,
       replyTo: replyToAddress,
@@ -116,8 +130,6 @@ export async function POST(req: NextRequest) {
 
     // Nachricht in Thread speichern
     const versendetAm = new Date().toISOString();
-    const fromEmail = process.env.POSTMARK_FROM_EMAIL || 'info@auftragswerk.app';
-    const fromName = process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
 
     await supabaseAdmin.from('nachrichten').insert({
       anfrage_id: anfrage.id,
@@ -143,7 +155,8 @@ export async function POST(req: NextRequest) {
       .eq('id', anfrage.id);
 
     console.log(
-      `✓ Manuelle Antwort versendet: ${sendResult.postmarkMessageId} an ${anfrage.von_email}`
+      `✓ Manuelle Antwort versendet: ${sendResult.postmarkMessageId} an ${anfrage.von_email} ` +
+      `(From: ${fromEmail}, CustomSender: ${useCustomSender})`
     );
 
     return NextResponse.json({
@@ -151,6 +164,8 @@ export async function POST(req: NextRequest) {
       message_id: sendResult.messageId,
       postmark_message_id: sendResult.postmarkMessageId,
       empfaenger: anfrage.von_email,
+      from: fromEmail,
+      custom_sender: useCustomSender,
     });
   } catch (err) {
     console.error('Manueller Versand-Fehler:', err);

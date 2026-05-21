@@ -3,6 +3,10 @@
  *
  * Versendet Mails über Postmark API.
  * Liefert Message-ID + Postmark-ID zurück für Threading + Tracking.
+ *
+ * From-Adresse:
+ *   Wenn fromEmail/fromName in Options übergeben → die nutzen (Custom Sender pro Betrieb)
+ *   Sonst → Fallback auf POSTMARK_FROM_EMAIL / POSTMARK_FROM_NAME aus Env-Vars
  */
 
 const POSTMARK_API_URL = 'https://api.postmarkapp.com/email';
@@ -10,8 +14,13 @@ const POSTMARK_API_URL = 'https://api.postmarkapp.com/email';
 export type SendMailOptions = {
   to: string;
   toName?: string;
+  // Custom From (für Custom Sender pro Betrieb)
+  fromEmail?: string;
+  fromName?: string;
+  // Reply-To (Postmark-Inbound-Adresse für Threading-Returns)
   replyTo?: string;
   replyToName?: string;
+  // Mail-Content
   subject: string;
   bodyText: string;
   bodyHtml?: string;
@@ -34,8 +43,9 @@ export type SendMailResult = {
 
 export async function sendMail(opts: SendMailOptions): Promise<SendMailResult> {
   const token = process.env.POSTMARK_SERVER_TOKEN;
-  const fromEmail = process.env.POSTMARK_FROM_EMAIL;
-  const fromName = process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
+  // Custom From wenn übergeben, sonst Env-Fallback
+  const fromEmail = opts.fromEmail || process.env.POSTMARK_FROM_EMAIL;
+  const fromName = opts.fromName || process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
 
   if (!token || !fromEmail) {
     return {
