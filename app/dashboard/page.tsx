@@ -23,7 +23,6 @@ type AnfrageWithJoins = {
 };
 
 type TabId =
-  | 'eingang'
   | 'freigabe'
   | 'manuell'
   | 'gespraech'
@@ -32,7 +31,7 @@ type TabId =
   | 'erledigt'
   | 'aussortiert';
 
-type GroupId = 'zu_tun' | 'tracking' | 'archiv';
+type GroupId = 'zu_tun' | 'verfolgen' | 'archiv';
 
 type TabConfig = {
   id: TabId;
@@ -56,9 +55,9 @@ const GROUPS: GroupConfig[] = [
     description: 'Hier brauchst du Action',
   },
   {
-    id: 'tracking',
-    label: 'Tracking',
-    description: 'Läuft – nur beobachten',
+    id: 'verfolgen',
+    label: 'Verfolgen',
+    description: 'Läuft – im Auge behalten',
   },
   {
     id: 'archiv',
@@ -81,8 +80,8 @@ const TABS: TabConfig[] = [
     id: 'manuell',
     label: 'Manuell prüfen',
     icon: '🟡',
-    statuses: ['manuell_pruefen'],
-    description: 'KI unsicher – du musst selbst antworten',
+    statuses: ['manuell_pruefen', 'neu'],
+    description: 'KI unsicher oder Klassifikation fehlgeschlagen – du musst selbst entscheiden',
     group: 'zu_tun',
   },
   {
@@ -93,22 +92,14 @@ const TABS: TabConfig[] = [
     description: 'Reaktion auf deine versendete Mail – hier liegt Geld',
     group: 'zu_tun',
   },
-  {
-    id: 'eingang',
-    label: 'Neu',
-    icon: '📥',
-    statuses: ['neu'],
-    description: 'Frisch eingegangen, Klassifikation läuft noch',
-    group: 'zu_tun',
-  },
-  // TRACKING-Bereich
+  // VERFOLGEN-Bereich
   {
     id: 'versendet',
     label: 'Versendet',
     icon: '📨',
     statuses: ['versendet'],
     description: 'Mail raus – warten auf Kunden-Antwort',
-    group: 'tracking',
+    group: 'verfolgen',
   },
   {
     id: 'info',
@@ -116,7 +107,7 @@ const TABS: TabConfig[] = [
     icon: 'ℹ️',
     statuses: ['info'],
     description: 'Rechnungen, Bestellungen, Innung, Behörden – nur zur Kenntnis',
-    group: 'tracking',
+    group: 'verfolgen',
   },
   // ARCHIV-Bereich
   {
@@ -264,7 +255,7 @@ export default async function InboxPage({
     {} as Record<TabId, number>
   );
 
-  // Counts pro Gruppe (Summe aller Tabs in der Gruppe)
+  // Counts pro Gruppe
   const groupCounts: Record<GroupId, number> = GROUPS.reduce(
     (acc, group) => {
       acc[group.id] = TABS.filter((t) => t.group === group.id).reduce(
@@ -288,13 +279,12 @@ export default async function InboxPage({
         </p>
       </div>
 
-      {/* HAUPTREIHE: Gruppen (Zu tun / Tracking / Archiv) */}
+      {/* HAUPTREIHE: Gruppen */}
       <div className="mb-3 overflow-x-auto">
         <div className="flex gap-1 border-b border-border min-w-max">
           {GROUPS.map((group) => {
             const isActive = group.id === activeGroupId;
             const groupCount = groupCounts[group.id];
-            // Beim Klick auf eine Gruppe: ersten Sub-Tab dieser Gruppe öffnen
             const firstTabOfGroup = TABS.find((t) => t.group === group.id)!;
             return (
               <Link
@@ -326,7 +316,7 @@ export default async function InboxPage({
         </div>
       </div>
 
-      {/* SUB-TABS: Tabs innerhalb der aktiven Gruppe */}
+      {/* SUB-TABS */}
       <div className="mb-4 overflow-x-auto">
         <div className="flex gap-1 min-w-max">
           {subTabs.map((tab) => {
