@@ -39,6 +39,7 @@ export default function EntwurfEditor({
   const istVersendet = entwurf.status === 'versendet' || sentAt !== null;
   const hatAenderungen =
     betreff !== entwurf.betreff_vorschlag || body !== entwurf.body_text;
+  const istBusy = saving || sending;
 
   async function handleSave() {
     setSaving(true);
@@ -66,6 +67,8 @@ export default function EntwurfEditor({
   }
 
   async function handleSend() {
+    if (istBusy || istVersendet) return; // Doppelklick-Schutz
+
     if (hatAenderungen) {
       await handleSave();
     }
@@ -124,7 +127,7 @@ export default function EntwurfEditor({
           <Input
             value={betreff}
             onChange={(e) => setBetreff(e.target.value)}
-            disabled={saving || sending || istVersendet}
+            disabled={istBusy || istVersendet}
           />
         </div>
 
@@ -134,7 +137,7 @@ export default function EntwurfEditor({
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={18}
-            disabled={saving || sending || istVersendet}
+            disabled={istBusy || istVersendet}
             className="font-sans text-sm leading-relaxed"
           />
         </div>
@@ -174,11 +177,11 @@ export default function EntwurfEditor({
               <Button
                 variant="outline"
                 onClick={handleSave}
-                disabled={saving || sending || !hatAenderungen}
+                disabled={istBusy || !hatAenderungen}
               >
                 {saving ? 'Wird gespeichert...' : 'Speichern'}
               </Button>
-              <Button onClick={handleSend} disabled={saving || sending}>
+              <Button onClick={handleSend} disabled={istBusy}>
                 {sending ? 'Wird gesendet...' : 'Senden'}
               </Button>
             </div>

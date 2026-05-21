@@ -2,9 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase-server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import EntwurfEditor from './entwurf-editor';
 import { DetailActions } from './detail-actions';
+import { ReplyEditor } from './reply-editor';
 import { cn } from '@/lib/utils';
 
 function timeAgo(date: string): string {
@@ -148,6 +148,12 @@ export default async function AnfrageDetailPage({
       anfrage.entwuerfe.find((e) => e.status === 'versendet') ||
       anfrage.entwuerfe[0]
     : null;
+
+  // Reply-Editor zeigen, wenn schon eine ausgehende Mail im Thread ist
+  // (= Konversation läuft, Antwort vom Kunden kam ggf. zurück)
+  const hatAusgangsNachricht = nachrichten.some((n) => n.typ === 'ausgang');
+  const istErledigt = anfrage.status === 'erledigt' || anfrage.status === 'aussortiert';
+  const zeigeReplyEditor = hatAusgangsNachricht && !istErledigt && !anfrage.geloescht_am;
 
   return (
     <div className="container mx-auto py-6 px-6 max-w-7xl">
@@ -339,8 +345,8 @@ export default async function AnfrageDetailPage({
           )}
         </div>
 
-        {/* RECHTS: Entwurf */}
-        <div>
+        {/* RECHTS: Entwurf + Reply-Editor */}
+        <div className="space-y-4">
           {entwurf ? (
             <EntwurfEditor
               entwurf={{
@@ -372,6 +378,16 @@ export default async function AnfrageDetailPage({
                 </p>
               </CardContent>
             </Card>
+          )}
+
+          {/* Reply-Editor: nur wenn Konversation läuft */}
+          {zeigeReplyEditor && (
+            <ReplyEditor
+              anfrageId={anfrage.id}
+              empfaenger={anfrage.von_email}
+              empfaengerName={anfrage.von_name}
+              urspruenglicherBetreff={anfrage.betreff || ''}
+            />
           )}
         </div>
       </div>

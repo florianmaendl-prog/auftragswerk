@@ -40,6 +40,15 @@ const STATUS_LABELS: Record<string, { label: string; icon: string }> = {
   aussortiert: { label: 'Aussortiert', icon: '🗑️' },
 };
 
+// Quick-Erledigt-Button zeigen wir nur, wenn er Sinn macht:
+// Versendet, Im Gespräch, Manuell prüfen → da landet was "fertig"
+const STATUS_MIT_ERLEDIGT_BUTTON = new Set([
+  'versendet',
+  'reply_eingegangen',
+  'manuell_pruefen',
+  'info',
+]);
+
 export function DetailActions({
   anfrageId,
   currentStatus,
@@ -55,7 +64,10 @@ export function DetailActions({
     icon: '•',
   };
 
+  const zeigeErledigtButton = STATUS_MIT_ERLEDIGT_BUTTON.has(currentStatus);
+
   async function aendereStatus(newStatus: string) {
+    if (isLoading) return; // Doppelklick-Schutz
     setIsLoading(true);
     try {
       const res = await fetch(`/api/anfragen/${anfrageId}`, {
@@ -77,6 +89,7 @@ export function DetailActions({
   }
 
   async function softDelete() {
+    if (isLoading) return;
     if (
       !confirm(
         'Diese Anfrage in den Papierkorb verschieben? Sie kann später wiederhergestellt werden.'
@@ -96,7 +109,6 @@ export function DetailActions({
         alert(`Fehler: ${data.error || 'Unbekannt'}`);
         return;
       }
-      // Zurück zur Inbox nach Löschen
       router.push('/dashboard');
       router.refresh();
     } catch (err) {
@@ -108,6 +120,20 @@ export function DetailActions({
 
   return (
     <div className="flex items-center gap-2">
+      {/* Quick-Erledigt-Button (nur bei sinnvollen Status) */}
+      {zeigeErledigtButton && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => aendereStatus('erledigt')}
+          disabled={isLoading}
+          className="gap-1.5 border-green-200 text-green-800 hover:bg-green-50 hover:text-green-900"
+        >
+          <span>✅</span>
+          <span>Erledigt</span>
+        </Button>
+      )}
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
