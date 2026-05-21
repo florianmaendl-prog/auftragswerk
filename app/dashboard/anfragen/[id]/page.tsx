@@ -152,9 +152,13 @@ export default async function AnfrageDetailPage({
   // Iron Rule: IMMER ein Feld rechts, außer bei beendeten Anfragen
   //   - WENN Entwurf existiert → EntwurfEditor (mit KI-Vorschlag, editierbar)
   //   - SONST WENN Anfrage aktiv → ReplyEditor (leer, manuell schreiben)
-  //   - SONST (erledigt/aussortiert/papierkorb) → kein Feld (Konversation beendet)
+  //   - SONST (erledigt/aussortiert/papierkorb) → kein Feld
   const istBeendet = anfrage.status === 'erledigt' || anfrage.status === 'aussortiert';
   const istAktiv = !istBeendet && !anfrage.geloescht_am;
+
+  // Folge-Nachricht: schon mind. eine ausgehende Mail im Thread
+  // → ReplyEditor zeigt "Weitere Nachricht senden" statt "Antwort schreiben"
+  const hatBereitsVersendet = nachrichten.some((n) => n.typ === 'ausgang');
 
   return (
     <div className="container mx-auto py-6 px-6 max-w-7xl">
@@ -346,7 +350,7 @@ export default async function AnfrageDetailPage({
           )}
         </div>
 
-        {/* RECHTS: EIN Feld – entweder Entwurf-Editor ODER leerer Reply-Editor */}
+        {/* RECHTS: EIN Feld – Entwurf-Editor ODER ReplyEditor */}
         <div className="space-y-4">
           {entwurf ? (
             <EntwurfEditor
@@ -367,6 +371,7 @@ export default async function AnfrageDetailPage({
               empfaenger={anfrage.von_email}
               empfaengerName={anfrage.von_name}
               urspruenglicherBetreff={anfrage.betreff || ''}
+              istFolgeNachricht={hatBereitsVersendet}
             />
           ) : (
             <Card>

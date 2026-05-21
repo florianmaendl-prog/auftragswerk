@@ -12,11 +12,13 @@ export function ReplyEditor({
   empfaenger,
   empfaengerName,
   urspruenglicherBetreff,
+  istFolgeNachricht = false,
 }: {
   anfrageId: string;
   empfaenger: string;
   empfaengerName: string | null;
   urspruenglicherBetreff: string;
+  istFolgeNachricht?: boolean;
 }) {
   const router = useRouter();
 
@@ -33,12 +35,21 @@ export function ReplyEditor({
 
   const kannSenden = body.trim().length > 0 && betreff.trim().length > 0 && !sending;
 
+  // Wording je nach Kontext: bei bestehender Konversation "Weitere Nachricht",
+  // sonst Erstantwort
+  const cardTitel = istFolgeNachricht
+    ? '💬 Weitere Nachricht senden'
+    : '📨 Antwort schreiben';
+  const placeholderText = istFolgeNachricht
+    ? 'Schreib hier deine nächste Nachricht im laufenden Gespräch ...'
+    : 'Schreib deine Antwort hier ...';
+
   async function handleSend() {
     if (sending) return; // Doppelklick-Schutz
     if (!kannSenden) return;
 
     const confirmed = confirm(
-      `Antwort senden an ${empfaenger}?\n\nBetreff: ${betreff}`
+      `${istFolgeNachricht ? 'Nachricht' : 'Antwort'} senden an ${empfaenger}?\n\nBetreff: ${betreff}`
     );
     if (!confirmed) return;
 
@@ -75,7 +86,7 @@ export function ReplyEditor({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">📨 Antwort schreiben</CardTitle>
+        <CardTitle className="text-base">{cardTitel}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div>
@@ -103,7 +114,7 @@ export function ReplyEditor({
             onChange={(e) => setBody(e.target.value)}
             rows={10}
             disabled={sending}
-            placeholder="Schreib deine Antwort hier ..."
+            placeholder={placeholderText}
             className="font-sans text-sm leading-relaxed"
           />
         </div>
@@ -116,7 +127,8 @@ export function ReplyEditor({
 
         {sentAt && (
           <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-            ✓ Antwort versendet um {sentAt.toLocaleTimeString('de-DE')}
+            ✓ {istFolgeNachricht ? 'Nachricht' : 'Antwort'} versendet um{' '}
+            {sentAt.toLocaleTimeString('de-DE')}
           </div>
         )}
 
