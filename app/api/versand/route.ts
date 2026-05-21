@@ -10,7 +10,8 @@ export const maxDuration = 30;
  * Body: { entwurf_id: string }
  *
  * Versendet einen Entwurf via Postmark.
- * Speichert die versendete Nachricht in nachrichten-Tabelle für Threading.
+ * Setzt Reply-To auf die Postmark-Inbound-Adresse, damit Kunden-Antworten
+ * automatisch wieder ins System fließen (Threading).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Anfrage holen für Empfänger
+    // 4. Anfrage + Betrieb holen
     const { data: anfrage } = await supabase
       .from('anfragen')
       .select('id, von_email, von_name')
@@ -64,7 +65,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Anfrage nicht gefunden' }, { status: 404 });
     }
 
-    // 5. Letzte eingehende Nachricht holen für Threading (In-Reply-To)
+    const { data: betrieb } = await supabaseAdmin
+      .from('betriebe')
+      .select('inbound_email, name')
+      .eq('id', entwurf.betrieb_id)
+      .single();
+
+    // 5. Letzte eingehende Nachricht für Threading (In-Reply-To)
     const { data: letzteEingangsnachricht } = await supabase
       .from('nachrichten')
       .select('message_id')
@@ -74,7 +81,7 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    // 6. Komplette Thread-References holen
+    // 6. Komplette Thread-References
     const { data: alleNachrichten } = await supabase
       .from('nachrichten')
       .select('message_id')
@@ -86,12 +93,24 @@ export async function POST(req: NextRequest) {
       .map((n) => n.message_id)
       .filter((id): id is string => Boolean(id));
 
-    // 7. Mail versenden via Postmark
+    // 7. Reply-To bestimmen
+    //    Priorität: betrieb.inbound_email (Postmark-Inbound für DIESEN Betrieb)
+    //    Fallback: env POSTMARK_REPLY_TO
+    const replyToAddress =
+      betrieb?.inbound_email ||
+      process.env.POSTMARK_REPLY_TO ||
+      undefined;
+
+    const replyToName = betrieb?.name || process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
+
+    // 8. Mail versenden via Postmark
     const sendResult = await sendMail({
       to: anfrage.von_email,
       toName: anfrage.von_name || undefined,
       subject: entwurf.betreff_vorschlag,
       bodyText: entwurf.body_text,
+      replyTo: replyToAddress,
+      replyToName: replyToName,
       inReplyTo: letzteEingangsnachricht?.message_id || undefined,
       references: references.length > 0 ? references : undefined,
       tag: 'antwortentwurf',
@@ -116,8 +135,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 8. Versendete Nachricht in nachrichten-Tabelle speichern
-    //    Service-Role um sicher zu inserten unabhängig von RLS
+    // 9. Versendete Nachricht speichern (für Threading + Verlauf)
     const versendetAm = new Date().toISOString();
     const fromEmail = process.env.POSTMARK_FROM_EMAIL || 'info@auftragswerk.app';
     const fromName = process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
@@ -144,7 +162,7 @@ export async function POST(req: NextRequest) {
       console.error('Nachricht-Insert-Fehler (Mail wurde aber versendet):', nachrichtError);
     }
 
-    // 9. Entwurf-Status updaten
+    // 10. Entwurf-Status updaten
     await supabaseAdmin
       .from('entwuerfe')
       .update({
@@ -155,19 +173,20 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', entwurf.id);
 
-    // 10. Anfrage-Status updaten → 'versendet' damit sie im Versendet-Tab erscheint
+    // 11. Anfrage-Status updaten → 'versendet'
     await supabaseAdmin
       .from('anfragen')
       .update({ status: 'versendet' })
       .eq('id', anfrage.id);
 
-    console.log(`✓ Mail versendet: ${sendResult.postmarkMessageId} an ${anfrage.von_email}`);
+    console.log(`✓ Mail versendet: ${sendResult.postmarkMessageId} an ${anfrage.von_email} (ReplyTo: ${replyToAddress})`);
 
     return NextResponse.json({
       success: true,
       message_id: sendResult.messageId,
       postmark_message_id: sendResult.postmarkMessageId,
       empfaenger: anfrage.von_email,
+      reply_to: replyToAddress,
     });
   } catch (err) {
     console.error('Versand-Fehler:', err);
