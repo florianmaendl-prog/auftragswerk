@@ -48,11 +48,6 @@ export function ReplyEditor({
     if (sending) return; // Doppelklick-Schutz
     if (!kannSenden) return;
 
-    const confirmed = confirm(
-      `${istFolgeNachricht ? 'Nachricht' : 'Antwort'} senden an ${empfaenger}?\n\nBetreff: ${betreff}`
-    );
-    if (!confirmed) return;
-
     setSending(true);
     setError(null);
 

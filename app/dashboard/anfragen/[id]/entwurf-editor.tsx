@@ -73,11 +73,6 @@ export default function EntwurfEditor({
       await handleSave();
     }
 
-    const confirmed = confirm(
-      `Mail wirklich senden an ${empfaenger}?\n\nBetreff: ${betreff}\n\nDie Mail kann danach nicht zurückgeholt werden.`
-    );
-    if (!confirmed) return;
-
     setSending(true);
     setError(null);
 
