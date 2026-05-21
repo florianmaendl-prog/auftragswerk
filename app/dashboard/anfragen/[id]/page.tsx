@@ -149,11 +149,11 @@ export default async function AnfrageDetailPage({
       anfrage.entwuerfe[0]
     : null;
 
-  // Reply-Editor zeigen, wenn schon eine ausgehende Mail im Thread ist
-  // (= Konversation läuft, Antwort vom Kunden kam ggf. zurück)
-  const hatAusgangsNachricht = nachrichten.some((n) => n.typ === 'ausgang');
-  const istErledigt = anfrage.status === 'erledigt' || anfrage.status === 'aussortiert';
-  const zeigeReplyEditor = hatAusgangsNachricht && !istErledigt && !anfrage.geloescht_am;
+  // Reply-Editor: IMMER zeigen, AUSSER:
+  // - Anfrage ist erledigt/aussortiert (Konversation beendet)
+  // - Im Papierkorb (zuerst wiederherstellen)
+  const istBeendet = anfrage.status === 'erledigt' || anfrage.status === 'aussortiert';
+  const zeigeReplyEditor = !istBeendet && !anfrage.geloescht_am;
 
   return (
     <div className="container mx-auto py-6 px-6 max-w-7xl">
@@ -345,7 +345,7 @@ export default async function AnfrageDetailPage({
           )}
         </div>
 
-        {/* RECHTS: Entwurf + Reply-Editor */}
+        {/* RECHTS: Entwurf + Reply-Editor (immer sichtbar wenn aktiv) */}
         <div className="space-y-4">
           {entwurf ? (
             <EntwurfEditor
@@ -367,12 +367,29 @@ export default async function AnfrageDetailPage({
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Für diese Anfrage wurde noch kein Entwurf generiert.
-                  {klass?.kategorie !== 'kundenanfrage' && (
+                  Für diese Anfrage wurde noch kein automatischer Entwurf generiert.
+                  {klass?.kategorie === 'kundenanfrage' &&
+                    klass?.gewerk_match === 'passt_nicht' && (
+                      <>
+                        {' '}
+                        Die Anfrage passt laut KI nicht zum Gewerk – du kannst unten manuell
+                        antworten (z.B. höfliche Absage) oder die Anfrage als{' '}
+                        <strong>erledigt</strong> markieren.
+                      </>
+                    )}
+                  {klass?.kategorie === 'kundenanfrage' &&
+                    klass?.gewerk_match === 'unklar' && (
+                      <>
+                        {' '}
+                        Die KI ist sich beim Gewerk-Match unsicher – schreib unten eine
+                        Rückfrage oder antworte direkt.
+                      </>
+                    )}
+                  {klass?.kategorie && klass?.kategorie !== 'kundenanfrage' && (
                     <>
                       {' '}
-                      Anfrage ist als <strong>{klass?.kategorie}</strong> klassifiziert –
-                      kein automatischer Entwurf nötig.
+                      Anfrage ist als <strong>{klass.kategorie}</strong> klassifiziert – kein
+                      automatischer Entwurf nötig. Bei Bedarf kannst du unten antworten.
                     </>
                   )}
                 </p>
@@ -380,7 +397,7 @@ export default async function AnfrageDetailPage({
             </Card>
           )}
 
-          {/* Reply-Editor: nur wenn Konversation läuft */}
+          {/* Reply-Editor: IMMER sichtbar (außer erledigt/aussortiert/papierkorb) */}
           {zeigeReplyEditor && (
             <ReplyEditor
               anfrageId={anfrage.id}

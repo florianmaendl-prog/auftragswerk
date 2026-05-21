@@ -38,10 +38,9 @@ const STATUS_LABELS: Record<string, { label: string; icon: string }> = {
   reply_eingegangen: { label: 'Im Gespräch', icon: '💬' },
   erledigt: { label: 'Erledigt', icon: '✅' },
   aussortiert: { label: 'Aussortiert', icon: '🗑️' },
-};
+];
 
-// Quick-Erledigt-Button zeigen wir nur, wenn er Sinn macht:
-// Versendet, Im Gespräch, Manuell prüfen → da landet was "fertig"
+// Quick-Erledigt-Button: nur bei Workflow-Schritten, die natürlich "fertig" werden können
 const STATUS_MIT_ERLEDIGT_BUTTON = new Set([
   'versendet',
   'reply_eingegangen',
@@ -67,7 +66,7 @@ export function DetailActions({
   const zeigeErledigtButton = STATUS_MIT_ERLEDIGT_BUTTON.has(currentStatus);
 
   async function aendereStatus(newStatus: string) {
-    if (isLoading) return; // Doppelklick-Schutz
+    if (isLoading) return;
     setIsLoading(true);
     try {
       const res = await fetch(`/api/anfragen/${anfrageId}`, {
@@ -120,17 +119,29 @@ export function DetailActions({
 
   return (
     <div className="flex items-center gap-2">
-      {/* Quick-Erledigt-Button (nur bei sinnvollen Status) */}
+      {/* Quick-Erledigt-Button: klare Aktion, kein State-Look */}
       {zeigeErledigtButton && (
         <Button
-          variant="outline"
+          variant="default"
           size="sm"
           onClick={() => aendereStatus('erledigt')}
           disabled={isLoading}
-          className="gap-1.5 border-green-200 text-green-800 hover:bg-green-50 hover:text-green-900"
+          className="gap-1.5 bg-green-600 text-white hover:bg-green-700"
+          title="Diese Anfrage als erledigt markieren – wandert in den Erledigt-Tab"
         >
-          <span>✅</span>
-          <span>Erledigt</span>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span>Als erledigt markieren</span>
         </Button>
       )}
 
