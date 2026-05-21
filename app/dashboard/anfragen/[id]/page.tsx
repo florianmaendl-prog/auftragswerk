@@ -149,16 +149,16 @@ export default async function AnfrageDetailPage({
       anfrage.entwuerfe[0]
     : null;
 
-  // Iron Rule: IMMER ein Feld rechts, außer bei beendeten Anfragen
-  //   - WENN Entwurf existiert → EntwurfEditor (mit KI-Vorschlag, editierbar)
-  //   - SONST WENN Anfrage aktiv → ReplyEditor (leer, manuell schreiben)
-  //   - SONST (erledigt/aussortiert/papierkorb) → kein Feld
+  // Iron Rule:
+  //   - WENN noch kein Entwurf versendet wurde:
+  //       → Nur EIN Feld rechts (Entwurf-Editor wenn da, sonst leerer ReplyEditor)
+  //   - WENN Entwurf bereits versendet:
+  //       → Entwurf bleibt oben (read-only, dokumentiert was rausging)
+  //       → Darunter ReplyEditor mit "Weitere Nachricht senden"
+  //   - WENN beendet (erledigt/aussortiert/papierkorb): kein Feld
   const istBeendet = anfrage.status === 'erledigt' || anfrage.status === 'aussortiert';
   const istAktiv = !istBeendet && !anfrage.geloescht_am;
-
-  // Folge-Nachricht: schon mind. eine ausgehende Mail im Thread
-  // → ReplyEditor zeigt "Weitere Nachricht senden" statt "Antwort schreiben"
-  const hatBereitsVersendet = nachrichten.some((n) => n.typ === 'ausgang');
+  const entwurfIstVersendet = entwurf?.status === 'versendet';
 
   return (
     <div className="container mx-auto py-6 px-6 max-w-7xl">
@@ -350,9 +350,9 @@ export default async function AnfrageDetailPage({
           )}
         </div>
 
-        {/* RECHTS: EIN Feld – Entwurf-Editor ODER ReplyEditor */}
+        {/* RECHTS: Entwurf-Editor (immer oben wenn da) + ReplyEditor (wenn aktiv + bereits versendet) */}
         <div className="space-y-4">
-          {entwurf ? (
+          {entwurf && (
             <EntwurfEditor
               entwurf={{
                 id: entwurf.id,
@@ -365,15 +365,19 @@ export default async function AnfrageDetailPage({
               anfrageId={anfrage.id}
               empfaenger={anfrage.von_email}
             />
-          ) : istAktiv ? (
+          )}
+
+          {istAktiv && (!entwurf || entwurfIstVersendet) && (
             <ReplyEditor
               anfrageId={anfrage.id}
               empfaenger={anfrage.von_email}
               empfaengerName={anfrage.von_name}
               urspruenglicherBetreff={anfrage.betreff || ''}
-              istFolgeNachricht={hatBereitsVersendet}
+              istFolgeNachricht={entwurfIstVersendet}
             />
-          ) : (
+          )}
+
+          {!istAktiv && !entwurf && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Antwort</CardTitle>
