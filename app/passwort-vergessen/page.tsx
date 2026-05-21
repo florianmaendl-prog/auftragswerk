@@ -23,7 +23,7 @@ export default function PasswortVergessenPage() {
 
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/passwort-neu`,
+      redirectTo: 'https://auftragswerk.app/passwort-neu',
     });
 
     if (error) {
