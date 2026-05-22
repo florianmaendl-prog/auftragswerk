@@ -141,6 +141,11 @@ Nach erster Anmeldung Schritt-für-Schritt:
 - [ ] Einstellungen-Seite bauen (aktuell aus Sidebar raus weil 404)
 - [ ] Versand-Status-Update statt nach 5s sofort triggern
 - [ ] Confirm-Dialog beim Löschen (Soft-Delete) per-User abstellbar machen
+- [ ] BUG: Reply auf versendete Mail wird als 'entwurf_bereit' statt 'reply_eingegangen' gesetzt
+  → Webhook überschreibt den richtigen Status mit dem KI-Entwurf-Status
+  → Konkret: Anfrage 1b50d1af "Treppe" steht auf 'entwurf_bereit' obwohl Kunde geantwortet hat
+  → Fix in app/api/inbound/route.ts: bei reply_eingegangen DARF KI-Entwurf den Status NICHT überschreiben
+  → Aber Entwurf SOLL trotzdem gebaut werden (für Tab "Kunde geantwortet")
 
 ---
 
