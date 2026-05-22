@@ -8,7 +8,39 @@ const CLEAN_THRESHOLD = 3000;
 
 export const maxDuration = 60;
 
+/**
+ * Basic-Auth-Check für den Postmark Inbound-Webhook.
+ * Postmark trägt die Credentials in der Webhook-URL ein
+ * (https://user:pass@auftragswerk.app/api/inbound).
+ * Fail-closed: ohne konfigurierte Credentials wird JEDER Request abgelehnt.
+ */
+function istAutorisiert(req: NextRequest): boolean {
+  const user = process.env.INBOUND_WEBHOOK_USER;
+  const pass = process.env.INBOUND_WEBHOOK_PASS;
+
+  if (!user || !pass) {
+    console.error(
+      'INBOUND_WEBHOOK_USER/PASS nicht gesetzt – Webhook lehnt alle Requests ab'
+    );
+    return false;
+  }
+
+  const header = req.headers.get('authorization') ?? '';
+  if (!header.startsWith('Basic ')) return false;
+
+  const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
+  const trenn = decoded.indexOf(':');
+  if (trenn === -1) return false;
+
+  return decoded.slice(0, trenn) === user && decoded.slice(trenn + 1) === pass;
+}
+
 export async function POST(req: NextRequest) {
+  if (!istAutorisiert(req)) {
+    console.warn('⛔ Inbound-Webhook: nicht autorisierter Request abgelehnt');
+    return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 });
+  }
+
   console.log('DEBUG: Webhook v9 (Threading + Entwurf immer bei Kundenanfragen)');
   try {
     const payload = await req.json();
