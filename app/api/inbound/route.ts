@@ -316,6 +316,18 @@ export async function POST(req: NextRequest) {
         .eq('id', anfrageId);
     }
 
+    // BUGFIX: Bei Replies MUSS der Status 'reply_eingegangen' bleiben.
+    // Der Entwurf wird trotzdem gebaut (für Tab "Kunde geantwortet"), aber
+    // generiereEntwurf setzt intern status='entwurf_bereit' – diese
+    // Überschreibung wird hier wieder zurückkorrigiert.
+    if (istReply) {
+      neuerStatus = 'reply_eingegangen';
+      await supabaseAdmin
+        .from('anfragen')
+        .update({ status: 'reply_eingegangen' })
+        .eq('id', anfrageId);
+    }
+
     return NextResponse.json({
       success: true,
       anfrage_id: anfrageId,
