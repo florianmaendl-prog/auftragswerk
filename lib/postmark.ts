@@ -9,6 +9,8 @@
  *   Sonst → Fallback auf POSTMARK_FROM_EMAIL / POSTMARK_FROM_NAME aus Env-Vars
  */
 
+import { randomUUID } from 'node:crypto';
+
 const POSTMARK_API_URL = 'https://api.postmarkapp.com/email';
 
 export type SendMailOptions = {
@@ -67,8 +69,18 @@ export async function sendMail(opts: SendMailOptions): Promise<SendMailResult> {
     opts.bodyHtml ||
     `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.6; color: #111111; white-space: pre-wrap;">${escapeHtml(opts.bodyText)}</div>`;
 
+  // Eigene Message-ID erzeugen, statt sie aus Postmarks Antwort zu basteln.
+  // So matcht das, was auf der Wire steht, garantiert mit dem, was wir in
+  // nachrichten.message_id speichern – Threading bleibt auch dann robust,
+  // wenn der Kunden-Mailclient keine vollständige References-Kette mitliefert.
+  // Domain = From-Domain (DMARC-/Konvention-konform).
+  const fromDomain = (fromEmail.split('@')[1] || 'auftragswerk.app').toLowerCase();
+  const ownMessageId = `<${randomUUID()}@${fromDomain}>`;
+
   // Headers für Threading
-  const headers: Array<{ Name: string; Value: string }> = [];
+  const headers: Array<{ Name: string; Value: string }> = [
+    { Name: 'Message-ID', Value: ownMessageId },
+  ];
   if (opts.inReplyTo) {
     headers.push({ Name: 'In-Reply-To', Value: opts.inReplyTo });
   }
@@ -112,14 +124,12 @@ export async function sendMail(opts: SendMailOptions): Promise<SendMailResult> {
       };
     }
 
-    // Postmark gibt uns MessageID zurück die wir als Message-ID-Header nutzen
-    // Format: <abc123@pm-bounces.auftragswerk.app>
-    const messageId = `<${data.MessageID}@pm-bounces.auftragswerk.app>`;
-
+    // Wir geben unsere eigene Message-ID zurück (siehe oben gesetzten Header).
+    // postmarkMessageId bleibt zur Nachverfolgung über Postmarks Dashboard.
     return {
       success: true,
       postmarkMessageId: data.MessageID,
-      messageId,
+      messageId: ownMessageId,
       rawResponse: data,
     };
   } catch (err) {
