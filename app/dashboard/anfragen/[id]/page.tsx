@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase-server';
+import { supabaseAdmin } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EntwurfEditor from './entwurf-editor';
 import { DetailActions } from './detail-actions';
@@ -92,6 +93,20 @@ function bodyForDisplay(n: Nachricht): string {
   return n.body_text || '';
 }
 
+type Anhang = {
+  id: string;
+  dateiname: string;
+  content_type: string;
+  groesse_bytes: number;
+  signed_url: string;
+};
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default async function AnfrageDetailPage({
   params,
 }: {
@@ -156,6 +171,46 @@ export default async function AnfrageDetailPage({
     .order('erstellt_am', { ascending: true });
 
   const nachrichten = (nachrichtenData as Nachricht[]) || [];
+
+  // Anhänge zu den Nachrichten holen + Signed URLs erzeugen (parallel).
+  // anhaenge-Select läuft über die anon-Client (RLS-gefiltert auf betrieb_id);
+  // Signed URLs brauchen aber service-role, weil das Storage-Bucket privat ist.
+  const anhaengeByNachricht = new Map<string, Anhang[]>();
+  const nachrichtIds = nachrichten.map((n) => n.id);
+  if (nachrichtIds.length > 0) {
+    const { data: anhaengeRows } = await supabase
+      .from('anhaenge')
+      .select('id, nachricht_id, dateiname, content_type, groesse_bytes, storage_path')
+      .in('nachricht_id', nachrichtIds);
+
+    if (anhaengeRows && anhaengeRows.length > 0) {
+      const signedItems = await Promise.all(
+        anhaengeRows.map(async (a) => {
+          const { data } = await supabaseAdmin.storage
+            .from('anhaenge')
+            .createSignedUrl(a.storage_path as string, 3600);
+          if (!data?.signedUrl) return null;
+          return {
+            nachrichtId: a.nachricht_id as string,
+            item: {
+              id: a.id as string,
+              dateiname: a.dateiname as string,
+              content_type: a.content_type as string,
+              groesse_bytes: a.groesse_bytes as number,
+              signed_url: data.signedUrl,
+            } as Anhang,
+          };
+        })
+      );
+
+      for (const entry of signedItems) {
+        if (!entry) continue;
+        const arr = anhaengeByNachricht.get(entry.nachrichtId) ?? [];
+        arr.push(entry.item);
+        anhaengeByNachricht.set(entry.nachrichtId, arr);
+      }
+    }
+  }
 
   const klass = Array.isArray(anfrage.analysen) ? anfrage.analysen[0] : null;
   const entwurf = Array.isArray(anfrage.entwuerfe)
@@ -266,6 +321,53 @@ export default async function AnfrageDetailPage({
                     <pre className="whitespace-pre-wrap text-sm font-sans text-foreground/90 leading-relaxed">
                       {bodyForDisplay(n)}
                     </pre>
+                    {(() => {
+                      const anhaenge = anhaengeByNachricht.get(n.id) ?? [];
+                      if (anhaenge.length === 0) return null;
+                      const label = anhaenge.length === 1 ? 'Anhang' : 'Anhänge';
+                      return (
+                        <div className="mt-3 pt-3 border-t border-border/40">
+                          <p className="text-xs text-muted-foreground mb-2">
+                            📎 {anhaenge.length} {label}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {anhaenge.map((a) =>
+                              a.content_type.startsWith('image/') ? (
+                                <a
+                                  key={a.id}
+                                  href={a.signed_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block rounded-md border overflow-hidden hover:opacity-80 transition-opacity"
+                                  title={`${a.dateiname} (${formatBytes(a.groesse_bytes)})`}
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={a.signed_url}
+                                    alt={a.dateiname}
+                                    className="block max-h-32 max-w-48 object-cover"
+                                  />
+                                </a>
+                              ) : (
+                                <a
+                                  key={a.id}
+                                  href={a.signed_url}
+                                  download={a.dateiname}
+                                  className="inline-flex items-center gap-2 text-xs rounded-md border border-input bg-background px-2.5 py-1.5 hover:bg-accent transition-colors"
+                                  title="Herunterladen"
+                                >
+                                  <span>📄</span>
+                                  <span className="truncate max-w-[12rem]">{a.dateiname}</span>
+                                  <span className="text-muted-foreground">
+                                    ({formatBytes(a.groesse_bytes)})
+                                  </span>
+                                </a>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))
               )}

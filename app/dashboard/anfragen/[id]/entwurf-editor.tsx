@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { fileToBase64Payload, formatBytes } from '@/lib/files';
 
 type Entwurf = {
   id: string;
@@ -35,6 +36,7 @@ export default function EntwurfEditor({
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [sentAt, setSentAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
 
   const istVersendet = entwurf.status === 'versendet' || sentAt !== null;
   const hatAenderungen =
@@ -77,10 +79,14 @@ export default function EntwurfEditor({
     setError(null);
 
     try {
+      const anhaenge = files.length > 0
+        ? await Promise.all(files.map(fileToBase64Payload))
+        : undefined;
+
       const response = await fetch('/api/versand', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entwurf_id: entwurf.id }),
+        body: JSON.stringify({ entwurf_id: entwurf.id, anhaenge }),
       });
 
       const data = await response.json();
@@ -89,6 +95,7 @@ export default function EntwurfEditor({
         setError(data.error || `HTTP ${response.status}`);
       } else {
         setSentAt(new Date());
+        setFiles([]);
         router.refresh();
       }
     } catch (err) {
@@ -136,6 +143,49 @@ export default function EntwurfEditor({
             className="font-sans text-sm leading-relaxed"
           />
         </div>
+
+        {!istVersendet && (
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Anhänge</label>
+            <input
+              type="file"
+              multiple
+              onChange={(e) => {
+                const selected = Array.from(e.target.files || []);
+                if (selected.length > 0) setFiles((prev) => [...prev, ...selected]);
+                e.target.value = '';
+              }}
+              disabled={istBusy}
+              className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-accent"
+            />
+            {files.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {files.map((file, idx) => (
+                  <li
+                    key={`${file.name}-${idx}`}
+                    className="flex items-center justify-between text-xs rounded-md border border-input bg-muted/30 px-2 py-1.5"
+                  >
+                    <span className="truncate">
+                      📎 {file.name}{' '}
+                      <span className="text-muted-foreground">
+                        ({formatBytes(file.size)})
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setFiles((prev) => prev.filter((_, i) => i !== idx))}
+                      disabled={istBusy}
+                      className="ml-2 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                      aria-label="Anhang entfernen"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {entwurf.interne_notiz && (
           <div className="rounded-md border bg-muted/30 p-3 text-xs">
