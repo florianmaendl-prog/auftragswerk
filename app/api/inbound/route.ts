@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { cleanMail } from '@/lib/mail-cleaner';
 import { klassifiziereAnfrage } from '@/lib/klassifikation';
-import { generiereEntwurf } from '@/lib/entwurf';
+import { generiereEntwurf, type ThreadNachricht } from '@/lib/entwurf';
 
 const CLEAN_THRESHOLD = 3000;
 
@@ -293,7 +293,25 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (klassifikation) {
-        const entwurfRes = await generiereEntwurf(anfrageFuerKlass, klassifikation, betrieb);
+        // Bei Replies den kompletten Thread laden, damit die KI auf die LETZTE
+        // Kunden-Nachricht reagieren kann statt blind die Ursprungs-Anfrage
+        // nochmal zu beantworten.
+        let konversation: ThreadNachricht[] | undefined;
+        if (istReply) {
+          const { data: thread } = await supabaseAdmin
+            .from('nachrichten')
+            .select('typ, von_name, von_email, body_text, erstellt_am')
+            .eq('anfrage_id', anfrageId)
+            .order('erstellt_am', { ascending: true });
+          konversation = (thread as ThreadNachricht[] | null) || undefined;
+        }
+
+        const entwurfRes = await generiereEntwurf(
+          anfrageFuerKlass,
+          klassifikation,
+          betrieb,
+          konversation
+        );
 
         if (entwurfRes.success) {
           console.log(

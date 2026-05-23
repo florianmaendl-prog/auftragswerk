@@ -38,6 +38,20 @@ type Betrieb = {
   signatur: string | null;
 };
 
+/**
+ * Eine Nachricht im Konversations-Thread.
+ * Wird bei Replies an generiereEntwurf übergeben, damit die KI auf die
+ * letzte Kunden-Nachricht reagieren kann (statt blind die Ursprungs-Anfrage
+ * nochmal zu beantworten).
+ */
+export type ThreadNachricht = {
+  typ: 'eingang' | 'ausgang';
+  von_name: string | null;
+  von_email: string;
+  body_text: string;
+  erstellt_am: string;
+};
+
 function buildSystemPrompt(betrieb: Betrieb): string {
   const tonBeispiele = (betrieb.ton_beispiele || [])
     .map((b, i) => `BEISPIEL ${i + 1}:\n${b}`)
@@ -76,6 +90,19 @@ ${tonBeispiele || '(Keine Beispiele vorhanden – nutze einen freundlichen, prof
 
 VERHALTEN JE NACH SITUATION:
 
+**Wenn dies ein REPLY im laufenden Gespräch ist (du siehst im User-Prompt den KONVERSATIONS-VERLAUF):**
+- Lies die KOMPLETTE Konversation chronologisch durch.
+- Reagiere auf die LETZTE Nachricht des Kunden – NICHT auf die ursprüngliche Anfrage.
+- Erkenne, was der Kunde gerade tut:
+  - Vorschlag BESTÄTIGT (Termin, Detail) → kurz bestätigen, NICHT nochmal vorschlagen oder nachfragen.
+  - Frage BEANTWORTET → die Information als gegeben behandeln, NICHT erneut erfragen.
+  - Selbst eine Frage gestellt → konkret antworten.
+  - Termin festgemacht ("Montag 10 Uhr passt") → bestätigen ("Perfekt, Montag 10 Uhr ist notiert, bis dann."), NICHT denselben Termin nochmal als Frage formulieren.
+  - Ablehnt / abspringen will → höflich akzeptieren.
+- WIEDERHOLE KEINE FRAGEN, die im Verlauf schon beantwortet wurden.
+- Sei knapp – im laufenden Dialog reichen oft 1-3 Sätze. Keine Floskel-Wiederholungen ("vielen Dank für Ihre Anfrage" gehört nur in die erste Antwort).
+- Die Regeln zu Gewerk-Passung unten gelten weiter, falls der Reply die Lage verändert.
+
 **Wenn die Anfrage zum Betrieb PASST (gewerk_match=passt):**
 - Bedanken für Anfrage
 - Bestätigen: "Das machen wir gerne"
@@ -105,7 +132,69 @@ Antworte AUSSCHLIESSLICH mit JSON in folgendem Format (kein Markdown, keine Erkl
 }`;
 }
 
-function buildUserPrompt(anfrage: Anfrage, klassifikation: Klassifikation): string {
+/**
+ * Formatiert den Konversations-Thread chronologisch für den User-Prompt.
+ * Markiert die letzte eingehende Nachricht als "REAGIERE DARAUF".
+ */
+function formatThread(konversation: ThreadNachricht[]): string {
+  // Index der letzten eingehenden (Kunden-)Nachricht – die soll markiert werden.
+  let letzteEingangsIdx = -1;
+  for (let i = konversation.length - 1; i >= 0; i--) {
+    if (konversation[i].typ === 'eingang') {
+      letzteEingangsIdx = i;
+      break;
+    }
+  }
+
+  return konversation
+    .map((n, i) => {
+      const datum = new Date(n.erstellt_am).toLocaleString('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const marker = i === letzteEingangsIdx ? '  ⬅ LETZTE KUNDEN-NACHRICHT, REAGIERE DARAUF' : '';
+      const rolle =
+        n.typ === 'eingang'
+          ? `KUNDE — ${n.von_name || ''} <${n.von_email}>`
+          : 'UNSER BETRIEB';
+      return `===== NACHRICHT ${i + 1} — ${rolle} (${datum})${marker} =====\n${n.body_text.trim()}`;
+    })
+    .join('\n\n');
+}
+
+function buildUserPrompt(
+  anfrage: Anfrage,
+  klassifikation: Klassifikation,
+  konversation?: ThreadNachricht[]
+): string {
+  const klassBlock = `KLASSIFIKATION (intern, vorab erfolgt):
+- Kategorie: ${klassifikation.kategorie}
+- Passt zum Gewerk: ${klassifikation.gewerk_match || 'unbekannt'}
+- Wert-Indikator: ${klassifikation.wert_indikator || 'unbekannt'}
+- Kunde: ${klassifikation.kunde_typ || 'unbekannt'}
+- Dringlichkeit: ${klassifikation.dringlichkeit || 'unbekannt'}
+- Zusammenfassung: ${klassifikation.zusammenfassung || '-'}
+- Fehlende Infos: ${(klassifikation.fehlende_infos || []).join(', ') || 'keine erkannt'}
+- Empfohlene Aktion: ${klassifikation.empfohlene_aktion || '-'}`;
+
+  // Reply-Pfad: mindestens eine Ursprungs-Nachricht + ein Reply = ≥ 2 Einträge.
+  if (konversation && konversation.length >= 2) {
+    return `DIES IST EIN REPLY IM LAUFENDEN GESPRÄCH. Hier der komplette KONVERSATIONS-VERLAUF chronologisch (älteste zuerst):
+
+${formatThread(konversation)}
+
+---
+
+${klassBlock}
+(Die Klassifikation bezieht sich auf die LETZTE Kunden-Nachricht oben.)
+
+Erstelle jetzt den Antwortentwurf auf die LETZTE Kunden-Nachricht. Berücksichtige den kompletten Verlauf. Wiederhole keine Fragen, die schon beantwortet sind. Wenn der Kunde etwas bestätigt hat, bestätige es kurz zurück – frag NICHT nochmal. Antworte nur mit JSON. KEINE Grußformel/Name am Ende des body_text.`;
+  }
+
+  // Erst-Antwort / kein Thread-Kontext: bisheriges Verhalten.
   return `KUNDENANFRAGE:
 
 Von: ${anfrage.von_name || ''} <${anfrage.von_email}>
@@ -115,15 +204,7 @@ ${anfrage.body_text_clean || anfrage.body_text}
 
 ---
 
-KLASSIFIKATION (intern, vorab erfolgt):
-- Kategorie: ${klassifikation.kategorie}
-- Passt zum Gewerk: ${klassifikation.gewerk_match || 'unbekannt'}
-- Wert-Indikator: ${klassifikation.wert_indikator || 'unbekannt'}
-- Kunde: ${klassifikation.kunde_typ || 'unbekannt'}
-- Dringlichkeit: ${klassifikation.dringlichkeit || 'unbekannt'}
-- Zusammenfassung: ${klassifikation.zusammenfassung || '-'}
-- Fehlende Infos: ${(klassifikation.fehlende_infos || []).join(', ') || 'keine erkannt'}
-- Empfohlene Aktion: ${klassifikation.empfohlene_aktion || '-'}
+${klassBlock}
 
 Erstelle jetzt den Antwortentwurf gemäß den Regeln. Antworte nur mit JSON. Schreibe KEINE Grußformel und KEINEN Namen am Ende des body_text.`;
 }
@@ -141,10 +222,11 @@ type EntwurfResult = {
 export async function generiereEntwurf(
   anfrage: Anfrage,
   klassifikation: Klassifikation,
-  betrieb: Betrieb
+  betrieb: Betrieb,
+  konversation?: ThreadNachricht[]
 ): Promise<EntwurfResult> {
   const systemPrompt = buildSystemPrompt(betrieb);
-  const userMessage = buildUserPrompt(anfrage, klassifikation);
+  const userMessage = buildUserPrompt(anfrage, klassifikation, konversation);
 
   const claudeRes = await callClaude({
     model: 'claude-sonnet-4-6',
