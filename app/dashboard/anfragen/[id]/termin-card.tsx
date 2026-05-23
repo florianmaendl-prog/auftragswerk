@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 export type Termin = {
   id: string;
@@ -13,6 +14,12 @@ export type Termin = {
   ort: string | null;
   notiz: string | null;
   status: 'vorgeschlagen' | 'bestaetigt' | 'absolviert' | 'abgesagt';
+};
+
+export type ExtrahierterTerminInfo = {
+  datum_iso: string | null;
+  ort: string | null;
+  notiz: string | null;
 };
 
 function formatTermin(datum: string): string {
@@ -37,20 +44,31 @@ const LEER_SLOTS: Slot[] = [
 export function TerminCard({
   anfrageId,
   termine: initialTermine,
+  extrahierterTermin,
 }: {
   anfrageId: string;
   termine: Termin[];
+  extrahierterTermin?: ExtrahierterTerminInfo | null;
 }) {
   const router = useRouter();
   const [termine, setTermine] = useState<Termin[]>(initialTermine);
-  const [mode, setMode] = useState<'view' | 'vorschlag'>('view');
+  const [mode, setMode] = useState<'view' | 'vorschlag' | 'festmachen'>('view');
   const [slots, setSlots] = useState<Slot[]>(LEER_SLOTS);
+  // Festmach-Form (separater State, damit Vorschlag-Slots unangetastet bleiben)
+  const [festDatum, setFestDatum] = useState('');
+  const [festOrt, setFestOrt] = useState('');
+  const [festNotiz, setFestNotiz] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [kopiert, setKopiert] = useState(false);
 
   const bestaetigt = termine.find((t) => t.status === 'bestaetigt');
   const vorgeschlagene = termine.filter((t) => t.status === 'vorgeschlagen');
+  const hatKiVorschlag =
+    !bestaetigt &&
+    extrahierterTermin &&
+    extrahierterTermin.datum_iso &&
+    extrahierterTermin.datum_iso.trim().length > 0;
 
   const vorschlagText =
     vorgeschlagene.length > 0
@@ -129,6 +147,70 @@ export function TerminCard({
     }
   }
 
+  /** Wechselt in den Festmach-Mode. Wenn KI was extrahiert hat, Felder pre-fillen. */
+  function starteFestmachen(preFill: boolean) {
+    if (preFill && extrahierterTermin) {
+      // datum_iso ist "YYYY-MM-DDTHH:MM:SS" (lokale Zeit, ohne TZ),
+      // datetime-local input will "YYYY-MM-DDTHH:MM"
+      setFestDatum(extrahierterTermin.datum_iso?.slice(0, 16) || '');
+      setFestOrt(extrahierterTermin.ort || '');
+      setFestNotiz(extrahierterTermin.notiz || '');
+    } else {
+      setFestDatum('');
+      setFestOrt('');
+      setFestNotiz('');
+    }
+    setError(null);
+    setMode('festmachen');
+  }
+
+  async function macheFest() {
+    if (!festDatum) {
+      setError('Datum + Uhrzeit ausfüllen.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/termine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          anfrage_id: anfrageId,
+          direkt_bestaetigen: true,
+          slots: [
+            {
+              datum: festDatum,
+              ort: festOrt.trim() || undefined,
+              notiz: festNotiz.trim() || undefined,
+            },
+          ],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || `HTTP ${res.status}`);
+      } else {
+        // Lokal: neuer bestätigter Termin in die Liste, alte vorgeschlagene auf abgesagt
+        setTermine((prev) =>
+          prev
+            .map((t) =>
+              t.status === 'vorgeschlagen' ? { ...t, status: 'abgesagt' as const } : t
+            )
+            .concat(data.termine || [])
+        );
+        setMode('view');
+        setFestDatum('');
+        setFestOrt('');
+        setFestNotiz('');
+        router.refresh();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Festmachen');
+    }
+    setBusy(false);
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -198,14 +280,100 @@ export function TerminCard({
           </>
         )}
 
+        {!bestaetigt && mode === 'view' && hatKiVorschlag && (
+          <div className="rounded-md border border-yellow-300 bg-yellow-50 p-3 space-y-2">
+            <p className="text-sm">
+              💡 <span className="font-medium">Kunde scheint einen Termin zu bestätigen:</span>{' '}
+              <span className="text-foreground">
+                {extrahierterTermin?.datum_iso
+                  ? formatTermin(extrahierterTermin.datum_iso)
+                  : ''}
+              </span>
+              {extrahierterTermin?.ort && (
+                <span className="text-muted-foreground"> · {extrahierterTermin.ort}</span>
+              )}
+            </p>
+            <Button size="sm" onClick={() => starteFestmachen(true)} disabled={busy}>
+              Termin direkt festmachen
+            </Button>
+          </div>
+        )}
+
         {!bestaetigt && mode === 'view' && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setMode('vorschlag')}
-          >
-            {vorgeschlagene.length > 0 ? 'Weitere vorschlagen' : 'Termin vorschlagen'}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMode('vorschlag')}
+            >
+              {vorgeschlagene.length > 0 ? 'Weitere vorschlagen' : 'Termin vorschlagen'}
+            </Button>
+            {!hatKiVorschlag && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => starteFestmachen(false)}
+              >
+                Direkt festmachen
+              </Button>
+            )}
+          </div>
+        )}
+
+        {mode === 'festmachen' && (
+          <div className="space-y-2 rounded-md border border-input p-3">
+            <p className="text-xs text-muted-foreground">
+              Termin direkt als bestätigt anlegen – erscheint danach im Kalender.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground mb-0.5 block">
+                  Datum + Uhrzeit
+                </label>
+                <Input
+                  type="datetime-local"
+                  value={festDatum}
+                  onChange={(e) => setFestDatum(e.target.value)}
+                  disabled={busy}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-0.5 block">
+                  Ort (optional)
+                </label>
+                <Input
+                  placeholder="z.B. Trogerstraße 18"
+                  value={festOrt}
+                  onChange={(e) => setFestOrt(e.target.value)}
+                  disabled={busy}
+                />
+              </div>
+            </div>
+            <Textarea
+              placeholder="Notiz (optional, nur intern)"
+              value={festNotiz}
+              onChange={(e) => setFestNotiz(e.target.value)}
+              disabled={busy}
+              rows={2}
+              className="text-sm"
+            />
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setMode('view');
+                  setError(null);
+                }}
+                disabled={busy}
+              >
+                Abbrechen
+              </Button>
+              <Button size="sm" onClick={macheFest} disabled={busy}>
+                {busy ? 'Festmacht ...' : 'Festmachen'}
+              </Button>
+            </div>
+          </div>
         )}
 
         {mode === 'vorschlag' && (

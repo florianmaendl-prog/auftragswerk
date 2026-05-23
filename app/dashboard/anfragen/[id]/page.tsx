@@ -130,6 +130,7 @@ export default async function AnfrageDetailPage({
       geloescht_am,
       analysen (
         id,
+        analysiert_am,
         kategorie,
         subkategorie,
         gewerk_match,
@@ -143,7 +144,8 @@ export default async function AnfrageDetailPage({
         extrahierte_telefon,
         extrahierte_plz,
         fehlende_infos,
-        empfohlene_aktion
+        empfohlene_aktion,
+        extrahierter_termin
       ),
       entwuerfe (
         id,
@@ -229,7 +231,23 @@ export default async function AnfrageDetailPage({
     }
   }
 
-  const klass = Array.isArray(anfrage.analysen) ? anfrage.analysen[0] : null;
+  // Latest Analyse: nach analysiert_am DESC sortieren (Supabase liefert
+  // nested-Selects nicht garantiert geordnet zurück). Bei Replies ist
+  // damit auch der KI-Analyse-Block + extrahierter_termin der aktuelle.
+  const klass = Array.isArray(anfrage.analysen) && anfrage.analysen.length > 0
+    ? [...anfrage.analysen].sort((a, b) => {
+        const aTs = a.analysiert_am ? new Date(a.analysiert_am).getTime() : 0;
+        const bTs = b.analysiert_am ? new Date(b.analysiert_am).getTime() : 0;
+        return bTs - aTs;
+      })[0]
+    : null;
+
+  // Aus der jüngsten Analyse den extrahierten Termin holen, falls vorhanden
+  // (KI hat aus dem Reply Datum/Uhrzeit/Ort extrahiert)
+  const extrahierterTermin = (klass?.extrahierter_termin as
+    | { datum_iso: string | null; ort: string | null; notiz: string | null }
+    | null
+    | undefined) ?? null;
   const entwurf = Array.isArray(anfrage.entwuerfe)
     ? anfrage.entwuerfe.find((e) => e.status === 'wartet_auf_freigabe') ||
       anfrage.entwuerfe.find((e) => e.status === 'versendet') ||
@@ -495,7 +513,11 @@ export default async function AnfrageDetailPage({
 
         {/* RECHTS: Termin-Card (immer oben) + Entwurf-Editor + ReplyEditor */}
         <div className="space-y-4">
-          <TerminCard anfrageId={anfrage.id} termine={termine} />
+          <TerminCard
+            anfrageId={anfrage.id}
+            termine={termine}
+            extrahierterTermin={extrahierterTermin}
+          />
 
           {entwurf && (
             <EntwurfEditor
