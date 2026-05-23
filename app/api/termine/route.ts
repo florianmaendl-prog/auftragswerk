@@ -4,9 +4,16 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 /**
  * POST /api/termine
- * Body: { anfrage_id, slots: [{ datum: ISO, ort?, notiz?, dauer_min? }] }
+ * Body: {
+ *   anfrage_id,
+ *   slots: [{ datum: ISO, ort?, notiz?, dauer_min? }],
+ *   direkt_bestaetigen?: boolean   // default false; wenn true → status 'bestaetigt'
+ *                                  //   + alle anderen vorgeschlagenen Slots → 'abgesagt'
+ * }
  *
- * Speichert 1..n Termine im Status 'vorgeschlagen', verknüpft mit der Anfrage.
+ * Speichert 1..n Termine. Default-Status 'vorgeschlagen', mit
+ * direkt_bestaetigen=true direkt 'bestaetigt' (Ein-Klick-Fluss aus
+ * der TerminCard wenn der Kunde im Reply den Termin bestätigt hat).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -22,6 +29,7 @@ export async function POST(req: NextRequest) {
     const anfrageId: string | undefined = body.anfrage_id;
     const slots: Array<{ datum: string; ort?: string; notiz?: string; dauer_min?: number }> =
       Array.isArray(body.slots) ? body.slots : [];
+    const direktBestaetigen: boolean = body.direkt_bestaetigen === true;
 
     if (!anfrageId || slots.length === 0) {
       return NextResponse.json(
@@ -41,6 +49,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Anfrage nicht gefunden' }, { status: 404 });
     }
 
+    const status = direktBestaetigen ? 'bestaetigt' : 'vorgeschlagen';
+
     const rows = slots
       .filter((s) => s.datum && s.datum.trim().length > 0)
       .map((s) => ({
@@ -50,7 +60,7 @@ export async function POST(req: NextRequest) {
         dauer_min: s.dauer_min ?? 60,
         ort: s.ort?.trim() || null,
         notiz: s.notiz?.trim() || null,
-        status: 'vorgeschlagen' as const,
+        status,
       }));
 
     if (rows.length === 0) {
@@ -64,6 +74,18 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Beim direkten Festmachen: alle anderen vorgeschlagenen Termine der
+    // Anfrage als abgesagt markieren (Bestätigter Termin gewinnt).
+    if (direktBestaetigen && inserted && inserted.length > 0) {
+      const neueIds = inserted.map((t) => t.id);
+      await supabaseAdmin
+        .from('termine')
+        .update({ status: 'abgesagt' })
+        .eq('anfrage_id', anfrageId)
+        .eq('status', 'vorgeschlagen')
+        .not('id', 'in', `(${neueIds.map((id) => `"${id}"`).join(',')})`);
     }
 
     return NextResponse.json({ success: true, termine: inserted });
