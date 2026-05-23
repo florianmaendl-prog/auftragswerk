@@ -29,6 +29,12 @@ export type SendMailOptions = {
   // Threading: wenn wir auf eine vorherige Mail antworten
   inReplyTo?: string;        // Message-ID der Vorgänger-Mail
   references?: string[];     // Komplette Thread-Kette
+  // Anhänge: base64-codierter Inhalt, von Postmark direkt akzeptiert
+  attachments?: Array<{
+    name: string;
+    contentBase64: string;
+    contentType: string;
+  }>;
   // Postmark-spezifisch
   tag?: string;
   metadata?: Record<string, string>;
@@ -101,6 +107,13 @@ export async function sendMail(opts: SendMailOptions): Promise<SendMailResult> {
   if (opts.tag) payload.Tag = opts.tag;
   if (opts.metadata) payload.Metadata = opts.metadata;
   if (headers.length > 0) payload.Headers = headers;
+  if (opts.attachments && opts.attachments.length > 0) {
+    payload.Attachments = opts.attachments.map((a) => ({
+      Name: a.name,
+      Content: a.contentBase64,
+      ContentType: a.contentType,
+    }));
+  }
 
   try {
     const response = await fetch(POSTMARK_API_URL, {

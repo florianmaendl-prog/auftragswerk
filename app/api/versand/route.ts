@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendMail } from '@/lib/postmark';
+import { speichereAnhang, type AnhangInput } from '@/lib/anhaenge';
 
 export const maxDuration = 30;
 
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
     // 2. Body parsen
     const body = await req.json();
     const entwurfId: string | undefined = body.entwurf_id;
+    const anhaenge: AnhangInput[] = Array.isArray(body.anhaenge) ? body.anhaenge : [];
 
     if (!entwurfId) {
       return NextResponse.json({ error: 'entwurf_id fehlt' }, { status: 400 });
@@ -136,6 +138,7 @@ export async function POST(req: NextRequest) {
         entwurf_id: entwurf.id,
         betrieb_id: entwurf.betrieb_id,
       },
+      attachments: anhaenge.length > 0 ? anhaenge : undefined,
     });
 
     if (!sendResult.success) {
@@ -155,26 +158,51 @@ export async function POST(req: NextRequest) {
     // 11. Versendete Nachricht speichern (für Threading + Verlauf)
     const versendetAm = new Date().toISOString();
 
-    const { error: nachrichtError } = await supabaseAdmin.from('nachrichten').insert({
-      anfrage_id: anfrage.id,
-      betrieb_id: entwurf.betrieb_id,
-      typ: 'ausgang',
-      von_email: fromEmail,
-      von_name: fromName,
-      an_email: anfrage.von_email,
-      an_name: anfrage.von_name,
-      betreff: entwurf.betreff_vorschlag,
-      body_text: entwurf.body_text,
-      message_id: sendResult.messageId,
-      in_reply_to: letzteEingangsnachricht?.message_id || null,
-      entwurf_id: entwurf.id,
-      postmark_message_id: sendResult.postmarkMessageId,
-      status: 'versendet',
-      versendet_am: versendetAm,
-    });
+    const { data: ausgangNachricht, error: nachrichtError } = await supabaseAdmin
+      .from('nachrichten')
+      .insert({
+        anfrage_id: anfrage.id,
+        betrieb_id: entwurf.betrieb_id,
+        typ: 'ausgang',
+        von_email: fromEmail,
+        von_name: fromName,
+        an_email: anfrage.von_email,
+        an_name: anfrage.von_name,
+        betreff: entwurf.betreff_vorschlag,
+        body_text: entwurf.body_text,
+        message_id: sendResult.messageId,
+        in_reply_to: letzteEingangsnachricht?.message_id || null,
+        entwurf_id: entwurf.id,
+        postmark_message_id: sendResult.postmarkMessageId,
+        status: 'versendet',
+        versendet_am: versendetAm,
+      })
+      .select('id')
+      .single();
 
     if (nachrichtError) {
       console.error('Nachricht-Insert-Fehler (Mail wurde aber versendet):', nachrichtError);
+    }
+
+    // Outbound-Anhänge in Storage + anhaenge speichern (verlinkt an die Ausgang-Nachricht)
+    if (ausgangNachricht && anhaenge.length > 0) {
+      for (const att of anhaenge) {
+        const res = await speichereAnhang(att, {
+          nachrichtId: ausgangNachricht.id,
+          anfrageId: anfrage.id,
+          betriebId: entwurf.betrieb_id,
+        });
+        if (!res.success) {
+          console.error(`Outbound-Anhang "${att.name}" fehlgeschlagen:`, res.error);
+          await supabaseAdmin.from('processing_errors').insert({
+            betrieb_id: entwurf.betrieb_id,
+            anfrage_id: anfrage.id,
+            schritt: 'attachment_upload_outbound',
+            fehler_text: res.error || 'unbekannt',
+            fehler_details: { dateiname: att.name, content_type: att.contentType },
+          });
+        }
+      }
     }
 
     // 12. Entwurf-Status updaten

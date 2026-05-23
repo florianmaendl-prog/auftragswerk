@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { randomUUID } from 'node:crypto';
 import { supabaseAdmin } from '@/lib/supabase';
 import { cleanMail } from '@/lib/mail-cleaner';
 import { klassifiziereAnfrage } from '@/lib/klassifikation';
 import { generiereEntwurf, type ThreadNachricht } from '@/lib/entwurf';
+import { speichereAnhang, type AnhangInput } from '@/lib/anhaenge';
 
 const CLEAN_THRESHOLD = 3000;
 
@@ -36,69 +36,13 @@ function istAutorisiert(req: NextRequest): boolean {
   return decoded.slice(0, trenn) === user && decoded.slice(trenn + 1) === pass;
 }
 
+/** Shape, in der Postmark Anhänge im Webhook-Payload liefert. */
 type PostmarkAttachment = {
   Name: string;
   Content: string;       // base64-encoded
   ContentType: string;
   ContentLength: number;
 };
-
-/**
- * Speichert Postmark-Attachments im Supabase Storage Bucket 'anhaenge' und
- * legt pro Datei eine Zeile in 'anhaenge' an. Pro Anhang fehler-tolerant:
- * ein gescheiterter Upload blockiert nicht den restlichen Mail-Eingang –
- * Fehler werden in processing_errors geloggt.
- */
-async function speichereAnhaenge(
-  attachments: PostmarkAttachment[],
-  nachrichtId: string,
-  anfrageId: string,
-  betriebId: string
-): Promise<void> {
-  for (const att of attachments) {
-    try {
-      // Dateiname sanieren: Pfad-Trenner und Steuerzeichen raus, max 200 Zeichen
-      const safeName = (att.Name || 'datei').replace(/[/\\:*?"<>|]/g, '_').slice(0, 200);
-      const path = `${betriebId}/${anfrageId}/${randomUUID()}_${safeName}`;
-      const buffer = Buffer.from(att.Content, 'base64');
-
-      const { error: uploadError } = await supabaseAdmin.storage
-        .from('anhaenge')
-        .upload(path, buffer, { contentType: att.ContentType, upsert: false });
-
-      if (uploadError) {
-        console.error(`Anhang-Upload fehlgeschlagen (${att.Name}):`, uploadError.message);
-        await supabaseAdmin.from('processing_errors').insert({
-          betrieb_id: betriebId,
-          anfrage_id: anfrageId,
-          schritt: 'attachment_upload',
-          fehler_text: uploadError.message,
-          fehler_details: { dateiname: att.Name, content_type: att.ContentType },
-        });
-        continue;
-      }
-
-      const { error: insertError } = await supabaseAdmin.from('anhaenge').insert({
-        nachricht_id: nachrichtId,
-        betrieb_id: betriebId,
-        dateiname: att.Name,
-        content_type: att.ContentType,
-        groesse_bytes: att.ContentLength,
-        storage_path: path,
-      });
-
-      if (insertError) {
-        console.error(
-          `Anhang-Metadaten-Insert fehlgeschlagen (${att.Name}):`,
-          insertError.message
-        );
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'unbekannt';
-      console.error(`Anhang-Verarbeitung Fehler (${att.Name}):`, msg);
-    }
-  }
-}
 
 export async function POST(req: NextRequest) {
   if (!istAutorisiert(req)) {
@@ -291,7 +235,29 @@ export async function POST(req: NextRequest) {
       : [];
     if (neueNachricht && attachments.length > 0) {
       console.log(`📎 ${attachments.length} Anhang/Anhänge erkannt – verarbeite…`);
-      await speichereAnhaenge(attachments, neueNachricht.id, anfrageId, betrieb.id);
+      for (const att of attachments) {
+        const input: AnhangInput = {
+          name: att.Name,
+          contentBase64: att.Content,
+          contentType: att.ContentType,
+          contentLengthHint: att.ContentLength,
+        };
+        const res = await speichereAnhang(input, {
+          nachrichtId: neueNachricht.id,
+          anfrageId,
+          betriebId: betrieb.id,
+        });
+        if (!res.success) {
+          console.error(`Anhang "${att.Name}" fehlgeschlagen:`, res.error);
+          await supabaseAdmin.from('processing_errors').insert({
+            betrieb_id: betrieb.id,
+            anfrage_id: anfrageId,
+            schritt: 'attachment_upload',
+            fehler_text: res.error || 'unbekannt',
+            fehler_details: { dateiname: att.Name, content_type: att.ContentType },
+          });
+        }
+      }
     }
 
     // SCHRITT 2: Klassifikation
