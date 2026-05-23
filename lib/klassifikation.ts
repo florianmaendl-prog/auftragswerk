@@ -24,6 +24,12 @@ export interface Anfrage {
   body_text_clean: string | null;
 }
 
+export interface ExtrahierterTermin {
+  datum_iso: string | null;
+  ort: string | null;
+  notiz: string | null;
+}
+
 export interface KlassifikationResult {
   kategorie: 'werbung' | 'innung_behoerde' | 'bestellung_versand' | 'rechnung' | 'kundenanfrage' | 'sonstiges';
   subkategorie: string | null;
@@ -41,6 +47,7 @@ export interface KlassifikationResult {
   fehlende_infos: string[];
   materialbedarf_erkannt: boolean;
   empfohlene_aktion: string;
+  extrahierter_termin: ExtrahierterTermin | null;
 }
 
 /**
@@ -55,7 +62,11 @@ function buildSystemPrompt(betrieb: Betrieb): string {
     ? `${betrieb.mindestauftragswert} €`
     : 'kein Mindestwert definiert';
 
+  const heuteIso = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
   return `Du bist die digitale Sekretärin eines ${branche}-Betriebs. Deine Aufgabe: eingehende Mails klassifizieren und Informationen extrahieren.
+
+HEUTIGES DATUM: ${heuteIso} (für Auflösung von relativen Termin-Aussagen)
 
 BETRIEBSPROFIL:
 Branche: ${branche}
@@ -91,6 +102,14 @@ EXTRAKTION:
 - PLZ
 - Fehlende Infos für ein Angebot (Liste, z.B. ["Maße", "Material", "Termin", "Budget"])
 - materialbedarf_erkannt: erwähnt die Mail konkreten Materialbedarf? (true/false)
+- extrahierter_termin: Wenn die Mail einen konkreten Aufmaß-/Vor-Ort-Termin
+  BESTÄTIGT, VORSCHLÄGT oder ENTHÄLT (Beispiele: "Mo 10 Uhr passt mir",
+  "am 26.05. um 14:00", "morgen Vormittag", "26.05.2026, 10:00"), extrahiere:
+    { datum_iso: "YYYY-MM-DDTHH:MM:SS" (lokale Zeit, ohne TZ-Suffix,
+      relative Aussagen auf den NÄCHSTEN passenden Tag nach Heute auflösen),
+      ort: "<Ort/Adresse falls im Termin-Kontext genannt>" | null,
+      notiz: "<sehr kurzer Hinweis was der Termin ist>" | null }
+  Wenn unklar/kein Termin/zu vage: null.
 
 OUTPUT-FORMAT:
 Antworte AUSSCHLIESSLICH mit gültigem JSON, keine Erklärungen, keine Markdown-Blöcke. Format:
@@ -111,7 +130,8 @@ Antworte AUSSCHLIESSLICH mit gültigem JSON, keine Erklärungen, keine Markdown-
   "extrahierte_plz": "..." | null,
   "fehlende_infos": ["..."],
   "materialbedarf_erkannt": false,
-  "empfohlene_aktion": "Was sollte der Meister als nächstes tun (kurzer Satz)"
+  "empfohlene_aktion": "Was sollte der Meister als nächstes tun (kurzer Satz)",
+  "extrahierter_termin": { "datum_iso": "2026-05-26T10:00:00", "ort": "...", "notiz": "..." } | null
 }
 
 WICHTIG:
@@ -206,6 +226,7 @@ ${mailText}`;
     fehlende_infos: klassifikation.fehlende_infos,
     materialbedarf_erkannt: klassifikation.materialbedarf_erkannt,
     empfohlene_aktion: klassifikation.empfohlene_aktion,
+    extrahierter_termin: klassifikation.extrahierter_termin ?? null,
   });
 
   if (dbError) {
