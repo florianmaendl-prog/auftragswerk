@@ -1,10 +1,12 @@
 # Auftragswerk – Backlog
 
-> **Stand: 23.5.2026 (Tag 12 – Abend, Sprint "Fehlende Mitte" durch)**
+> **Stand: 23.5.2026 (Tag 12 – spät, Sprint "Fehlende Mitte" + Modul 5 durch)**
 >
 > Säule 1 production-live. Max-Pilot-Setup wartet aufs Wochenende.
 > Sprint **"Fehlende Mitte"** (Attachments + Mini-CRM + Termine + Diagnose)
-> gebaut und deployt – Testing steht noch aus.
+> deployt. Direkt drauf **Modul 5 (Verfügbarkeits-Kalender)** + Mini-CRM-Bugfix
+> deployt – KI kennt jetzt Max' echte freie Termine und schlägt konkrete Slots
+> vor statt vager "Anfang nächster Woche".
 >
 > **Premise:** Tool soll "Premium" werden, nicht zu schmal bleiben – statt
 > auf Max zu warten, proaktiv die Anfrage-bis-Termin-Brücke geschlossen.
@@ -68,6 +70,28 @@
     Schritt-Badges + ausklappbaren Details
   - Highlight "X Fehler in 24h" rot
   - Sidebar-Eintrag "Diagnose" 🛠️ im Utility-Bereich
+
+### Tag 12 spät: Modul 5 – Verfügbarkeits-Kalender + Mini-CRM-Bugfix
+- ✅ **Mini-CRM Bugfix** (`b56dbaa`)
+  - Aggregation nur über `kategorie='kundenanfrage'`-Analysen
+  - Werbe-/Rechnungs-/Innung-Mails fließen nicht mehr in Name/Firma/Count
+  - Lieferanten/Spam-Absender tauchen nicht mehr als "Kunden" auf
+- ✅ **Modul 5 – Verfügbarkeits-Kalender** (`d845a1b`, `e743f03`, `116026f`, `20c7897`)
+  - DB: `verfuegbarkeit_regel` (wöchentlich) + `verfuegbarkeit_sperre` (einmalig)
+  - `lib/verfuegbarkeit.ts` mit `getFreieSlots()` – berücksichtigt Regeln,
+    Sperren und bestätigte Termine
+  - `/api/verfuegbarkeit/regel` + `/api/verfuegbarkeit/sperre` (POST + DELETE)
+  - `/dashboard/kalender`: Wochengrid mit Wochen-Navigation (URL-State),
+    Cell-Farben (grün=frei, blau=Termin, rot=Sperre), Heute-Highlight
+  - Inline Editoren für Regeln + Sperren (Add/Delete, kein Modal)
+  - Sidebar-Eintrag "Kalender" 📆
+  - **KI-Integration**: bei Erst-Anfragen ruft inbound `getFreieSlots(14 Tage,
+    max 12 Slots)` und übergibt Liste an `generiereEntwurf`. KI-Prompt
+    bekommt expliziten Block "DEINE NÄCHSTEN FREIEN TERMIN-SLOTS" mit
+    Anweisung 2-3 konkrete Slots vorzuschlagen. Bei Replies bewusst aus –
+    Termin-Faden läuft schon im Thread.
+  - Fehler-tolerant: ohne Verfügbarkeit/bei Slot-Fehler fällt KI aufs alte
+    Verhalten zurück, kein Regress.
 
 ---
 
@@ -136,15 +160,26 @@ Geplante Tabellen: `angebot_bausteine`, `material_preise`, `angebote` +
 
 ## 🎁 POLISH (nach Pilot / kontextsensitiv)
 
-### Sprint "Fehlende Mitte" – offene Polish-Items
+### Sprint "Fehlende Mitte" + Modul 5 – offene Polish-Items
 - [ ] **Sidebar-Badge für Diagnose**: rote Zahl wenn Errors in 24h
       (braucht Server-Prop durch dashboard/layout statt purer Client-Shell)
 - [ ] **N1 Inbound-404-Logging**: aktuell nur `console.warn`. Braucht NULL-
       `betrieb_id` in `processing_errors` oder eine separate
       `system_errors`-Tabelle (kann nicht per-Betrieb angezeigt werden)
-- [ ] **Termin-Modul v2**: Google-Calendar-OAuth (Auto-Availability +
-      Event-Erstellung auf Bestätigung)
+- [ ] **Kalender v2: Google-Calendar-OAuth** – Auto-Availability statt
+      manuelle Regel-Pflege, Auto-Event-Erstellung beim Bestätigen, bidirektionaler
+      Sync. Erst sinnvoll wenn Max sagt "Pflege ist nervig".
+- [ ] **Kalender: iCal-Export** – damit Max bestätigte Termine in
+      Outlook/Apple Calendar abonnieren kann (Read-only)
+- [ ] **Kalender: Reschedule-Workflow** – bestätigten Termin verschieben
 - [ ] **Termin-Reminder**: 24h vorher Mail an Max
+- [ ] **Termin-Modul v2**: bestätigter Termin schaut auch in
+      Verfügbarkeit ("Slot ist eh frei")
+- [ ] **Kalender: Verfügbarkeit-Templates** ("typische Aufmaß-Woche
+      Mo-Fr 8-12") als One-Click-Preset
+- [ ] **Kalender: Slot-Vorschlag-Komponente** auch bei Replies, nicht
+      nur Erst-Entwurf
+- [ ] **Kalender: Mobile-Layout** der Wochengrid (aktuell desktop-first)
 - [ ] **Attachment-Größen-Limit**: aktuell ~4 MB durch Next.js-Body-Default
       – bei größeren Files Multipart oder Direct-to-Storage
 - [ ] **Kunden v2**: echte `kunden`-Tabelle mit Notizen, Vermerk,
@@ -200,9 +235,10 @@ Geplante Tabellen: `angebot_bausteine`, `material_preise`, `angebote` +
 1. ✅ Säule 1 deployt + verifiziert (Tag 1-10)
 2. ✅ Härtung Reply/Threading/Cleaner/Auth/DMARC (Tag 11-12)
 3. ✅ **Sprint "Fehlende Mitte" – Attachments, Mini-CRM, Termine, Diagnose** (Tag 12)
-4. 🚧 Max-Account angelegt, wartet auf Mail-Setup (Wochenende)
-5. ⏸ Smoke-Tests + Spickzettel → Pilot scharfschalten
-6. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
-7. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
-8. ⏸ 2. Pilot: Elektriker-Kumpel
-9. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
+4. ✅ **Modul 5 – Verfügbarkeits-Kalender + KI-Slot-Vorschläge + Mini-CRM-Bugfix** (Tag 12 spät)
+5. 🚧 Max-Account angelegt, wartet auf Mail-Setup (Wochenende)
+6. ⏸ Smoke-Tests + Spickzettel → Pilot scharfschalten
+7. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
+8. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
+9. ⏸ 2. Pilot: Elektriker-Kumpel
+10. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
