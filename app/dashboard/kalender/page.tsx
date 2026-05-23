@@ -1,12 +1,9 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-server';
 import { Card } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
 import { RegelEditor, type Regel } from './regel-editor';
 import { SperreEditor, type Sperre } from './sperre-editor';
-
-const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-const STUNDEN = Array.from({ length: 13 }, (_, i) => 7 + i); // 7..19
+import { WochenGrid } from './wochengrid';
 
 function getMondayOfWeek(offset: number): Date {
   const now = new Date();
@@ -81,63 +78,20 @@ export default async function KalenderPage({
   const sperren = (sperrenRes.data as Sperre[]) || [];
   const termineRaw = (termineRes.data as TerminRow[]) || [];
 
-  type CellInfo = {
-    istFrei: boolean;
-    sperreGrund?: string;
-    termine: Array<{
-      id: string;
-      anfrage_id: string;
-      betreff: string | null;
-      von_name: string | null;
-    }>;
-  };
+  // Termine in flache Struktur für die Client-Grid-Komponente
+  const termineFuerGrid = termineRaw.map((t) => ({
+    id: t.id,
+    datum: t.datum,
+    dauer_min: t.dauer_min,
+    anfrage_id: t.anfrage_id,
+    betreff: t.anfragen?.[0]?.betreff ?? null,
+    von_name: t.anfragen?.[0]?.von_name ?? null,
+  }));
 
-  function cellInfo(dayIdx: number, hour: number): CellInfo {
-    const date = days[dayIdx];
-    const cellStart = new Date(date);
-    cellStart.setHours(hour, 0, 0, 0);
-    const cellEnd = new Date(date);
-    cellEnd.setHours(hour + 1, 0, 0, 0);
-
-    const wochentag = dayIdx + 1;
-
-    const istFrei = regeln.some((r) => {
-      if (!r.aktiv) return false;
-      if (r.wochentag !== wochentag) return false;
-      const [sh, sm] = r.start_uhrzeit.split(':').map(Number);
-      const [eh, em] = r.ende_uhrzeit.split(':').map(Number);
-      const ruleStart = new Date(date);
-      ruleStart.setHours(sh, sm, 0, 0);
-      const ruleEnd = new Date(date);
-      ruleEnd.setHours(eh, em, 0, 0);
-      return cellStart >= ruleStart && cellEnd <= ruleEnd;
-    });
-
-    const sperre = sperren.find((s) => {
-      const von = new Date(s.datum_von).getTime();
-      const bis = new Date(s.datum_bis).getTime();
-      return cellStart.getTime() < bis && cellEnd.getTime() > von;
-    });
-
-    const cellTermine = termineRaw
-      .filter((t) => {
-        const tStart = new Date(t.datum).getTime();
-        const tEnd = tStart + (t.dauer_min || 60) * 60 * 1000;
-        return tStart < cellEnd.getTime() && tEnd > cellStart.getTime();
-      })
-      .map((t) => ({
-        id: t.id,
-        anfrage_id: t.anfrage_id,
-        betreff: t.anfragen?.[0]?.betreff ?? null,
-        von_name: t.anfragen?.[0]?.von_name ?? null,
-      }));
-
-    return {
-      istFrei: istFrei && !sperre && cellTermine.length === 0,
-      sperreGrund: sperre ? sperre.grund || 'Gesperrt' : undefined,
-      termine: cellTermine,
-    };
-  }
+  // Days als ISO-Strings für den Client – dort werden sie zu lokalen Browser-
+  // Zeit-Dates, damit Eingabe (datetime-local) und Grid-Anzeige dieselbe
+  // Zeitzone benutzen.
+  const daysIso = days.map((d) => d.toISOString());
 
   return (
     <div className="container mx-auto py-8 px-6 max-w-7xl">
@@ -179,80 +133,12 @@ export default async function KalenderPage({
       )}
 
       <Card className="mb-6 overflow-hidden p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-xs">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left px-2 py-2 text-muted-foreground font-medium w-14 bg-muted/30">
-                  Zeit
-                </th>
-                {days.map((d, i) => {
-                  const istHeute =
-                    d.getTime() === new Date().setHours(0, 0, 0, 0);
-                  return (
-                    <th
-                      key={i}
-                      className={cn(
-                        'text-left px-2 py-2 font-medium border-l',
-                        istHeute && 'bg-primary/10'
-                      )}
-                    >
-                      <div>{WOCHENTAGE[i]}</div>
-                      <div className="text-muted-foreground font-normal">
-                        {formatDateShort(d)}
-                      </div>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {STUNDEN.map((h) => (
-                <tr key={h} className="border-b">
-                  <td className="px-2 py-1 text-muted-foreground align-top bg-muted/20">
-                    {String(h).padStart(2, '0')}:00
-                  </td>
-                  {days.map((_, dayIdx) => {
-                    const info = cellInfo(dayIdx, h);
-                    return (
-                      <td
-                        key={dayIdx}
-                        className={cn(
-                          'px-1 py-1 border-l align-top h-12',
-                          info.istFrei && 'bg-green-50',
-                          info.sperreGrund && 'bg-red-50',
-                          info.termine.length > 0 && 'bg-blue-50'
-                        )}
-                      >
-                        {info.termine.length > 0 ? (
-                          info.termine.map((t) => (
-                            <Link
-                              key={t.id}
-                              href={`/dashboard/anfragen/${t.anfrage_id}`}
-                              className="block text-blue-900 hover:underline truncate"
-                              title={`${t.betreff || '(Termin)'} – ${t.von_name || ''}`}
-                            >
-                              {t.betreff || '(Termin)'}
-                            </Link>
-                          ))
-                        ) : info.sperreGrund ? (
-                          <span
-                            className="text-red-700 line-through block truncate"
-                            title={info.sperreGrund}
-                          >
-                            {info.sperreGrund}
-                          </span>
-                        ) : info.istFrei ? (
-                          <span className="text-green-700">●</span>
-                        ) : null}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <WochenGrid
+          daysIso={daysIso}
+          regeln={regeln}
+          sperren={sperren}
+          termine={termineFuerGrid}
+        />
       </Card>
 
       <div className="flex items-center gap-4 mb-4 text-xs text-muted-foreground">
