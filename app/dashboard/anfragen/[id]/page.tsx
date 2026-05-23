@@ -6,6 +6,7 @@ import EntwurfEditor from './entwurf-editor';
 import { DetailActions } from './detail-actions';
 import { ReplyEditor } from './reply-editor';
 import { cn } from '@/lib/utils';
+import { cleanMail } from '@/lib/mail-cleaner';
 
 function timeAgo(date: string): string {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -76,6 +77,20 @@ type Nachricht = {
   versendet_am: string | null;
   status: string;
 };
+
+/**
+ * Für die Anzeige: bei eingehenden Mails Quotes/Signatur/Disclaimer
+ * rausstrippen (Gmail & Co. hängen den vorherigen Verlauf immer dran,
+ * das ist in unserer chronologischen View redundant). Eigene Ausgangs-
+ * Mails bleiben unverändert – die Signatur gehört da rein.
+ */
+function bodyForDisplay(n: Nachricht): string {
+  if (n.typ === 'eingang' && n.body_text) {
+    const sauber = cleanMail(n.body_text, null).cleaned_text.trim();
+    return sauber || n.body_text;
+  }
+  return n.body_text || '';
+}
 
 export default async function AnfrageDetailPage({
   params,
@@ -249,7 +264,7 @@ export default async function AnfrageDetailPage({
                       </p>
                     )}
                     <pre className="whitespace-pre-wrap text-sm font-sans text-foreground/90 leading-relaxed">
-                      {n.body_text}
+                      {bodyForDisplay(n)}
                     </pre>
                   </div>
                 ))

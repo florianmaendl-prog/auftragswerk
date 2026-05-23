@@ -1,5 +1,6 @@
 import { supabaseAdmin } from './supabase';
 import { callClaude } from './claude';
+import { cleanMail } from './mail-cleaner';
 
 type Anfrage = {
   id: string;
@@ -160,7 +161,11 @@ function formatThread(konversation: ThreadNachricht[]): string {
         n.typ === 'eingang'
           ? `KUNDE — ${n.von_name || ''} <${n.von_email}>`
           : 'UNSER BETRIEB';
-      return `===== NACHRICHT ${i + 1} — ${rolle} (${datum})${marker} =====\n${(n.body_text ?? '').trim()}`;
+      // Quotes / Signaturen / Disclaimer rausstrippen, damit die KI sich
+      // auf den eigentlichen Inhalt jeder Nachricht konzentrieren kann.
+      const roh = (n.body_text ?? '').trim();
+      const sauber = cleanMail(roh, null).cleaned_text.trim() || roh;
+      return `===== NACHRICHT ${i + 1} — ${rolle} (${datum})${marker} =====\n${sauber}`;
     })
     .join('\n\n');
 }
