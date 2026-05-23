@@ -180,6 +180,12 @@ Geplante Tabellen: `angebot_bausteine`, `material_preise`, `angebote` +
 - [ ] **Kalender: Slot-Vorschlag-Komponente** auch bei Replies, nicht
       nur Erst-Entwurf
 - [ ] **Kalender: Mobile-Layout** der Wochengrid (aktuell desktop-first)
+- [ ] **Kalender: Click-to-Create im Grid** – Klick auf leere Zelle öffnet
+      Modal mit Typ-Picker (Regel / Sperre / Termin) und vorausgefüllten
+      Datum/Uhrzeit (User-Wunsch Tag 12 spät)
+- [ ] **Kalender: Multi-Day-Regel** – im Regel-Editor Wochentag-Multiselect
+      (Mo–Mi 8–12 in einem Schritt anlegen statt drei einzelne Regeln)
+      (User-Wunsch Tag 12 spät)
 - [ ] **Attachment-Größen-Limit**: aktuell ~4 MB durch Next.js-Body-Default
       – bei größeren Files Multipart oder Direct-to-Storage
 - [ ] **Kunden v2**: echte `kunden`-Tabelle mit Notizen, Vermerk,
