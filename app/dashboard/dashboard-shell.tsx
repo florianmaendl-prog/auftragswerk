@@ -16,6 +16,7 @@ const mainNavItems = [
 ];
 
 const utilityNavItems = [
+  { href: '/dashboard/diagnose', label: 'Diagnose', icon: '🛠️' },
   { href: '/dashboard/papierkorb', label: 'Papierkorb', icon: '🗑️' },
 ];
 
