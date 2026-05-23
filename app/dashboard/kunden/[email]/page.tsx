@@ -4,20 +4,23 @@ import { createClient } from '@/lib/supabase-server';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
+type AnalyseRow = {
+  kategorie: string | null;
+  zusammenfassung: string | null;
+  gewerk_match: string | null;
+  extrahierter_name: string | null;
+  extrahierte_firma: string | null;
+  extrahierte_telefon: string | null;
+  kunde_typ: string | null;
+};
+
 type AnfrageRow = {
   id: string;
   betreff: string | null;
   von_name: string | null;
   status: string;
   created_at: string;
-  analysen: Array<{
-    zusammenfassung: string | null;
-    gewerk_match: string | null;
-    extrahierter_name: string | null;
-    extrahierte_firma: string | null;
-    extrahierte_telefon: string | null;
-    kunde_typ: string | null;
-  }> | null;
+  analysen: AnalyseRow[] | null;
 };
 
 function timeAgo(date: string): string {
@@ -65,24 +68,32 @@ export default async function KundeDetailPage({
     .from('anfragen')
     .select(
       `id, betreff, von_name, status, created_at,
-       analysen (zusammenfassung, gewerk_match, extrahierter_name, extrahierte_firma, extrahierte_telefon, kunde_typ)`
+       analysen (kategorie, zusammenfassung, gewerk_match, extrahierter_name, extrahierte_firma, extrahierte_telefon, kunde_typ)`
     )
     .eq('von_email', email)
     .is('geloescht_am', null)
     .order('created_at', { ascending: false });
 
-  const rows = (data as AnfrageRow[]) || [];
+  const alleRows = (data as AnfrageRow[]) || [];
+
+  // Nur Anfragen mit Kundenanfrage-Klassifikation zeigen – Werbe-/Rechnungs-
+  // Mails desselben Absenders gehören nicht in seine Kundenhistorie.
+  const rows = alleRows.filter((a) =>
+    (a.analysen || []).some((an) => an.kategorie === 'kundenanfrage')
+  );
 
   if (rows.length === 0) {
     notFound();
   }
 
-  // Header-Infos aus der jüngsten Analyse / Anfrage
-  const latest = rows[0]?.analysen?.[0];
-  const displayName = latest?.extrahierter_name || rows[0]?.von_name || email;
-  const firma = latest?.extrahierte_firma;
-  const telefon = latest?.extrahierte_telefon;
-  const kundeTyp = latest?.kunde_typ;
+  // Header-Infos aus der jüngsten Kundenanfrage-Analyse
+  const latestKundenAnalyse = rows[0]?.analysen?.find(
+    (an) => an.kategorie === 'kundenanfrage'
+  );
+  const displayName = latestKundenAnalyse?.extrahierter_name || rows[0]?.von_name || email;
+  const firma = latestKundenAnalyse?.extrahierte_firma;
+  const telefon = latestKundenAnalyse?.extrahierte_telefon;
+  const kundeTyp = latestKundenAnalyse?.kunde_typ;
 
   return (
     <div className="container mx-auto py-6 px-6 max-w-5xl">

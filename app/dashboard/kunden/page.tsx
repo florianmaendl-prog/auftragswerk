@@ -2,18 +2,21 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase-server';
 import { Card, CardContent } from '@/components/ui/card';
 
+type AnalyseRow = {
+  kategorie: string | null;
+  extrahierter_name: string | null;
+  extrahierte_firma: string | null;
+  gewerk_match: string | null;
+  kunde_typ: string | null;
+};
+
 type AnfrageRow = {
   id: string;
   von_email: string;
   von_name: string | null;
   created_at: string;
   status: string;
-  analysen: Array<{
-    extrahierter_name: string | null;
-    extrahierte_firma: string | null;
-    gewerk_match: string | null;
-    kunde_typ: string | null;
-  }> | null;
+  analysen: AnalyseRow[] | null;
 };
 
 type KundeAggregat = {
@@ -47,7 +50,7 @@ export default async function KundenPage() {
     .from('anfragen')
     .select(
       `id, von_email, von_name, created_at, status,
-       analysen (extrahierter_name, extrahierte_firma, gewerk_match, kunde_typ)`
+       analysen (kategorie, extrahierter_name, extrahierte_firma, gewerk_match, kunde_typ)`
     )
     .is('geloescht_am', null)
     .order('created_at', { ascending: false })
@@ -55,23 +58,28 @@ export default async function KundenPage() {
 
   const rows = (data as AnfrageRow[]) || [];
 
-  // Aggregieren – Email = Schlüssel. Erste (= jüngste) Werte gewinnen
-  // für name/firma/kunde_typ (DESC sort macht das einfach).
+  // Aggregieren – Email = Schlüssel. NUR Kundenanfragen zählen:
+  // Werbung/Rechnung/Innung-Mails desselben Absenders fließen weder
+  // in die Anzahl noch in die Stammdaten (Name/Firma) ein.
   const kundenMap = new Map<string, KundeAggregat>();
   for (const a of rows) {
-    const latest = a.analysen && a.analysen.length > 0 ? a.analysen[0] : null;
+    const kundenAnalyse = (a.analysen || []).find(
+      (an) => an.kategorie === 'kundenanfrage'
+    );
+    if (!kundenAnalyse) continue; // Sender hatte zu dieser Anfrage keine Kundenanfrage-Klassifikation
+
     const existing = kundenMap.get(a.von_email);
     if (existing) {
       existing.anzahl++;
     } else {
       kundenMap.set(a.von_email, {
         email: a.von_email,
-        name: latest?.extrahierter_name || a.von_name,
-        firma: latest?.extrahierte_firma || null,
+        name: kundenAnalyse.extrahierter_name || a.von_name,
+        firma: kundenAnalyse.extrahierte_firma || null,
         anzahl: 1,
         letzter_kontakt: a.created_at,
-        kunde_typ: latest?.kunde_typ || null,
-        gewerk_match: latest?.gewerk_match || null,
+        kunde_typ: kundenAnalyse.kunde_typ || null,
+        gewerk_match: kundenAnalyse.gewerk_match || null,
       });
     }
   }
