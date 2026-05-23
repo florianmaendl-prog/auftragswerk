@@ -1,9 +1,20 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const WOCHENTAGE_LANG = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const STUNDEN = Array.from({ length: 13 }, (_, i) => 7 + i); // 7..19
 
 type Regel = {
@@ -52,6 +63,11 @@ export function WochenGrid({
   sperren: Sperre[];
   termine: TerminFuerGrid[];
 }) {
+  const router = useRouter();
+  const [selectedCell, setSelectedCell] = useState<{ dayIdx: number; hour: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   // Aus den ISO-Strings nehmen wir nur den Datumsteil und bauen daraus
   // browser-lokale Date-Objekte (00:00 Uhr Browser-TZ am jeweiligen Tag).
   const days = daysIso.map((iso) => {
@@ -64,6 +80,76 @@ export function WochenGrid({
     const t = new Date();
     return new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
   })();
+
+  function selectedCellLabel(): string {
+    if (!selectedCell) return '';
+    const d = days[selectedCell.dayIdx];
+    const datumStr = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+    return `${WOCHENTAGE_LANG[selectedCell.dayIdx + 1]}, ${datumStr} um ${String(selectedCell.hour).padStart(2, '0')}:00 Uhr`;
+  }
+
+  async function macheFrei() {
+    if (!selectedCell) return;
+    setBusy(true);
+    setError(null);
+    const wochentag = selectedCell.dayIdx + 1;
+    const startU = `${String(selectedCell.hour).padStart(2, '0')}:00`;
+    const endeU = `${String(selectedCell.hour + 1).padStart(2, '0')}:00`;
+    try {
+      const res = await fetch('/api/verfuegbarkeit/regel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wochentag,
+          start_uhrzeit: startU,
+          ende_uhrzeit: endeU,
+          aktiv: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || `HTTP ${res.status}`);
+      } else {
+        setSelectedCell(null);
+        router.refresh();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler');
+    }
+    setBusy(false);
+  }
+
+  async function macheSperre() {
+    if (!selectedCell) return;
+    setBusy(true);
+    setError(null);
+    const date = days[selectedCell.dayIdx];
+    const von = new Date(date);
+    von.setHours(selectedCell.hour, 0, 0, 0);
+    const bis = new Date(date);
+    bis.setHours(selectedCell.hour + 1, 0, 0, 0);
+    try {
+      const res = await fetch('/api/verfuegbarkeit/sperre', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          datum_von: von.toISOString(),
+          datum_bis: bis.toISOString(),
+          grund: 'Manuell gesperrt',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || `HTTP ${res.status}`);
+      } else {
+        setSelectedCell(null);
+        router.refresh();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler');
+    }
+    setBusy(false);
+  }
 
   type CellInfo = {
     istFrei: boolean;
@@ -112,6 +198,7 @@ export function WochenGrid({
   }
 
   return (
+    <>
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-xs">
         <thead>
@@ -176,7 +263,18 @@ export function WochenGrid({
                       </span>
                     ) : info.istFrei ? (
                       <span className="text-green-700">●</span>
-                    ) : null}
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCell({ dayIdx, hour: h })}
+                        disabled={busy}
+                        className="block w-full h-full text-muted-foreground/40 hover:bg-accent/40 hover:text-foreground transition-colors rounded text-xs"
+                        title="Klicken um Regel oder Sperre einzutragen"
+                        aria-label={`Slot ${WOCHENTAGE[dayIdx]} ${h}:00 belegen`}
+                      >
+                        +
+                      </button>
+                    )}
                   </td>
                 );
               })}
@@ -185,5 +283,56 @@ export function WochenGrid({
         </tbody>
       </table>
     </div>
+
+    <Dialog
+      open={selectedCell !== null}
+      onOpenChange={(open) => {
+        if (!open) {
+          setSelectedCell(null);
+          setError(null);
+        }
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{selectedCellLabel()}</DialogTitle>
+          <DialogDescription>
+            Was willst du mit diesem Slot machen?
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Button
+            variant="outline"
+            className="w-full h-auto py-3 justify-start text-left"
+            onClick={macheFrei}
+            disabled={busy}
+          >
+            <div>
+              <div className="font-medium">🟢 Regelmäßig frei machen</div>
+              <div className="text-xs text-muted-foreground font-normal mt-0.5">
+                {selectedCell &&
+                  `Jeden ${WOCHENTAGE_LANG[selectedCell.dayIdx + 1]} ${String(selectedCell.hour).padStart(2, '0')}:00–${String(selectedCell.hour + 1).padStart(2, '0')}:00 Uhr – als Regel`}
+              </div>
+            </div>
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full h-auto py-3 justify-start text-left"
+            onClick={macheSperre}
+            disabled={busy}
+          >
+            <div>
+              <div className="font-medium">🔴 Diesen Slot sperren</div>
+              <div className="text-xs text-muted-foreground font-normal mt-0.5">
+                Einmalig an diesem Datum, eine Stunde lang
+              </div>
+            </div>
+          </Button>
+        </div>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        {busy && <p className="text-xs text-muted-foreground">Wird gespeichert …</p>}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

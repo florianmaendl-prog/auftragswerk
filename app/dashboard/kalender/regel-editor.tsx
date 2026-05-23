@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 const WOCHENTAGE_LANG = [
   '',
@@ -17,6 +18,8 @@ const WOCHENTAGE_LANG = [
   'Sonntag',
 ];
 
+const WOCHENTAGE_KURZ = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
 export type Regel = {
   id: string;
   wochentag: number;
@@ -28,32 +31,50 @@ export type Regel = {
 export function RegelEditor({ regeln }: { regeln: Regel[] }) {
   const router = useRouter();
   const [showAdd, setShowAdd] = useState(false);
-  const [wochentag, setWochentag] = useState('1');
+  const [wochentage, setWochentage] = useState<number[]>([1]);
   const [start, setStart] = useState('08:00');
   const [ende, setEnde] = useState('12:00');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function toggleWochentag(wt: number) {
+    setWochentage((prev) =>
+      prev.includes(wt) ? prev.filter((x) => x !== wt) : [...prev, wt].sort()
+    );
+  }
+
   async function speichere() {
+    if (wochentage.length === 0) {
+      setError('Mindestens einen Wochentag wählen.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch('/api/verfuegbarkeit/regel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          wochentag: parseInt(wochentag, 10),
-          start_uhrzeit: start,
-          ende_uhrzeit: ende,
-          aktiv: true,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setError(data.error || `HTTP ${res.status}`);
+      const results = await Promise.all(
+        wochentage.map((wt) =>
+          fetch('/api/verfuegbarkeit/regel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              wochentag: wt,
+              start_uhrzeit: start,
+              ende_uhrzeit: ende,
+              aktiv: true,
+            }),
+          }).then(async (r) => ({ ok: r.ok, data: await r.json() }))
+        )
+      );
+      const failures = results.filter((r) => !r.ok || !r.data.success);
+      if (failures.length > 0) {
+        setError(
+          `${failures.length} von ${results.length} Regel(n) fehlgeschlagen: ${
+            failures[0].data.error || 'unbekannter Fehler'
+          }`
+        );
       } else {
         setShowAdd(false);
-        setWochentag('1');
+        setWochentage([1]);
         setStart('08:00');
         setEnde('12:00');
         router.refresh();
@@ -126,33 +147,56 @@ export function RegelEditor({ regeln }: { regeln: Regel[] }) {
         )}
 
         {showAdd ? (
-          <div className="space-y-2 rounded-md border border-input p-3 bg-muted/20">
-            <div className="grid grid-cols-3 gap-2">
-              <select
-                value={wochentag}
-                onChange={(e) => setWochentag(e.target.value)}
-                disabled={busy}
-                className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-              >
-                {WOCHENTAGE_LANG.slice(1).map((w, i) => (
-                  <option key={i + 1} value={String(i + 1)}>
-                    {w}
-                  </option>
+          <div className="space-y-3 rounded-md border border-input p-3 bg-muted/20">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">
+                Wochentage (mehrere möglich)
+              </label>
+              <div className="flex gap-1 flex-wrap">
+                {[1, 2, 3, 4, 5, 6, 7].map((wt) => (
+                  <button
+                    key={wt}
+                    type="button"
+                    onClick={() => toggleWochentag(wt)}
+                    disabled={busy}
+                    className={cn(
+                      'px-3 py-1.5 text-xs rounded-md border transition-colors',
+                      wochentage.includes(wt)
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background hover:bg-accent border-input',
+                      busy && 'opacity-50 cursor-not-allowed'
+                    )}
+                  >
+                    {WOCHENTAGE_KURZ[wt]}
+                  </button>
                 ))}
-              </select>
-              <Input
-                type="time"
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-                disabled={busy}
-              />
-              <Input
-                type="time"
-                value={ende}
-                onChange={(e) => setEnde(e.target.value)}
-                disabled={busy}
-              />
+              </div>
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Von</label>
+                <Input
+                  type="time"
+                  value={start}
+                  onChange={(e) => setStart(e.target.value)}
+                  disabled={busy}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Bis</label>
+                <Input
+                  type="time"
+                  value={ende}
+                  onChange={(e) => setEnde(e.target.value)}
+                  disabled={busy}
+                />
+              </div>
+            </div>
+            {wochentage.length > 1 && (
+              <p className="text-xs text-muted-foreground">
+                Legt {wochentage.length} Regeln an – eine pro gewähltem Wochentag.
+              </p>
+            )}
             <div className="flex justify-end gap-2">
               <Button
                 variant="ghost"
