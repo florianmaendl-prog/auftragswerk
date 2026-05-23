@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 
 const mainNavItems = [
   { href: '/dashboard', label: 'Inbox', icon: '📥' },
+  { href: '/dashboard/kunden', label: 'Kunden', icon: '👥' },
   { href: '/dashboard/profil', label: 'Betriebsprofil', icon: '🏢' },
 ];
 

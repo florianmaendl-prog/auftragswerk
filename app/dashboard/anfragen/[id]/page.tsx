@@ -172,6 +172,14 @@ export default async function AnfrageDetailPage({
 
   const nachrichten = (nachrichtenData as Nachricht[]) || [];
 
+  // Wie viele weitere Anfragen hat dieser Kunde (für Mini-CRM-Hinweis)?
+  const { count: weitereAnfragenVomKunden } = await supabase
+    .from('anfragen')
+    .select('id', { count: 'exact', head: true })
+    .eq('von_email', anfrage.von_email)
+    .neq('id', anfrage.id)
+    .is('geloescht_am', null);
+
   // Anhänge zu den Nachrichten holen + Signed URLs erzeugen (parallel).
   // anhaenge-Select läuft über die anon-Client (RLS-gefiltert auf betrieb_id);
   // Signed URLs brauchen aber service-role, weil das Storage-Bucket privat ist.
@@ -261,6 +269,15 @@ export default async function AnfrageDetailPage({
                 <> · {nachrichten.length} Nachrichten im Thread</>
               )}
             </p>
+            {weitereAnfragenVomKunden && weitereAnfragenVomKunden > 0 ? (
+              <Link
+                href={`/dashboard/kunden/${encodeURIComponent(anfrage.von_email)}`}
+                className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mt-1"
+              >
+                👥 {weitereAnfragenVomKunden} weitere{' '}
+                {weitereAnfragenVomKunden === 1 ? 'Anfrage' : 'Anfragen'} von diesem Kunden →
+              </Link>
+            ) : null}
             <div className="flex items-center gap-2 mt-3">
               {klass && gewerkBadge(klass.gewerk_match)}
               {klass && confidenceBadge(klass.confidence)}
