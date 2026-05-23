@@ -1,12 +1,12 @@
 # Auftragswerk – Backlog
 
-> **Stand: 23.5.2026 (Tag 12 – spät, Sprint "Fehlende Mitte" + Modul 5 durch)**
+> **Stand: 23.5.2026 (Tag 12 – nachts, Sprint "Fehlende Mitte" + Modul 5 + Modul 6 + 6.5 durch)**
 >
 > Säule 1 production-live. Max-Pilot-Setup wartet aufs Wochenende.
-> Sprint **"Fehlende Mitte"** (Attachments + Mini-CRM + Termine + Diagnose)
-> deployt. Direkt drauf **Modul 5 (Verfügbarkeits-Kalender)** + Mini-CRM-Bugfix
-> deployt – KI kennt jetzt Max' echte freie Termine und schlägt konkrete Slots
-> vor statt vager "Anfang nächster Woche".
+> Sprint **"Fehlende Mitte"** + Modul 5 (Verfügbarkeits-Kalender) durch.
+> Direkt danach **Modul 6** (Termin direkt aus Reply festmachen + KI-Auto-
+> Extract Datum/Uhrzeit/Ort) und **Modul 6.5** (Mini-Stat-Bar oben in der
+> Inbox: "Heute: N neu, M Replies, K aussortiert · Diese Woche: …").
 >
 > **Premise:** Tool soll "Premium" werden, nicht zu schmal bleiben – statt
 > auf Max zu warten, proaktiv die Anfrage-bis-Termin-Brücke geschlossen.
@@ -70,6 +70,33 @@
     Schritt-Badges + ausklappbaren Details
   - Highlight "X Fehler in 24h" rot
   - Sidebar-Eintrag "Diagnose" 🛠️ im Utility-Bereich
+
+### Tag 12 nachts: Modul 6 – Termin festmachen aus Reply + Modul 6.5 Inbox-Stats
+- ✅ **Modul 6 – Termin direkt festmachen + KI-Auto-Extract**
+  (`0bcb674`, `1f4f7eb`, `3877961`, `38a22d2`)
+  - DB: neue JSONB-Spalte `analysen.extrahierter_termin` ({ datum_iso, ort, notiz })
+  - Klassifikation extrahiert bei Termin-Bestätigungen ("Mo 10 Uhr passt")
+    Datum/Uhrzeit/Ort; heutiges Datum als Kontext für relative Aussagen
+  - `/api/termine` POST: neuer `direkt_bestaetigen`-Flag → Insert mit
+    status='bestaetigt', vorgeschlagene werden automatisch abgesagt
+  - TerminCard: vier saubere Zustände
+    · bestätigt → grünes Banner
+    · KI hat Termin extrahiert → gelbes Hinweis-Banner "Kunde scheint Termin
+      zu bestätigen: <Datum>" mit "Direkt festmachen"-Button (Modal PRE-FILLED)
+    · vorgeschlagene da → bestehende Liste mit Festmachen pro Slot
+    · sonst → "Termin vorschlagen" + "Direkt festmachen" (Modal leer)
+  - Festmach-Modal: datetime-local + Ort + Notiz, ein Klick legt Termin als
+    `bestaetigt` an → erscheint sofort im Kalender + Termine-Übersicht
+  - Bonus-Fix: `analysen` werden in der Anfrage-Detail nach analysiert_am
+    DESC sortiert – KI-Analyse-Panel zeigt damit auch bei Replies immer die
+    aktuellste Analyse (statt zufällig der ersten); latenter UI-Bug nebenbei mit weg
+- ✅ **Modul 6.5 – Mini-Stat-Bar oben in der Inbox** (`1aa552e`)
+  - Kompakte Zeile über den Tab-Gruppen
+  - "Heute: N neue Anfragen · M Replies · K aussortiert" (Klick → passender Tab)
+  - "Diese Woche: X Anfragen · Y Termine" (Termine verlinkt zur Termin-Übersicht)
+  - Empty-State "Heute noch nichts los." statt Nullen-Wand
+  - Implementation: 1× extra termine-Count-Query, sonst nur Aggregation
+    der schon vorhandenen items-Liste – kein neuer API-Endpoint
 
 ### Tag 12 spät: Modul 5 – Verfügbarkeits-Kalender + Mini-CRM-Bugfix
 - ✅ **Mini-CRM Bugfix** (`b56dbaa`)
@@ -160,7 +187,16 @@ Geplante Tabellen: `angebot_bausteine`, `material_preise`, `angebote` +
 
 ## 🎁 POLISH (nach Pilot / kontextsensitiv)
 
-### Sprint "Fehlende Mitte" + Modul 5 – offene Polish-Items
+### Sprint "Fehlende Mitte" + Modul 5/6/6.5 – offene Polish-Items
+- [ ] **Notiz pro Anfrage** (intern, nicht in Mail) – "zahlt schlecht",
+      "kennt Müller". Modul 7-Kandidat, hoch im Wert/Aufwand-Verhältnis.
+- [ ] **Voller Activity-Feed** – Verlauf der letzten Aktionen ("vor 20 Min
+      Werbung aussortiert: Stahlwelt-Aktion"). Mini-Stat-Bar reicht v1.
+- [ ] **Vorgeschlagene Slots strukturiert speichern** – wenn die KI im
+      Erst-Entwurf konkrete Slots aus dem Kalender vorschlägt, könnten
+      sie als `termine` mit `status='vorgeschlagen'` gespeichert werden.
+      Kunde antwortet "Slot 2 passt" → Auto-Match möglich. Braucht
+      KI-Output-Refactoring (strukturiertes JSON-Output zusätzlich zu Body).
 - [ ] **Sidebar-Badge für Diagnose**: rote Zahl wenn Errors in 24h
       (braucht Server-Prop durch dashboard/layout statt purer Client-Shell)
 - [ ] **N1 Inbound-404-Logging**: aktuell nur `console.warn`. Braucht NULL-
@@ -242,9 +278,11 @@ Geplante Tabellen: `angebot_bausteine`, `material_preise`, `angebote` +
 2. ✅ Härtung Reply/Threading/Cleaner/Auth/DMARC (Tag 11-12)
 3. ✅ **Sprint "Fehlende Mitte" – Attachments, Mini-CRM, Termine, Diagnose** (Tag 12)
 4. ✅ **Modul 5 – Verfügbarkeits-Kalender + KI-Slot-Vorschläge + Mini-CRM-Bugfix** (Tag 12 spät)
-5. 🚧 Max-Account angelegt, wartet auf Mail-Setup (Wochenende)
-6. ⏸ Smoke-Tests + Spickzettel → Pilot scharfschalten
-7. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
-8. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
-9. ⏸ 2. Pilot: Elektriker-Kumpel
-10. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
+5. ✅ **Modul 6 – Termin direkt aus Reply festmachen + KI-Auto-Extract** (Tag 12 nachts)
+6. ✅ **Modul 6.5 – Mini-Stat-Bar in Inbox** (Tag 12 nachts)
+7. 🚧 Max-Account angelegt, wartet auf Mail-Setup (Wochenende)
+8. ⏸ Smoke-Tests + Spickzettel → Pilot scharfschalten
+9. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
+10. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
+11. ⏸ 2. Pilot: Elektriker-Kumpel
+12. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
