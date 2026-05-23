@@ -160,7 +160,7 @@ function formatThread(konversation: ThreadNachricht[]): string {
         n.typ === 'eingang'
           ? `KUNDE — ${n.von_name || ''} <${n.von_email}>`
           : 'UNSER BETRIEB';
-      return `===== NACHRICHT ${i + 1} — ${rolle} (${datum})${marker} =====\n${n.body_text.trim()}`;
+      return `===== NACHRICHT ${i + 1} — ${rolle} (${datum})${marker} =====\n${(n.body_text ?? '').trim()}`;
     })
     .join('\n\n');
 }
@@ -228,6 +228,12 @@ export async function generiereEntwurf(
   const systemPrompt = buildSystemPrompt(betrieb);
   const userMessage = buildUserPrompt(anfrage, klassifikation, konversation);
 
+  if (konversation && konversation.length > 0) {
+    console.log(
+      `Entwurf-Generierung mit Thread-Kontext (anfrage=${anfrage.id}, ${konversation.length} Nachrichten)`
+    );
+  }
+
   const claudeRes = await callClaude({
     model: 'claude-sonnet-4-6',
     systemPrompt,
@@ -244,9 +250,18 @@ export async function generiereEntwurf(
 
   let parsed: { betreff_vorschlag: string; body_text: string; interne_notiz: string };
   try {
-    const cleaned = claudeRes.text.replace(/```json\s*|```\s*$/g, '').trim();
-    parsed = JSON.parse(cleaned);
+    // Robust: nimm den Substring vom ersten { bis zum letzten } – tolerant
+    // gegenüber ```-Wrappern, Erklär-Vorspann oder Trailing-Text von Sonnet.
+    const start = claudeRes.text.indexOf('{');
+    const end = claudeRes.text.lastIndexOf('}');
+    if (start === -1 || end === -1 || end <= start) {
+      throw new Error('Kein JSON-Block im Output gefunden');
+    }
+    parsed = JSON.parse(claudeRes.text.slice(start, end + 1));
   } catch (err) {
+    console.error(
+      `Entwurf JSON-Parse-Fehler (anfrage=${anfrage.id}). Raw response (erste 500 Zeichen): ${claudeRes.text.slice(0, 500)}`
+    );
     return {
       success: false,
       error: `JSON-Parse-Fehler: ${err instanceof Error ? err.message : 'unbekannt'} | Raw: ${claudeRes.text.slice(0, 300)}`,
