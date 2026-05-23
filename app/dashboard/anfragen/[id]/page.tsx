@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EntwurfEditor from './entwurf-editor';
 import { DetailActions } from './detail-actions';
 import { ReplyEditor } from './reply-editor';
+import { TerminCard, type Termin } from './termin-card';
 import { cn } from '@/lib/utils';
 import { cleanMail } from '@/lib/mail-cleaner';
 
@@ -179,6 +180,14 @@ export default async function AnfrageDetailPage({
     .eq('von_email', anfrage.von_email)
     .neq('id', anfrage.id)
     .is('geloescht_am', null);
+
+  // Termine zu dieser Anfrage holen (für Termin-Card)
+  const { data: termineData } = await supabase
+    .from('termine')
+    .select('id, datum, dauer_min, ort, notiz, status')
+    .eq('anfrage_id', anfrage.id)
+    .order('datum', { ascending: true });
+  const termine = (termineData as Termin[]) || [];
 
   // Anhänge zu den Nachrichten holen + Signed URLs erzeugen (parallel).
   // anhaenge-Select läuft über die anon-Client (RLS-gefiltert auf betrieb_id);
@@ -484,8 +493,10 @@ export default async function AnfrageDetailPage({
           )}
         </div>
 
-        {/* RECHTS: Entwurf-Editor (immer oben wenn da) + ReplyEditor (wenn aktiv + bereits versendet) */}
+        {/* RECHTS: Termin-Card (immer oben) + Entwurf-Editor + ReplyEditor */}
         <div className="space-y-4">
+          <TerminCard anfrageId={anfrage.id} termine={termine} />
+
           {entwurf && (
             <EntwurfEditor
               entwurf={{
