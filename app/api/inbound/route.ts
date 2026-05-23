@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { supabaseAdmin } from '@/lib/supabase';
 import { cleanMail } from '@/lib/mail-cleaner';
 import { klassifiziereAnfrage } from '@/lib/klassifikation';
@@ -33,6 +34,70 @@ function istAutorisiert(req: NextRequest): boolean {
   if (trenn === -1) return false;
 
   return decoded.slice(0, trenn) === user && decoded.slice(trenn + 1) === pass;
+}
+
+type PostmarkAttachment = {
+  Name: string;
+  Content: string;       // base64-encoded
+  ContentType: string;
+  ContentLength: number;
+};
+
+/**
+ * Speichert Postmark-Attachments im Supabase Storage Bucket 'anhaenge' und
+ * legt pro Datei eine Zeile in 'anhaenge' an. Pro Anhang fehler-tolerant:
+ * ein gescheiterter Upload blockiert nicht den restlichen Mail-Eingang –
+ * Fehler werden in processing_errors geloggt.
+ */
+async function speichereAnhaenge(
+  attachments: PostmarkAttachment[],
+  nachrichtId: string,
+  anfrageId: string,
+  betriebId: string
+): Promise<void> {
+  for (const att of attachments) {
+    try {
+      // Dateiname sanieren: Pfad-Trenner und Steuerzeichen raus, max 200 Zeichen
+      const safeName = (att.Name || 'datei').replace(/[/\\:*?"<>|]/g, '_').slice(0, 200);
+      const path = `${betriebId}/${anfrageId}/${randomUUID()}_${safeName}`;
+      const buffer = Buffer.from(att.Content, 'base64');
+
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from('anhaenge')
+        .upload(path, buffer, { contentType: att.ContentType, upsert: false });
+
+      if (uploadError) {
+        console.error(`Anhang-Upload fehlgeschlagen (${att.Name}):`, uploadError.message);
+        await supabaseAdmin.from('processing_errors').insert({
+          betrieb_id: betriebId,
+          anfrage_id: anfrageId,
+          schritt: 'attachment_upload',
+          fehler_text: uploadError.message,
+          fehler_details: { dateiname: att.Name, content_type: att.ContentType },
+        });
+        continue;
+      }
+
+      const { error: insertError } = await supabaseAdmin.from('anhaenge').insert({
+        nachricht_id: nachrichtId,
+        betrieb_id: betriebId,
+        dateiname: att.Name,
+        content_type: att.ContentType,
+        groesse_bytes: att.ContentLength,
+        storage_path: path,
+      });
+
+      if (insertError) {
+        console.error(
+          `Anhang-Metadaten-Insert fehlgeschlagen (${att.Name}):`,
+          insertError.message
+        );
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'unbekannt';
+      console.error(`Anhang-Verarbeitung Fehler (${att.Name}):`, msg);
+    }
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -189,22 +254,45 @@ export async function POST(req: NextRequest) {
       console.log('Neue Anfrage gespeichert:', anfrageId);
     }
 
-    // Nachricht in nachrichten-Tabelle speichern
-    await supabaseAdmin.from('nachrichten').insert({
-      anfrage_id: anfrageId,
-      betrieb_id: betrieb.id,
-      typ: 'eingang',
-      von_email: vonEmail,
-      von_name: vonName,
-      an_email: toEmail,
-      betreff: betreff,
-      body_text: bodyText,
-      body_html: bodyHtml,
-      message_id: messageId,
-      in_reply_to: inReplyTo,
-      status: 'gespeichert',
-      raw_payload: payload,
-    });
+    // Nachricht in nachrichten-Tabelle speichern – id zurückholen für Anhänge
+    const { data: neueNachricht, error: nachrichtInsertError } = await supabaseAdmin
+      .from('nachrichten')
+      .insert({
+        anfrage_id: anfrageId,
+        betrieb_id: betrieb.id,
+        typ: 'eingang',
+        von_email: vonEmail,
+        von_name: vonName,
+        an_email: toEmail,
+        betreff: betreff,
+        body_text: bodyText,
+        body_html: bodyHtml,
+        message_id: messageId,
+        in_reply_to: inReplyTo,
+        status: 'gespeichert',
+        raw_payload: payload,
+      })
+      .select('id')
+      .single();
+
+    if (nachrichtInsertError || !neueNachricht) {
+      console.error('Nachricht-Insert fehlgeschlagen:', nachrichtInsertError);
+      await supabaseAdmin.from('processing_errors').insert({
+        betrieb_id: betrieb.id,
+        anfrage_id: anfrageId,
+        schritt: 'nachricht_insert',
+        fehler_text: nachrichtInsertError?.message || 'unbekannt',
+      });
+    }
+
+    // Anhänge aus dem Postmark-Payload extrahieren + hochladen
+    const attachments = Array.isArray(payload.Attachments)
+      ? (payload.Attachments as PostmarkAttachment[])
+      : [];
+    if (neueNachricht && attachments.length > 0) {
+      console.log(`📎 ${attachments.length} Anhang/Anhänge erkannt – verarbeite…`);
+      await speichereAnhaenge(attachments, neueNachricht.id, anfrageId, betrieb.id);
+    }
 
     // SCHRITT 2: Klassifikation
     const { data: anfrageFuerKlass } = await supabaseAdmin
