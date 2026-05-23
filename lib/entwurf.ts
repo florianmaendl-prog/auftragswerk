@@ -173,7 +173,8 @@ function formatThread(konversation: ThreadNachricht[]): string {
 function buildUserPrompt(
   anfrage: Anfrage,
   klassifikation: Klassifikation,
-  konversation?: ThreadNachricht[]
+  konversation?: ThreadNachricht[],
+  freieSlots?: string[]
 ): string {
   const klassBlock = `KLASSIFIKATION (intern, vorab erfolgt):
 - Kategorie: ${klassifikation.kategorie}
@@ -184,6 +185,20 @@ function buildUserPrompt(
 - Zusammenfassung: ${klassifikation.zusammenfassung || '-'}
 - Fehlende Infos: ${(klassifikation.fehlende_infos || []).join(', ') || 'keine erkannt'}
 - Empfohlene Aktion: ${klassifikation.empfohlene_aktion || '-'}`;
+
+  // Freie Slots aus dem Verfügbarkeits-Modul – wenn vorhanden, bekommt die KI
+  // konkrete Termin-Vorschläge zum Anbieten statt vager "Anfang nächster Woche".
+  const slotsBlock =
+    freieSlots && freieSlots.length > 0
+      ? `\n\nDEINE NÄCHSTEN FREIEN TERMIN-SLOTS (aus deinem Kalender):
+${freieSlots.map((s) => `- ${s}`).join('\n')}
+
+Wenn ein Aufmaß-Termin sinnvoll ist, schlage 2-3 KONKRETE Slots aus dieser
+Liste vor (idealerweise verschiedene Tage), z.B. "Ich kann anbieten:
+${freieSlots[0]} Uhr oder ${freieSlots[Math.min(2, freieSlots.length - 1)]} Uhr".
+Nutze KEINE vagen Zeiten wie "Anfang nächster Woche", wenn diese Liste
+existiert.`
+      : '';
 
   // Reply-Pfad: mindestens eine Ursprungs-Nachricht + ein Reply = ≥ 2 Einträge.
   if (konversation && konversation.length >= 2) {
@@ -199,7 +214,7 @@ ${klassBlock}
 Erstelle jetzt den Antwortentwurf auf die LETZTE Kunden-Nachricht. Berücksichtige den kompletten Verlauf. Wiederhole keine Fragen, die schon beantwortet sind. Wenn der Kunde etwas bestätigt hat, bestätige es kurz zurück – frag NICHT nochmal. Antworte nur mit JSON. KEINE Grußformel/Name am Ende des body_text.`;
   }
 
-  // Erst-Antwort / kein Thread-Kontext: bisheriges Verhalten.
+  // Erst-Antwort / kein Thread-Kontext: bisheriges Verhalten + optionale Slots.
   return `KUNDENANFRAGE:
 
 Von: ${anfrage.von_name || ''} <${anfrage.von_email}>
@@ -209,7 +224,7 @@ ${anfrage.body_text_clean || anfrage.body_text}
 
 ---
 
-${klassBlock}
+${klassBlock}${slotsBlock}
 
 Erstelle jetzt den Antwortentwurf gemäß den Regeln. Antworte nur mit JSON. Schreibe KEINE Grußformel und KEINEN Namen am Ende des body_text.`;
 }
@@ -228,10 +243,11 @@ export async function generiereEntwurf(
   anfrage: Anfrage,
   klassifikation: Klassifikation,
   betrieb: Betrieb,
-  konversation?: ThreadNachricht[]
+  konversation?: ThreadNachricht[],
+  freieSlots?: string[]
 ): Promise<EntwurfResult> {
   const systemPrompt = buildSystemPrompt(betrieb);
-  const userMessage = buildUserPrompt(anfrage, klassifikation, konversation);
+  const userMessage = buildUserPrompt(anfrage, klassifikation, konversation, freieSlots);
 
   if (konversation && konversation.length > 0) {
     console.log(

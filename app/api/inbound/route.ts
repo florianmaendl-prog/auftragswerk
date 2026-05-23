@@ -4,6 +4,7 @@ import { cleanMail } from '@/lib/mail-cleaner';
 import { klassifiziereAnfrage } from '@/lib/klassifikation';
 import { generiereEntwurf, type ThreadNachricht } from '@/lib/entwurf';
 import { speichereAnhang, type AnhangInput } from '@/lib/anhaenge';
+import { getFreieSlots } from '@/lib/verfuegbarkeit';
 
 const CLEAN_THRESHOLD = 3000;
 
@@ -360,11 +361,30 @@ export async function POST(req: NextRequest) {
           konversation = (thread as ThreadNachricht[] | null) || undefined;
         }
 
+        // Bei Erst-Anfragen: nächste freie Slots aus Kalender holen, damit
+        // die KI konkrete Termin-Vorschläge machen kann. Bei Replies lassen
+        // wir das aus – der Termin-Faden läuft schon im Thread-Kontext.
+        let freieSlots: string[] | undefined;
+        if (!istReply) {
+          try {
+            const slots = await getFreieSlots(betrieb.id, new Date(), 14, 60, 12);
+            if (slots.length > 0) {
+              freieSlots = slots.map((s) => s.label);
+              console.log(
+                `📅 ${slots.length} freie Slots an Entwurf-KI übergeben`
+              );
+            }
+          } catch (err) {
+            console.error('Fehler beim Slot-Loading (nicht-blockend):', err);
+          }
+        }
+
         const entwurfRes = await generiereEntwurf(
           anfrageFuerKlass,
           klassifikation,
           betrieb,
-          konversation
+          konversation,
+          freieSlots
         );
 
         if (entwurfRes.success) {
