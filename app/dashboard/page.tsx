@@ -140,6 +140,58 @@ function timeAgo(date: string): string {
   return new Date(date).toLocaleDateString('de-DE');
 }
 
+function getStartOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getStartOfWeek(): Date {
+  const d = new Date();
+  const dayIso = (d.getDay() + 6) % 7; // 0=Mo .. 6=So
+  d.setDate(d.getDate() - dayIso);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+type InboxStats = {
+  heuteNeu: number;        // Anfragen reingekommen heute, nicht-reply, nicht-aussortiert
+  heuteReplies: number;    // Kunden-Antworten heute
+  heuteAussortiert: number;
+  wocheAnfragen: number;   // alle Anfragen außer aussortiert
+  wocheTermine: number;    // aus termine-Tabelle
+};
+
+function computeStats(items: AnfrageWithJoins[], wocheTermine: number): InboxStats {
+  const tHeute = getStartOfToday().getTime();
+  const tWoche = getStartOfWeek().getTime();
+
+  let heuteNeu = 0;
+  let heuteReplies = 0;
+  let heuteAussortiert = 0;
+  let wocheAnfragen = 0;
+
+  for (const it of items) {
+    const ts = it.created_at ? new Date(it.created_at).getTime() : 0;
+    if (ts < tWoche) continue;
+
+    if (it.status !== 'aussortiert') wocheAnfragen++;
+
+    if (ts < tHeute) continue;
+    if (it.status === 'reply_eingegangen') heuteReplies++;
+    else if (it.status === 'aussortiert') heuteAussortiert++;
+    else if (
+      it.status === 'entwurf_bereit' ||
+      it.status === 'manuell_pruefen' ||
+      it.status === 'neu' ||
+      it.status === 'versendet'
+    )
+      heuteNeu++;
+  }
+
+  return { heuteNeu, heuteReplies, heuteAussortiert, wocheAnfragen, wocheTermine };
+}
+
 function gewerkBadge(gewerk: string | null) {
   if (!gewerk) return null;
   const color =
@@ -246,6 +298,18 @@ export default async function InboxPage({
 
   const items = (alle as AnfrageWithJoins[]) || [];
 
+  // Mini-Stats für die Top-Bar: Termine dieser Woche separat zählen
+  const startWoche = getStartOfWeek();
+  const startNaechsteWoche = new Date(startWoche);
+  startNaechsteWoche.setDate(startNaechsteWoche.getDate() + 7);
+  const { count: terminCount } = await supabase
+    .from('termine')
+    .select('id', { count: 'exact', head: true })
+    .gte('datum', startWoche.toISOString())
+    .lt('datum', startNaechsteWoche.toISOString())
+    .neq('status', 'abgesagt');
+  const stats = computeStats(items, terminCount ?? 0);
+
   // Counts pro Tab
   const counts: Record<TabId, number> = TABS.reduce(
     (acc, tab) => {
@@ -272,11 +336,55 @@ export default async function InboxPage({
 
   return (
     <div className="container mx-auto py-8 px-6 max-w-5xl">
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-3xl font-semibold tracking-tight mb-1">Inbox</h1>
         <p className="text-muted-foreground text-sm">
           {items.length} {items.length === 1 ? 'Anfrage' : 'Anfragen'} insgesamt
         </p>
+      </div>
+
+      {/* MINI-STATS-BAR */}
+      <div className="mb-5 rounded-md border border-input bg-muted/20 p-3 text-sm space-y-1">
+        {stats.heuteNeu === 0 &&
+        stats.heuteReplies === 0 &&
+        stats.heuteAussortiert === 0 ? (
+          <p className="text-muted-foreground">Heute noch nichts los.</p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="text-muted-foreground font-medium">Heute:</span>
+            {stats.heuteNeu > 0 && (
+              <Link href="/dashboard?tab=freigabe" className="hover:underline">
+                <span className="font-semibold">{stats.heuteNeu}</span>{' '}
+                {stats.heuteNeu === 1 ? 'neue Anfrage' : 'neue Anfragen'}
+              </Link>
+            )}
+            {stats.heuteReplies > 0 && (
+              <Link href="/dashboard?tab=gespraech" className="hover:underline">
+                <span className="font-semibold">{stats.heuteReplies}</span>{' '}
+                {stats.heuteReplies === 1 ? 'Reply' : 'Replies'}
+              </Link>
+            )}
+            {stats.heuteAussortiert > 0 && (
+              <Link
+                href="/dashboard?tab=aussortiert"
+                className="hover:underline text-muted-foreground"
+              >
+                <span className="font-semibold">{stats.heuteAussortiert}</span> aussortiert
+              </Link>
+            )}
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+          <span className="font-medium">Diese Woche:</span>
+          <span>
+            <span className="font-semibold text-foreground">{stats.wocheAnfragen}</span>{' '}
+            {stats.wocheAnfragen === 1 ? 'Anfrage' : 'Anfragen'}
+          </span>
+          <Link href="/dashboard/termine" className="hover:underline">
+            <span className="font-semibold text-foreground">{stats.wocheTermine}</span>{' '}
+            {stats.wocheTermine === 1 ? 'Termin' : 'Termine'}
+          </Link>
+        </div>
       </div>
 
       {/* HAUPTREIHE: Gruppen */}
