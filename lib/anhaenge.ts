@@ -25,16 +25,17 @@ export type SpeichereAnhangResult = {
 };
 
 /**
- * Lädt einen einzelnen Anhang in Storage hoch und legt die `anhaenge`-Zeile an.
- * Wirft keine Exception – Caller entscheidet, was bei Fehlern zu tun ist
- * (log in processing_errors / Console / Response).
+ * Lädt einen Anhang aus base64-Daten in Storage hoch und legt die
+ * `anhaenge`-Zeile an. Für Outbound-Versand sowie Legacy-Inbound
+ * (wenn die Mail klein genug für Vercels Body-Limit war).
+ *
+ * Wirft keine Exception – Caller entscheidet, was bei Fehlern zu tun ist.
  */
 export async function speichereAnhang(
   att: AnhangInput,
   ctx: { nachrichtId: string; anfrageId: string; betriebId: string }
 ): Promise<SpeichereAnhangResult> {
   try {
-    // Dateiname sanieren: keine Pfad-Trenner / Steuerzeichen, max 200 Zeichen
     const safeName = (att.name || 'datei').replace(/[/\\:*?"<>|]/g, '_').slice(0, 200);
     const path = `${ctx.betriebId}/${ctx.anfrageId}/${randomUUID()}_${safeName}`;
     const buffer = Buffer.from(att.contentBase64, 'base64');
@@ -61,6 +62,37 @@ export async function speichereAnhang(
     }
 
     return { success: true, storage_path: path };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'unbekannt' };
+  }
+}
+
+/**
+ * Verlinkt einen Anhang, der bereits durch den Supabase-Edge-Proxy
+ * (supabase/functions/inbound-proxy) hochgeladen wurde – wir machen
+ * keinen Re-Upload, nur die anhaenge-Zeile mit dem schon vorhandenen
+ * Storage-Pfad anlegen.
+ */
+export async function verlinkeAnhang(
+  att: {
+    name: string;
+    contentType: string;
+    storagePath: string;
+    contentLengthHint?: number;
+  },
+  ctx: { nachrichtId: string; betriebId: string }
+): Promise<SpeichereAnhangResult> {
+  try {
+    const { error } = await supabaseAdmin.from('anhaenge').insert({
+      nachricht_id: ctx.nachrichtId,
+      betrieb_id: ctx.betriebId,
+      dateiname: att.name,
+      content_type: att.contentType,
+      groesse_bytes: att.contentLengthHint ?? 0,
+      storage_path: att.storagePath,
+    });
+    if (error) return { success: false, error: `metadata-insert: ${error.message}` };
+    return { success: true, storage_path: att.storagePath };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'unbekannt' };
   }

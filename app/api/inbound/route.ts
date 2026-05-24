@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { cleanMail } from '@/lib/mail-cleaner';
 import { klassifiziereAnfrage } from '@/lib/klassifikation';
 import { generiereEntwurf, type ThreadNachricht } from '@/lib/entwurf';
-import { speichereAnhang, type AnhangInput } from '@/lib/anhaenge';
+import { speichereAnhang, verlinkeAnhang, type AnhangInput } from '@/lib/anhaenge';
 import { getFreieSlots } from '@/lib/verfuegbarkeit';
 
 const CLEAN_THRESHOLD = 3000;
@@ -37,12 +37,21 @@ function istAutorisiert(req: NextRequest): boolean {
   return decoded.slice(0, trenn) === user && decoded.slice(trenn + 1) === pass;
 }
 
-/** Shape, in der Postmark Anhänge im Webhook-Payload liefert. */
+/**
+ * Shape, in der Postmark Anhänge im Webhook-Payload liefert.
+ * Bei uns kommt die Payload mittlerweile durch den Supabase-Edge-Proxy
+ * (supabase/functions/inbound-proxy): der lädt große Anhänge schon in
+ * Storage hoch, ersetzt Content (base64) durch _storage_path und macht
+ * die Payload klein genug fürs Vercel-4.5MB-Limit.
+ *
+ * Content ist also OPTIONAL – wenn nicht da, ist _storage_path da.
+ */
 type PostmarkAttachment = {
   Name: string;
-  Content: string;       // base64-encoded
+  Content?: string;          // base64; fehlt wenn Proxy schon hochgeladen hat
   ContentType: string;
   ContentLength: number;
+  _storage_path?: string;    // vom Edge-Proxy gesetzt
 };
 
 export async function POST(req: NextRequest) {
@@ -237,17 +246,38 @@ export async function POST(req: NextRequest) {
     if (neueNachricht && attachments.length > 0) {
       console.log(`📎 ${attachments.length} Anhang/Anhänge erkannt – verarbeite…`);
       for (const att of attachments) {
-        const input: AnhangInput = {
-          name: att.Name,
-          contentBase64: att.Content,
-          contentType: att.ContentType,
-          contentLengthHint: att.ContentLength,
-        };
-        const res = await speichereAnhang(input, {
-          nachrichtId: neueNachricht.id,
-          anfrageId,
-          betriebId: betrieb.id,
-        });
+        // Hat der Edge-Proxy schon hochgeladen? Dann nur verlinken.
+        // Sonst aus base64 hochladen (Legacy-Pfad / kleine Anhänge).
+        const storagePath = att._storage_path;
+        const content = att.Content;
+
+        let res: { success: boolean; error?: string };
+        if (storagePath) {
+          res = await verlinkeAnhang(
+            {
+              name: att.Name,
+              contentType: att.ContentType,
+              storagePath,
+              contentLengthHint: att.ContentLength,
+            },
+            { nachrichtId: neueNachricht.id, betriebId: betrieb.id }
+          );
+        } else if (content) {
+          const input: AnhangInput = {
+            name: att.Name,
+            contentBase64: content,
+            contentType: att.ContentType,
+            contentLengthHint: att.ContentLength,
+          };
+          res = await speichereAnhang(input, {
+            nachrichtId: neueNachricht.id,
+            anfrageId,
+            betriebId: betrieb.id,
+          });
+        } else {
+          res = { success: false, error: 'Weder Content noch _storage_path im Anhang' };
+        }
+
         if (!res.success) {
           console.error(`Anhang "${att.Name}" fehlgeschlagen:`, res.error);
           await supabaseAdmin.from('processing_errors').insert({
