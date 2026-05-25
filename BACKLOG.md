@@ -1,12 +1,13 @@
 # Auftragswerk – Backlog
 
-> **Stand: 23.5.2026 (Tag 12 – nachts, Sprint "Fehlende Mitte" + Modul 5 + Modul 6 + 6.5 durch)**
+> **Stand: 24.5.2026 (Tag 13 – Abend, Edge-Proxy + Bugfix-Sprint + Kalender-Klickbar durch)**
 >
-> Säule 1 production-live. Max-Pilot-Setup wartet aufs Wochenende.
-> Sprint **"Fehlende Mitte"** + Modul 5 (Verfügbarkeits-Kalender) durch.
-> Direkt danach **Modul 6** (Termin direkt aus Reply festmachen + KI-Auto-
-> Extract Datum/Uhrzeit/Ort) und **Modul 6.5** (Mini-Stat-Bar oben in der
-> Inbox: "Heute: N neu, M Replies, K aussortiert · Diese Woche: …").
+> Säule 1 production-live. Max-Pilot-Setup wartet weiter auf Max' DNS.
+> Heute: Postmark-Webhook über **Supabase Edge Function** (Foto-Anhänge
+> bis 25 MB), drei Tag-12-Bugs gefixt (Mitbringsel-Floskeln raus, Timezone
+> sauber als Europe/Berlin, Kalender zeigt bestätigte Termine), und der
+> **Kalender ist endlich klickbar** – jede Zelle (leer/grün/rot/blau)
+> öffnet einen Aktions-Dialog, Standalone-Termine ohne Anfrage gehen.
 >
 > **Premise:** Tool soll "Premium" werden, nicht zu schmal bleiben – statt
 > auf Max zu warten, proaktiv die Anfrage-bis-Termin-Brücke geschlossen.
@@ -70,6 +71,37 @@
     Schritt-Badges + ausklappbaren Details
   - Highlight "X Fehler in 24h" rot
   - Sidebar-Eintrag "Diagnose" 🛠️ im Utility-Bereich
+
+### Tag 13: Foto-Anhänge entgrenzt + drei Tag-12-Bugs + Kalender klickbar
+- ✅ **Modul 7 – Inbound-Proxy via Supabase Edge Function** (`7462d5f`)
+  - Postmark sendet jetzt erst zur Supabase Edge Function (Deno,
+    ~25 MB Body-Limit), die schreibt Anhänge in Storage und reicht eine
+    "lite" Payload an Vercel weiter
+  - Vercels 4.5 MB Hard-Limit ist damit kein Pilot-Killer mehr – Kunden
+    können Fotos in normaler Handy-Größe schicken
+  - lib/anhaenge.ts um `verlinkeAnhang` erweitert (proxy-vorgeladene
+    Anhänge nur referenzieren, kein Re-Upload)
+  - tsconfig schließt `supabase/functions/**` aus (Deno ≠ Next.js TS)
+- ✅ **Bug 3 – KI-Prompt 'Mitbringsel-Regel'** (`65cfb33`)
+  - KI schlägt nicht mehr proaktiv "Musterprofile mitbringen" o.ä. vor
+  - Nur noch wenn Kunde es erwähnt ODER materialbedarf_erkannt=true
+- ✅ **Bug 1+2 – Timezone-Sweep** (`024c5c0`)
+  - Alle Termin-Zeiten konsequent in Europe/Berlin (date-fns-tz)
+  - Bali-Test-Bug behoben (User in fremder TZ sieht trotzdem Berliner
+    Zeit), Bug 2 (Termin nicht im Kalender sichtbar) löst sich mit weil
+    cellStart jetzt zur UTC-Termin-Zeit korrekt matcht
+  - Neue lib/datetime.ts mit berlinLocalToUtcIso, formatBerlinDatetime etc.
+- ✅ **Click-to-Edit + Standalone-Termine im Kalender** (`97b4a07`, `3512836`)
+  - termine.anfrage_id NULLABLE (Migration `20260524_termine_nullable_anfrage.sql`)
+  - /api/termine: POST mit optional anfrage_id, PATCH mit 'bearbeiten'-Action
+  - WochenGrid: alle Zellen sind jetzt <button>, öffnen je nach Kind
+    einen Aktions-Dialog
+    · Leer → Regel/Sperre/Termin anlegen
+    · Grün → Termin anlegen / Sperren / Regel löschen
+    · Rot → Termin trotzdem anlegen / Sperre löschen
+    · Blau → Bearbeiten / Absagen / Zur Anfrage
+  - Damit aus jeder Zelle Termin direkt anlegbar – Max kann auch
+    Werkstatt-Wartung etc. eintragen, nicht nur Kunden-Termine
 
 ### Tag 12 nachts: Modul 6 – Termin festmachen aus Reply + Modul 6.5 Inbox-Stats
 - ✅ **Modul 6 – Termin direkt festmachen + KI-Auto-Extract**
@@ -222,8 +254,6 @@ Geplante Tabellen: `angebot_bausteine`, `material_preise`, `angebote` +
 - [ ] **Kalender: Multi-Day-Regel** – im Regel-Editor Wochentag-Multiselect
       (Mo–Mi 8–12 in einem Schritt anlegen statt drei einzelne Regeln)
       (User-Wunsch Tag 12 spät)
-- [ ] **Attachment-Größen-Limit**: aktuell ~4 MB durch Next.js-Body-Default
-      – bei größeren Files Multipart oder Direct-to-Storage
 - [ ] **Kunden v2**: echte `kunden`-Tabelle mit Notizen, Vermerk,
       Zahlungsverhalten, manuellen Tags
 
@@ -280,9 +310,11 @@ Geplante Tabellen: `angebot_bausteine`, `material_preise`, `angebote` +
 4. ✅ **Modul 5 – Verfügbarkeits-Kalender + KI-Slot-Vorschläge + Mini-CRM-Bugfix** (Tag 12 spät)
 5. ✅ **Modul 6 – Termin direkt aus Reply festmachen + KI-Auto-Extract** (Tag 12 nachts)
 6. ✅ **Modul 6.5 – Mini-Stat-Bar in Inbox** (Tag 12 nachts)
-7. 🚧 Max-Account angelegt, wartet auf Mail-Setup (Wochenende)
-8. ⏸ Smoke-Tests + Spickzettel → Pilot scharfschalten
-9. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
-10. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
-11. ⏸ 2. Pilot: Elektriker-Kumpel
-12. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
+7. ✅ **Modul 7 – Edge-Proxy für Foto-Anhänge + Bugfixes + Kalender klickbar** (Tag 13)
+8. 🚧 Max-Account angelegt, wartet auf Mail-Setup (Wochenende)
+9. ⏸ Smoke-Tests + Spickzettel → Pilot scharfschalten
+10. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
+11. ⏸ **Modul 8 – Google-Calendar-OAuth-Sync** (falls Max manuelles Pflegen nervt)
+12. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
+13. ⏸ 2. Pilot: Elektriker-Kumpel
+14. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
