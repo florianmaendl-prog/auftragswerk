@@ -19,15 +19,11 @@ type TerminRow = {
   }> | null;
 };
 
+import { formatBerlinDatetime } from '@/lib/datetime';
+
 function formatTermin(datum: string): string {
-  return new Date(datum).toLocaleString('de-DE', {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  // Display IMMER in Europe/Berlin
+  return formatBerlinDatetime(datum, "EEEEEE, dd.MM.yyyy, HH:mm 'Uhr'");
 }
 
 function statusBadge(status: string) {

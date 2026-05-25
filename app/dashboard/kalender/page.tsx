@@ -1,25 +1,29 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-server';
 import { Card } from '@/components/ui/card';
+import { formatInTimeZone } from 'date-fns-tz';
 import { RegelEditor, type Regel } from './regel-editor';
 import { SperreEditor, type Sperre } from './sperre-editor';
 import { WochenGrid } from './wochengrid';
+import { berlinStartOfWeek, BETRIEB_TZ } from '@/lib/datetime';
 
-function getMondayOfWeek(offset: number): Date {
-  const now = new Date();
-  const dayIso = (now.getDay() + 6) % 7; // 0=Mo, 6=So
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - dayIso + offset * 7);
-  monday.setHours(0, 0, 0, 0);
+/**
+ * Liefert das UTC-Date für Mo 00:00 Berliner Zeit der aktuellen Woche +/- offset.
+ */
+function getBerlinMonday(offset: number): Date {
+  const monday = berlinStartOfWeek();
+  if (offset !== 0) {
+    monday.setUTCDate(monday.getUTCDate() + offset * 7);
+  }
   return monday;
 }
 
-function formatDateShort(d: Date): string {
-  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`;
+function formatBerlinDateShort(utcDate: Date): string {
+  return formatInTimeZone(utcDate, BETRIEB_TZ, 'dd.MM.');
 }
 
-function formatWeekLabel(monday: Date, sunday: Date): string {
-  return `${formatDateShort(monday)} – ${formatDateShort(sunday)} ${sunday.getFullYear()}`;
+function formatWeekLabel(monday: Date, sundayInclusive: Date): string {
+  return `${formatBerlinDateShort(monday)} – ${formatBerlinDateShort(sundayInclusive)} ${formatInTimeZone(sundayInclusive, BETRIEB_TZ, 'yyyy')}`;
 }
 
 type TerminRow = {
@@ -39,17 +43,22 @@ export default async function KalenderPage({
   const params = await searchParams;
   const offset = parseInt(params.offset || '0', 10) || 0;
 
-  const monday = getMondayOfWeek(offset);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
+  // Wochenrahmen: Mo 00:00 Berlin (exklusiv So 24:00 = Mo 00:00 nächste Woche).
+  const monday = getBerlinMonday(offset);
+  const sundayExclusive = new Date(monday);
+  sundayExclusive.setUTCDate(monday.getUTCDate() + 7);
+  // Anzeige-„So" (inklusive) ist 6 Tage nach Montag.
+  const sundayInclusive = new Date(monday);
+  sundayInclusive.setUTCDate(monday.getUTCDate() + 6);
 
-  const days = Array.from({ length: 7 }, (_, i) => {
+  // Day-Labels als "YYYY-MM-DD" Berlin-Datum für jeden der 7 Tage.
+  const dayLabels = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    d.setHours(0, 0, 0, 0);
-    return d;
+    d.setUTCDate(monday.getUTCDate() + i);
+    return formatInTimeZone(d, BETRIEB_TZ, 'yyyy-MM-dd');
   });
+
+  const todayLabel = formatInTimeZone(new Date(), BETRIEB_TZ, 'yyyy-MM-dd');
 
   const supabase = await createClient();
 
@@ -71,7 +80,7 @@ export default async function KalenderPage({
       )
       .neq('status', 'abgesagt')
       .gte('datum', monday.toISOString())
-      .lte('datum', sunday.toISOString()),
+      .lt('datum', sundayExclusive.toISOString()),
   ]);
 
   const regeln = (regelnRes.data as Regel[]) || [];
@@ -88,10 +97,6 @@ export default async function KalenderPage({
     von_name: t.anfragen?.[0]?.von_name ?? null,
   }));
 
-  // Days als ISO-Strings für den Client – dort werden sie zu lokalen Browser-
-  // Zeit-Dates, damit Eingabe (datetime-local) und Grid-Anzeige dieselbe
-  // Zeitzone benutzen.
-  const daysIso = days.map((d) => d.toISOString());
 
   return (
     <div className="container mx-auto py-8 px-6 max-w-7xl">
@@ -111,7 +116,7 @@ export default async function KalenderPage({
           ← Vorherige
         </Link>
         <div className="text-sm font-medium">
-          {formatWeekLabel(monday, sunday)}
+          {formatWeekLabel(monday, sundayInclusive)}
           {offset === 0 ? <span className="text-muted-foreground"> · aktuelle Woche</span> : null}
         </div>
         <Link
@@ -134,7 +139,8 @@ export default async function KalenderPage({
 
       <Card className="mb-6 overflow-hidden p-0">
         <WochenGrid
-          daysIso={daysIso}
+          dayLabels={dayLabels}
+          todayLabel={todayLabel}
           regeln={regeln}
           sperren={sperren}
           termine={termineFuerGrid}

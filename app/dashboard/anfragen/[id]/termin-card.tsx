@@ -6,6 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  berlinLocalToUtcIso,
+  utcIsoToBerlinLocal,
+  formatBerlinDatetime,
+} from '@/lib/datetime';
 
 export type Termin = {
   id: string;
@@ -23,14 +28,8 @@ export type ExtrahierterTerminInfo = {
 };
 
 function formatTermin(datum: string): string {
-  return new Date(datum).toLocaleString('de-DE', {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  // Display IMMER in Europe/Berlin, egal wo der Browser steht.
+  return formatBerlinDatetime(datum, "EEEEEE, dd.MM.yyyy, HH:mm 'Uhr'");
 }
 
 type Slot = { datum: string; ort: string };
@@ -81,7 +80,13 @@ export function TerminCard({
       : '';
 
   async function speichereVorschlaege() {
-    const valid = slots.filter((s) => s.datum.trim());
+    const valid = slots
+      .filter((s) => s.datum.trim())
+      .map((s) => ({
+        // datetime-local → Berlin → UTC, sonst Bali-/Server-TZ-Verschiebung
+        datum: berlinLocalToUtcIso(s.datum),
+        ort: s.ort,
+      }));
     if (valid.length === 0) {
       setError('Bitte mindestens einen Termin angeben.');
       return;
@@ -150,8 +155,11 @@ export function TerminCard({
   /** Wechselt in den Festmach-Mode. Wenn KI was extrahiert hat, Felder pre-fillen. */
   function starteFestmachen(preFill: boolean) {
     if (preFill && extrahierterTermin) {
-      // datum_iso ist "YYYY-MM-DDTHH:MM:SS" (lokale Zeit, ohne TZ),
-      // datetime-local input will "YYYY-MM-DDTHH:MM"
+      // datum_iso ist von der KI "YYYY-MM-DDTHH:MM:SS" (Berliner Zeit
+      // ohne TZ-Suffix). Direkt als datetime-local-Wert nehmen – das Feld
+      // erwartet "YYYY-MM-DDTHH:MM" und der User soll im Input genau das
+      // sehen, was die KI vorschlägt (Berlin-Zeit). Beim Speichern unten
+      // konvertieren wir explizit via berlinLocalToUtcIso.
       setFestDatum(extrahierterTermin.datum_iso?.slice(0, 16) || '');
       setFestOrt(extrahierterTermin.ort || '');
       setFestNotiz(extrahierterTermin.notiz || '');
@@ -172,6 +180,9 @@ export function TerminCard({
     setBusy(true);
     setError(null);
     try {
+      // Wir behandeln festDatum als Berliner Zeit – egal wo der Browser
+      // steht. Erzeugt UTC-ISO für die Speicherung.
+      const datumUtc = berlinLocalToUtcIso(festDatum);
       const res = await fetch('/api/termine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,7 +191,7 @@ export function TerminCard({
           direkt_bestaetigen: true,
           slots: [
             {
-              datum: festDatum,
+              datum: datumUtc,
               ort: festOrt.trim() || undefined,
               notiz: festNotiz.trim() || undefined,
             },

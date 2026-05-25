@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { berlinDateTimeToUtc } from '@/lib/datetime';
 
 const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const WOCHENTAGE_LANG = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
@@ -53,12 +54,16 @@ function formatDateShort(d: Date): string {
  * Die Server-Page reicht raw ISO-Strings rein, hier wird gerechnet.
  */
 export function WochenGrid({
-  daysIso,
+  dayLabels,
+  todayLabel,
   regeln,
   sperren,
   termine,
 }: {
-  daysIso: string[]; // 7 Strings, jeder ist 'YYYY-MM-DDT00:00:00.000Z' der Monday-Reihe
+  /** 7 Strings im Format "YYYY-MM-DD" – Berliner Datums-Tag der Mo-So-Reihe */
+  dayLabels: string[];
+  /** Heutiges Datum in Berliner Zeit als "YYYY-MM-DD" (oder leer) */
+  todayLabel: string;
   regeln: Regel[];
   sperren: Sperre[];
   termine: TerminFuerGrid[];
@@ -68,24 +73,22 @@ export function WochenGrid({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Aus den ISO-Strings nehmen wir nur den Datumsteil und bauen daraus
-  // browser-lokale Date-Objekte (00:00 Uhr Browser-TZ am jeweiligen Tag).
-  const days = daysIso.map((iso) => {
-    const datumsteil = iso.slice(0, 10); // 'YYYY-MM-DD'
-    const [y, m, d] = datumsteil.split('-').map(Number);
-    return new Date(y, m - 1, d, 0, 0, 0, 0);
+  // dayLabels (z.B. "2026-05-25") sind Berliner Daten. Wir parsen sie
+  // explizit zu year/month/day-Tupeln – KEIN new Date()-Parsing weil das
+  // ja wieder in Browser-TZ landet.
+  const days = dayLabels.map((label) => {
+    const [y, m, d] = label.split('-').map(Number);
+    return { y, m, d, label };
   });
 
-  const todayMs = (() => {
-    const t = new Date();
-    return new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
-  })();
+  function formatDateShort(d: { y: number; m: number; d: number }): string {
+    return `${String(d.d).padStart(2, '0')}.${String(d.m).padStart(2, '0')}.`;
+  }
 
   function selectedCellLabel(): string {
     if (!selectedCell) return '';
     const d = days[selectedCell.dayIdx];
-    const datumStr = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
-    return `${WOCHENTAGE_LANG[selectedCell.dayIdx + 1]}, ${datumStr} um ${String(selectedCell.hour).padStart(2, '0')}:00 Uhr`;
+    return `${WOCHENTAGE_LANG[selectedCell.dayIdx + 1]}, ${String(d.d).padStart(2, '0')}.${String(d.m).padStart(2, '0')}.${d.y} um ${String(selectedCell.hour).padStart(2, '0')}:00 Uhr (Berliner Zeit)`;
   }
 
   async function macheFrei() {
@@ -123,11 +126,10 @@ export function WochenGrid({
     if (!selectedCell) return;
     setBusy(true);
     setError(null);
-    const date = days[selectedCell.dayIdx];
-    const von = new Date(date);
-    von.setHours(selectedCell.hour, 0, 0, 0);
-    const bis = new Date(date);
-    bis.setHours(selectedCell.hour + 1, 0, 0, 0);
+    const d = days[selectedCell.dayIdx];
+    // Sperre läuft eine Stunde, von Berlin-hour:00 bis Berlin-(hour+1):00
+    const von = berlinDateTimeToUtc(d.y, d.m, d.d, selectedCell.hour);
+    const bis = berlinDateTimeToUtc(d.y, d.m, d.d, selectedCell.hour + 1);
     try {
       const res = await fetch('/api/verfuegbarkeit/sperre', {
         method: 'POST',
@@ -158,11 +160,11 @@ export function WochenGrid({
   };
 
   function cellInfo(dayIdx: number, hour: number): CellInfo {
-    const date = days[dayIdx];
-    const cellStart = new Date(date);
-    cellStart.setHours(hour, 0, 0, 0);
-    const cellEnd = new Date(date);
-    cellEnd.setHours(hour + 1, 0, 0, 0);
+    const d = days[dayIdx];
+    // cellStart/cellEnd in Berliner Zeit-Semantik – damit Cells überall
+    // (Bali, Berlin, UTC-Server) auf dieselben absoluten Momente referenzieren.
+    const cellStart = berlinDateTimeToUtc(d.y, d.m, d.d, hour);
+    const cellEnd = berlinDateTimeToUtc(d.y, d.m, d.d, hour + 1);
 
     const wochentag = dayIdx + 1;
 
@@ -171,11 +173,9 @@ export function WochenGrid({
       if (r.wochentag !== wochentag) return false;
       const [sh, sm] = r.start_uhrzeit.split(':').map(Number);
       const [eh, em] = r.ende_uhrzeit.split(':').map(Number);
-      const ruleStart = new Date(date);
-      ruleStart.setHours(sh, sm, 0, 0);
-      const ruleEnd = new Date(date);
-      ruleEnd.setHours(eh, em, 0, 0);
-      return cellStart >= ruleStart && cellEnd <= ruleEnd;
+      const ruleStart = berlinDateTimeToUtc(d.y, d.m, d.d, sh, sm);
+      const ruleEnd = berlinDateTimeToUtc(d.y, d.m, d.d, eh, em);
+      return cellStart.getTime() >= ruleStart.getTime() && cellEnd.getTime() <= ruleEnd.getTime();
     });
 
     const sperre = sperren.find((s) => {
@@ -207,7 +207,7 @@ export function WochenGrid({
               Zeit
             </th>
             {days.map((d, i) => {
-              const istHeute = d.getTime() === todayMs;
+              const istHeute = d.label === todayLabel;
               return (
                 <th
                   key={i}
