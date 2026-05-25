@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 /**
  * POST /api/termine
  * Body: {
- *   anfrage_id,
+ *   anfrage_id?,                     // OPTIONAL – wenn null: Standalone-Termin
  *   slots: [{ datum: ISO, ort?, notiz?, dauer_min? }],
  *   direkt_bestaetigen?: boolean   // default false; wenn true → status 'bestaetigt'
  *                                  //   + alle anderen vorgeschlagenen Slots → 'abgesagt'
@@ -14,6 +14,9 @@ import { supabaseAdmin } from '@/lib/supabase';
  * Speichert 1..n Termine. Default-Status 'vorgeschlagen', mit
  * direkt_bestaetigen=true direkt 'bestaetigt' (Ein-Klick-Fluss aus
  * der TerminCard wenn der Kunde im Reply den Termin bestätigt hat).
+ *
+ * Standalone (ohne anfrage_id): betrieb_id wird über das profiles-Mapping
+ * des eingeloggten Users ermittelt.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -26,27 +29,44 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const anfrageId: string | undefined = body.anfrage_id;
+    const anfrageId: string | undefined = body.anfrage_id || undefined;
     const slots: Array<{ datum: string; ort?: string; notiz?: string; dauer_min?: number }> =
       Array.isArray(body.slots) ? body.slots : [];
     const direktBestaetigen: boolean = body.direkt_bestaetigen === true;
 
-    if (!anfrageId || slots.length === 0) {
+    if (slots.length === 0) {
       return NextResponse.json(
-        { error: 'anfrage_id und slots[] sind pflicht' },
+        { error: 'slots[] sind pflicht' },
         { status: 400 }
       );
     }
 
-    // Anfrage holen + Zugriff prüfen via RLS-Client
-    const { data: anfrage } = await supabase
-      .from('anfragen')
-      .select('id, betrieb_id')
-      .eq('id', anfrageId)
-      .single();
-
-    if (!anfrage) {
-      return NextResponse.json({ error: 'Anfrage nicht gefunden' }, { status: 404 });
+    // Betrieb bestimmen: über Anfrage wenn vorhanden, sonst über profiles
+    let betriebId: string | null = null;
+    if (anfrageId) {
+      const { data: anfrage } = await supabase
+        .from('anfragen')
+        .select('id, betrieb_id')
+        .eq('id', anfrageId)
+        .single();
+      if (!anfrage) {
+        return NextResponse.json({ error: 'Anfrage nicht gefunden' }, { status: 404 });
+      }
+      betriebId = anfrage.betrieb_id as string;
+    } else {
+      // Standalone: betrieb_id aus profiles holen
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('betrieb_id')
+        .eq('id', user.id)
+        .single();
+      if (!profile?.betrieb_id) {
+        return NextResponse.json(
+          { error: 'Kein Betrieb für diesen User verknüpft' },
+          { status: 404 }
+        );
+      }
+      betriebId = profile.betrieb_id as string;
     }
 
     const status = direktBestaetigen ? 'bestaetigt' : 'vorgeschlagen';
@@ -54,8 +74,8 @@ export async function POST(req: NextRequest) {
     const rows = slots
       .filter((s) => s.datum && s.datum.trim().length > 0)
       .map((s) => ({
-        anfrage_id: anfrageId,
-        betrieb_id: anfrage.betrieb_id,
+        anfrage_id: anfrageId ?? null,
+        betrieb_id: betriebId,
         datum: new Date(s.datum).toISOString(),
         dauer_min: s.dauer_min ?? 60,
         ort: s.ort?.trim() || null,
@@ -78,7 +98,8 @@ export async function POST(req: NextRequest) {
 
     // Beim direkten Festmachen: alle anderen vorgeschlagenen Termine der
     // Anfrage als abgesagt markieren (Bestätigter Termin gewinnt).
-    if (direktBestaetigen && inserted && inserted.length > 0) {
+    // Nur sinnvoll wenn Termin an eine Anfrage hängt.
+    if (direktBestaetigen && anfrageId && inserted && inserted.length > 0) {
       const neueIds = inserted.map((t) => t.id);
       await supabaseAdmin
         .from('termine')
@@ -99,10 +120,11 @@ export async function POST(req: NextRequest) {
 
 /**
  * PATCH /api/termine
- * Body: { termin_id, action: 'bestaetigen' | 'absagen' | 'absolviert' }
+ * Body: { termin_id, action: 'bestaetigen' | 'absagen' | 'absolviert' | 'bearbeiten', datum?, ort?, notiz? }
  *
  * 'bestaetigen': diesen Termin → 'bestaetigt', alle anderen 'vorgeschlagen'-Termine
  * derselben Anfrage → 'abgesagt'.
+ * 'bearbeiten': erlaubt Update von datum, ort, notiz (für Click-to-Edit im Kalender).
  */
 export async function PATCH(req: NextRequest) {
   try {
@@ -118,7 +140,10 @@ export async function PATCH(req: NextRequest) {
     const terminId: string | undefined = body.termin_id;
     const action: string = body.action;
 
-    if (!terminId || !['bestaetigen', 'absagen', 'absolviert'].includes(action)) {
+    if (
+      !terminId ||
+      !['bestaetigen', 'absagen', 'absolviert', 'bearbeiten'].includes(action)
+    ) {
       return NextResponse.json(
         { error: 'termin_id und gültige action sind pflicht' },
         { status: 400 }
@@ -136,6 +161,24 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Termin nicht gefunden' }, { status: 404 });
     }
 
+    if (action === 'bearbeiten') {
+      const update: Record<string, string | null> = {};
+      if (typeof body.datum === 'string' && body.datum) {
+        update.datum = new Date(body.datum).toISOString();
+      }
+      if (typeof body.ort !== 'undefined') {
+        update.ort = (body.ort ? String(body.ort).trim() : '') || null;
+      }
+      if (typeof body.notiz !== 'undefined') {
+        update.notiz = (body.notiz ? String(body.notiz).trim() : '') || null;
+      }
+      if (Object.keys(update).length === 0) {
+        return NextResponse.json({ error: 'Nichts zu ändern' }, { status: 400 });
+      }
+      await supabaseAdmin.from('termine').update(update).eq('id', terminId);
+      return NextResponse.json({ success: true, updated: Object.keys(update) });
+    }
+
     const neuerStatus =
       action === 'bestaetigen'
         ? 'bestaetigt'
@@ -146,7 +189,7 @@ export async function PATCH(req: NextRequest) {
     await supabaseAdmin.from('termine').update({ status: neuerStatus }).eq('id', terminId);
 
     // Beim Bestätigen: alle anderen vorgeschlagenen Termine zur selben Anfrage absagen
-    if (action === 'bestaetigen') {
+    if (action === 'bestaetigen' && termin.anfrage_id) {
       await supabaseAdmin
         .from('termine')
         .update({ status: 'abgesagt' })

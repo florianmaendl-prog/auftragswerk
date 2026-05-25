@@ -30,8 +30,10 @@ type TerminRow = {
   id: string;
   datum: string;
   dauer_min: number;
-  anfrage_id: string;
+  anfrage_id: string | null;
   status: string;
+  ort: string | null;
+  notiz: string | null;
   anfragen: Array<{ betreff: string | null; von_name: string | null }> | null;
 };
 
@@ -75,7 +77,7 @@ export default async function KalenderPage({
     supabase
       .from('termine')
       .select(
-        `id, datum, dauer_min, anfrage_id, status,
+        `id, datum, dauer_min, anfrage_id, status, ort, notiz,
          anfragen (betreff, von_name)`
       )
       .neq('status', 'abgesagt')
@@ -95,6 +97,8 @@ export default async function KalenderPage({
     anfrage_id: t.anfrage_id,
     betreff: t.anfragen?.[0]?.betreff ?? null,
     von_name: t.anfragen?.[0]?.von_name ?? null,
+    ort: t.ort,
+    notiz: t.notiz,
   }));
 
 
