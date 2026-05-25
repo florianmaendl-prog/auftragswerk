@@ -165,9 +165,23 @@ export function WochenGrid({
 
   function openCell(dayIdx: number, hour: number) {
     const info = cellInfo(dayIdx, hour);
+
+    // Termin-Form immer mit der angeklickten Slot-Zeit pre-fillen –
+    // damit "Termin anlegen" aus jeder Zellsorte (leer/grün/rot) gleich
+    // gut funktioniert.
+    const d = days[dayIdx];
+    const yyyy = d.y;
+    const mm = String(d.m).padStart(2, '0');
+    const dd = String(d.d).padStart(2, '0');
+    const hh = String(hour).padStart(2, '0');
+    setTerminDatum(`${yyyy}-${mm}-${dd}T${hh}:00`);
+    setTerminOrt('');
+    setTerminNotiz('');
+
     let sel: SelectedCell;
     if (info.termine.length > 0) {
       sel = { dayIdx, hour, kind: 'termin', termin: info.termine[0] };
+      // Für Bearbeiten: Form-Defaults mit Termin-Werten überschreiben
       setTerminDatum(utcIsoToBerlinLocal(info.termine[0].datum));
       setTerminOrt(info.termine[0].ort || '');
       setTerminNotiz(info.termine[0].notiz || '');
@@ -177,15 +191,6 @@ export function WochenGrid({
       sel = { dayIdx, hour, kind: 'regel', regelId: info.regelId };
     } else {
       sel = { dayIdx, hour, kind: 'empty' };
-      // Pre-fill für "Termin anlegen": diese Zelle als Default-Slot
-      const d = days[dayIdx];
-      const yyyy = d.y;
-      const mm = String(d.m).padStart(2, '0');
-      const dd = String(d.d).padStart(2, '0');
-      const hh = String(hour).padStart(2, '0');
-      setTerminDatum(`${yyyy}-${mm}-${dd}T${hh}:00`);
-      setTerminOrt('');
-      setTerminNotiz('');
     }
     setSelectedCell(sel);
     setSubMode('view');
@@ -606,46 +611,71 @@ export function WochenGrid({
             </div>
           )}
 
-          {/* --- REGEL: nur Löschen --- */}
-          {selectedCell?.kind === 'regel' && selectedCell.regelId && (
+          {/* --- REGEL: Termin/Sperre anlegen ODER Regel löschen --- */}
+          {selectedCell?.kind === 'regel' && selectedCell.regelId && subMode === 'view' && (
             <div className="space-y-3 py-2">
               <p className="text-sm text-muted-foreground">
-                Hier gilt eine wiederkehrende Verfügbarkeits-Regel für jeden{' '}
-                {WOCHENTAGE_LANG[selectedCell.dayIdx + 1]}.
+                Aktuell freier Slot – wiederkehrende Verfügbarkeits-Regel für
+                jeden {WOCHENTAGE_LANG[selectedCell.dayIdx + 1]}.
               </p>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => loescheRegel(selectedCell.regelId!)}
-                disabled={busy}
-                className="text-destructive"
-              >
-                🗑 Regel löschen
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => setSubMode('create-termin')}
+                  disabled={busy}
+                >
+                  📅 Termin anlegen
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={macheSperre}
+                  disabled={busy}
+                >
+                  🔴 Trotzdem sperren
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => loescheRegel(selectedCell.regelId!)}
+                  disabled={busy}
+                  className="text-destructive"
+                >
+                  🗑 Regel löschen
+                </Button>
+              </div>
             </div>
           )}
 
-          {/* --- SPERRE: nur Löschen --- */}
-          {selectedCell?.kind === 'sperre' && selectedCell.sperreId && (
+          {/* --- SPERRE: Termin überhaupt anlegen ODER Sperre löschen --- */}
+          {selectedCell?.kind === 'sperre' && selectedCell.sperreId && subMode === 'view' && (
             <div className="space-y-3 py-2">
               <p className="text-sm text-muted-foreground">
                 Dieser Slot ist gesperrt
-                {selectedCell.kind === 'sperre' &&
-                  (() => {
-                    const info = cellInfo(selectedCell.dayIdx, selectedCell.hour);
-                    return info.sperreGrund ? ` (${info.sperreGrund})` : '';
-                  })()}
+                {(() => {
+                  const info = cellInfo(selectedCell.dayIdx, selectedCell.hour);
+                  return info.sperreGrund ? ` ("${info.sperreGrund}")` : '';
+                })()}
                 .
               </p>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => loescheSperre(selectedCell.sperreId!)}
-                disabled={busy}
-                className="text-destructive"
-              >
-                🗑 Sperre löschen
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => setSubMode('create-termin')}
+                  disabled={busy}
+                >
+                  📅 Trotzdem Termin anlegen
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => loescheSperre(selectedCell.sperreId!)}
+                  disabled={busy}
+                  className="text-destructive"
+                >
+                  🗑 Sperre löschen
+                </Button>
+              </div>
             </div>
           )}
 
