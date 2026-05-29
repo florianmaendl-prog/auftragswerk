@@ -11,6 +11,13 @@ import {
   utcIsoToBerlinLocal,
   formatBerlinDatetime,
 } from '@/lib/datetime';
+import { HugeiconsIcon } from '@hugeicons/react';
+import {
+  TimeScheduleIcon,
+  CheckmarkCircle02Icon,
+  Location01Icon,
+  Idea01Icon,
+} from '@hugeicons/core-free-icons';
 
 export type Termin = {
   id: string;
@@ -225,16 +232,31 @@ export function TerminCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">📅 Termin</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2">
+          <HugeiconsIcon icon={TimeScheduleIcon} size={18} strokeWidth={1.5} />
+          Termin
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {bestaetigt && (
           <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm">
-            <p className="font-medium text-green-900">
-              ✓ Bestätigt: {formatTermin(bestaetigt.datum)}
+            <p className="font-medium text-green-900 flex items-center gap-1.5">
+              <HugeiconsIcon
+                icon={CheckmarkCircle02Icon}
+                size={14}
+                strokeWidth={2}
+              />
+              Bestätigt: {formatTermin(bestaetigt.datum)}
             </p>
             {bestaetigt.ort && (
-              <p className="text-xs text-green-800 mt-0.5">📍 {bestaetigt.ort}</p>
+              <p className="text-xs text-green-800 mt-0.5 flex items-center gap-1">
+                <HugeiconsIcon
+                  icon={Location01Icon}
+                  size={12}
+                  strokeWidth={1.5}
+                />
+                {bestaetigt.ort}
+              </p>
             )}
             {bestaetigt.notiz && (
               <p className="text-xs text-green-700 mt-1">{bestaetigt.notiz}</p>
@@ -257,7 +279,14 @@ export function TerminCard({
                   <div className="min-w-0">
                     <p className="font-medium">{formatTermin(t.datum)}</p>
                     {t.ort && (
-                      <p className="text-xs text-muted-foreground">📍 {t.ort}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <HugeiconsIcon
+                          icon={Location01Icon}
+                          size={12}
+                          strokeWidth={1.5}
+                        />
+                        {t.ort}
+                      </p>
                     )}
                   </div>
                   <Button
@@ -280,7 +309,7 @@ export function TerminCard({
                     onClick={kopiereText}
                     className="text-xs text-primary hover:underline"
                   >
-                    {kopiert ? '✓ kopiert' : 'Kopieren'}
+                    {kopiert ? 'kopiert' : 'Kopieren'}
                   </button>
                 </div>
                 <pre className="text-xs whitespace-pre-wrap font-sans">
@@ -293,16 +322,24 @@ export function TerminCard({
 
         {!bestaetigt && mode === 'view' && hatKiVorschlag && (
           <div className="rounded-md border border-yellow-300 bg-yellow-50 p-3 space-y-2">
-            <p className="text-sm">
-              💡 <span className="font-medium">Kunde scheint einen Termin zu bestätigen:</span>{' '}
-              <span className="text-foreground">
-                {extrahierterTermin?.datum_iso
-                  ? formatTermin(extrahierterTermin.datum_iso)
-                  : ''}
+            <p className="text-sm flex items-start gap-2">
+              <HugeiconsIcon
+                icon={Idea01Icon}
+                size={16}
+                strokeWidth={1.5}
+                className="mt-0.5 flex-shrink-0 text-amber-700"
+              />
+              <span>
+                <span className="font-medium">Kunde scheint einen Termin zu bestätigen:</span>{' '}
+                <span className="text-foreground">
+                  {extrahierterTermin?.datum_iso
+                    ? formatTermin(extrahierterTermin.datum_iso)
+                    : ''}
+                </span>
+                {extrahierterTermin?.ort && (
+                  <span className="text-muted-foreground"> · {extrahierterTermin.ort}</span>
+                )}
               </span>
-              {extrahierterTermin?.ort && (
-                <span className="text-muted-foreground"> · {extrahierterTermin.ort}</span>
-              )}
             </p>
             <Button size="sm" onClick={() => starteFestmachen(true)} disabled={busy}>
               Termin direkt festmachen

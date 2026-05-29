@@ -91,7 +91,9 @@ export default async function KundenPage() {
   return (
     <div className="container mx-auto py-8 px-6 max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-3xl font-semibold tracking-tight mb-1">Kunden</h1>
+        <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1">
+          Kunden
+        </h1>
         <p className="text-muted-foreground text-sm">
           {kunden.length} {kunden.length === 1 ? 'Kunde' : 'Kunden'} insgesamt
         </p>

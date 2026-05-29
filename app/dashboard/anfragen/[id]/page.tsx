@@ -7,8 +7,22 @@ import EntwurfEditor from './entwurf-editor';
 import { DetailActions } from './detail-actions';
 import { ReplyEditor } from './reply-editor';
 import { TerminCard, type Termin } from './termin-card';
+import { KategorieBadge } from '@/components/brand/kategorie-badge';
 import { cn } from '@/lib/utils';
 import { cleanMail } from '@/lib/mail-cleaner';
+import { HugeiconsIcon } from '@hugeicons/react';
+import {
+  Delete02Icon,
+  UserGroupIcon,
+  ArrowDown01Icon,
+  ArrowUp01Icon,
+  FileAttachmentIcon,
+  DocumentValidationIcon,
+  UserIcon,
+  Building03Icon,
+  CallIcon,
+  Location01Icon,
+} from '@hugeicons/core-free-icons';
 
 function timeAgo(date: string): string {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -30,26 +44,6 @@ function formatDateTime(date: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
-}
-
-function gewerkBadge(gewerk: string | null) {
-  if (!gewerk) return null;
-  const color =
-    gewerk === 'passt'
-      ? 'bg-green-100 text-green-800 border-green-200'
-      : gewerk === 'passt_nicht'
-      ? 'bg-red-100 text-red-800 border-red-200'
-      : 'bg-yellow-100 text-yellow-800 border-yellow-200';
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
-        color
-      )}
-    >
-      {gewerk}
-    </span>
-  );
 }
 
 function confidenceBadge(confidence: number | null) {
@@ -278,7 +272,7 @@ export default async function AnfrageDetailPage({
 
         {anfrage.geloescht_am && (
           <div className="mb-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            <span>🗑️</span>
+            <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={1.5} />
             <span>
               Diese Anfrage liegt im Papierkorb (seit {formatDateTime(anfrage.geloescht_am)})
             </span>
@@ -299,14 +293,18 @@ export default async function AnfrageDetailPage({
             {weitereAnfragenVomKunden && weitereAnfragenVomKunden > 0 ? (
               <Link
                 href={`/dashboard/kunden/${encodeURIComponent(anfrage.von_email)}`}
-                className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mt-1"
+                className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 mt-1"
               >
-                👥 {weitereAnfragenVomKunden} weitere{' '}
+                <HugeiconsIcon icon={UserGroupIcon} size={12} strokeWidth={1.5} />
+                {weitereAnfragenVomKunden} weitere{' '}
                 {weitereAnfragenVomKunden === 1 ? 'Anfrage' : 'Anfragen'} von diesem Kunden →
               </Link>
             ) : null}
             <div className="flex items-center gap-2 mt-3">
-              {klass && gewerkBadge(klass.gewerk_match)}
+              <KategorieBadge
+                kategorie={klass?.kategorie as Parameters<typeof KategorieBadge>[0]['kategorie']}
+                gewerkMatch={klass?.gewerk_match as Parameters<typeof KategorieBadge>[0]['gewerkMatch']}
+              />
               {klass && confidenceBadge(klass.confidence)}
             </div>
           </div>
@@ -344,9 +342,12 @@ export default async function AnfrageDetailPage({
                   >
                     <div className="flex items-center justify-between mb-2 text-xs">
                       <div className="flex items-center gap-2">
-                        <span className="text-base">
-                          {n.typ === 'eingang' ? '📥' : '📤'}
-                        </span>
+                        <HugeiconsIcon
+                          icon={n.typ === 'eingang' ? ArrowDown01Icon : ArrowUp01Icon}
+                          size={14}
+                          strokeWidth={1.5}
+                          className={n.typ === 'eingang' ? 'text-foreground/70' : 'text-primary'}
+                        />
                         <span className="font-medium">
                           {n.typ === 'eingang'
                             ? n.von_name || n.von_email
@@ -371,8 +372,13 @@ export default async function AnfrageDetailPage({
                       const label = anhaenge.length === 1 ? 'Anhang' : 'Anhänge';
                       return (
                         <div className="mt-3 pt-3 border-t border-border/40">
-                          <p className="text-xs text-muted-foreground mb-2">
-                            📎 {anhaenge.length} {label}
+                          <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5">
+                            <HugeiconsIcon
+                              icon={FileAttachmentIcon}
+                              size={12}
+                              strokeWidth={1.5}
+                            />
+                            {anhaenge.length} {label}
                           </p>
                           <div className="flex flex-wrap gap-2">
                             {anhaenge.map((a) =>
@@ -400,7 +406,11 @@ export default async function AnfrageDetailPage({
                                   className="inline-flex items-center gap-2 text-xs rounded-md border border-input bg-background px-2.5 py-1.5 hover:bg-accent transition-colors"
                                   title="Herunterladen"
                                 >
-                                  <span>📄</span>
+                                  <HugeiconsIcon
+                                    icon={DocumentValidationIcon}
+                                    size={14}
+                                    strokeWidth={1.5}
+                                  />
                                   <span className="truncate max-w-[12rem]">{a.dateiname}</span>
                                   <span className="text-muted-foreground">
                                     ({formatBytes(a.groesse_bytes)})
@@ -479,10 +489,30 @@ export default async function AnfrageDetailPage({
                       Erkannte Kontaktdaten
                     </p>
                     <div className="space-y-0.5 text-sm">
-                      {klass.extrahierter_name && <p>👤 {klass.extrahierter_name}</p>}
-                      {klass.extrahierte_firma && <p>🏢 {klass.extrahierte_firma}</p>}
-                      {klass.extrahierte_telefon && <p>📞 {klass.extrahierte_telefon}</p>}
-                      {klass.extrahierte_plz && <p>📍 {klass.extrahierte_plz}</p>}
+                      {klass.extrahierter_name && (
+                        <p className="flex items-center gap-1.5">
+                          <HugeiconsIcon icon={UserIcon} size={12} strokeWidth={1.5} />
+                          {klass.extrahierter_name}
+                        </p>
+                      )}
+                      {klass.extrahierte_firma && (
+                        <p className="flex items-center gap-1.5">
+                          <HugeiconsIcon icon={Building03Icon} size={12} strokeWidth={1.5} />
+                          {klass.extrahierte_firma}
+                        </p>
+                      )}
+                      {klass.extrahierte_telefon && (
+                        <p className="flex items-center gap-1.5">
+                          <HugeiconsIcon icon={CallIcon} size={12} strokeWidth={1.5} />
+                          {klass.extrahierte_telefon}
+                        </p>
+                      )}
+                      {klass.extrahierte_plz && (
+                        <p className="flex items-center gap-1.5">
+                          <HugeiconsIcon icon={Location01Icon} size={12} strokeWidth={1.5} />
+                          {klass.extrahierte_plz}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}

@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase-server';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { PapierkorbItemActions } from './papierkorb-item-actions';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { Delete02Icon } from '@hugeicons/core-free-icons';
 
 type AnfrageWithJoins = {
   id: string;
@@ -76,8 +78,9 @@ export default async function PapierkorbPage() {
         >
           ← Zurück zur Inbox
         </Link>
-        <h1 className="text-3xl font-semibold tracking-tight mb-1">
-          🗑️ Papierkorb
+        <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1 flex items-center gap-3">
+          <HugeiconsIcon icon={Delete02Icon} size={28} strokeWidth={1.5} />
+          Papierkorb
         </h1>
         <p className="text-muted-foreground text-sm">
           {anfragen.length}{' '}

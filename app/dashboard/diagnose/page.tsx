@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-server';
 import { Card, CardContent } from '@/components/ui/card';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { CheckmarkCircle02Icon } from '@hugeicons/core-free-icons';
 
 type ProcessingError = {
   id: string;
@@ -79,7 +81,9 @@ export default async function DiagnosePage() {
   return (
     <div className="container mx-auto py-8 px-6 max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-3xl font-semibold tracking-tight mb-1">Diagnose</h1>
+        <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1">
+          Diagnose
+        </h1>
         <p className="text-muted-foreground text-sm">
           {errors.length} {errors.length === 1 ? 'Fehler' : 'Fehler'} gespeichert
           {' · '}
@@ -91,8 +95,20 @@ export default async function DiagnosePage() {
 
       {errors.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            ✓ Keine Fehler gespeichert. Alles läuft sauber.
+          <CardContent className="py-12 flex flex-col items-center gap-3 text-center">
+            <div className="rounded-full bg-green-100 p-4">
+              <HugeiconsIcon
+                icon={CheckmarkCircle02Icon}
+                size={28}
+                strokeWidth={1.5}
+                className="text-green-700"
+              />
+            </div>
+            <p className="text-sm font-medium text-foreground">Alles läuft sauber</p>
+            <p className="text-xs text-muted-foreground max-w-sm">
+              Keine Verarbeitungs-Fehler gespeichert. Sobald hier etwas auftaucht,
+              kannst du nachsehen, was schiefgegangen ist.
+            </p>
           </CardContent>
         </Card>
       ) : (

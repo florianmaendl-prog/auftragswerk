@@ -11,21 +11,32 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
+import {
+  Edit02Icon,
+  AlertCircleIcon,
+  PinIcon,
+  SentIcon,
+  ChatIcon,
+  CheckmarkCircle02Icon,
+  Delete02Icon,
+  MoreVerticalCircle01Icon,
+} from '@hugeicons/core-free-icons';
 
 type StatusOption = {
   value: string;
   label: string;
-  icon: string;
+  icon: IconSvgElement;
 };
 
 const STATUS_OPTIONEN: StatusOption[] = [
-  { value: 'entwurf_bereit', label: 'Freigabe', icon: '✏️' },
-  { value: 'manuell_pruefen', label: 'Manuell prüfen', icon: '⚠️' },
-  { value: 'info', label: 'Info', icon: '📌' },
-  { value: 'versendet', label: 'Versendet', icon: '📤' },
-  { value: 'reply_eingegangen', label: 'Im Gespräch', icon: '💬' },
-  { value: 'erledigt', label: 'Erledigt', icon: '✅' },
-  { value: 'aussortiert', label: 'Aussortiert', icon: '🗑️' },
+  { value: 'entwurf_bereit', label: 'Freigabe', icon: Edit02Icon },
+  { value: 'manuell_pruefen', label: 'Manuell prüfen', icon: AlertCircleIcon },
+  { value: 'info', label: 'Info', icon: PinIcon },
+  { value: 'versendet', label: 'Versendet', icon: SentIcon },
+  { value: 'reply_eingegangen', label: 'Im Gespräch', icon: ChatIcon },
+  { value: 'erledigt', label: 'Erledigt', icon: CheckmarkCircle02Icon },
+  { value: 'aussortiert', label: 'Aussortiert', icon: Delete02Icon },
 ];
 
 export function AnfrageQuickMenu({
@@ -100,11 +111,11 @@ export function AnfrageQuickMenu({
         )}
         aria-label="Optionen"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="1" />
-          <circle cx="12" cy="5" r="1" />
-          <circle cx="12" cy="19" r="1" />
-        </svg>
+        <HugeiconsIcon
+          icon={MoreVerticalCircle01Icon}
+          size={16}
+          strokeWidth={1.5}
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
@@ -124,7 +135,12 @@ export function AnfrageQuickMenu({
             disabled={opt.value === currentStatus}
             className={cn(opt.value === currentStatus && 'opacity-50')}
           >
-            <span className="mr-2">{opt.icon}</span>
+            <HugeiconsIcon
+              icon={opt.icon}
+              size={16}
+              strokeWidth={1.5}
+              className="mr-2"
+            />
             {opt.label}
             {opt.value === currentStatus && (
               <span className="ml-auto text-xs text-muted-foreground">aktuell</span>
@@ -139,7 +155,12 @@ export function AnfrageQuickMenu({
           }}
           className="text-destructive focus:text-destructive"
         >
-          <span className="mr-2">🗑️</span>
+          <HugeiconsIcon
+            icon={Delete02Icon}
+            size={16}
+            strokeWidth={1.5}
+            className="mr-2"
+          />
           In Papierkorb
         </DropdownMenuItem>
       </DropdownMenuContent>

@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { ArrowTurnBackwardIcon } from '@hugeicons/core-free-icons';
 
 export function PapierkorbItemActions({ anfrageId }: { anfrageId: string }) {
   const router = useRouter();
@@ -63,8 +65,14 @@ export function PapierkorbItemActions({ anfrageId }: { anfrageId: string }) {
         size="sm"
         onClick={restore}
         disabled={isLoading}
+        className="gap-1.5"
       >
-        ↩️ Wiederherstellen
+        <HugeiconsIcon
+          icon={ArrowTurnBackwardIcon}
+          size={14}
+          strokeWidth={1.5}
+        />
+        Wiederherstellen
       </Button>
       <Button
         variant="outline"

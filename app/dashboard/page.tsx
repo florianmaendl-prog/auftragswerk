@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase-server';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { AnfrageQuickMenu } from './anfrage-quick-menu';
+import { KategorieBadge } from '@/components/brand/kategorie-badge';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { InboxIcon } from '@hugeicons/core-free-icons';
 
 type AnfrageWithJoins = {
   id: string;
@@ -36,7 +39,6 @@ type GroupId = 'zu_tun' | 'verfolgen' | 'archiv';
 type TabConfig = {
   id: TabId;
   label: string;
-  icon: string;
   statuses: string[];
   description: string;
   group: GroupId;
@@ -71,7 +73,6 @@ const TABS: TabConfig[] = [
   {
     id: 'freigabe',
     label: 'Freigabe',
-    icon: '🔵',
     statuses: ['entwurf_bereit'],
     description: 'KI-Entwurf bereit – du gibst frei oder passt an',
     group: 'zu_tun',
@@ -79,7 +80,6 @@ const TABS: TabConfig[] = [
   {
     id: 'manuell',
     label: 'Manuell prüfen',
-    icon: '🟡',
     statuses: ['manuell_pruefen', 'neu'],
     description: 'KI unsicher oder Klassifikation fehlgeschlagen – du musst selbst entscheiden',
     group: 'zu_tun',
@@ -87,7 +87,6 @@ const TABS: TabConfig[] = [
   {
     id: 'gespraech',
     label: 'Kunde geantwortet',
-    icon: '🟢',
     statuses: ['reply_eingegangen'],
     description: 'Reaktion auf deine versendete Mail – hier liegt Geld',
     group: 'zu_tun',
@@ -96,7 +95,6 @@ const TABS: TabConfig[] = [
   {
     id: 'versendet',
     label: 'Versendet',
-    icon: '📨',
     statuses: ['versendet'],
     description: 'Mail raus – warten auf Kunden-Antwort',
     group: 'verfolgen',
@@ -104,7 +102,6 @@ const TABS: TabConfig[] = [
   {
     id: 'info',
     label: 'Info',
-    icon: 'ℹ️',
     statuses: ['info'],
     description: 'Rechnungen, Bestellungen, Innung, Behörden – nur zur Kenntnis',
     group: 'verfolgen',
@@ -113,7 +110,6 @@ const TABS: TabConfig[] = [
   {
     id: 'erledigt',
     label: 'Erledigt',
-    icon: '✅',
     statuses: ['erledigt'],
     description: 'Abgeschlossen, archiviert',
     group: 'archiv',
@@ -121,7 +117,6 @@ const TABS: TabConfig[] = [
   {
     id: 'aussortiert',
     label: 'Aussortiert',
-    icon: '🗑️',
     statuses: ['aussortiert'],
     description: 'Werbung, Spam',
     group: 'archiv',
@@ -192,34 +187,14 @@ function computeStats(items: AnfrageWithJoins[], wocheTermine: number): InboxSta
   return { heuteNeu, heuteReplies, heuteAussortiert, wocheAnfragen, wocheTermine };
 }
 
-function gewerkBadge(gewerk: string | null) {
-  if (!gewerk) return null;
-  const color =
-    gewerk === 'passt'
-      ? 'bg-green-100 text-green-800 border-green-200'
-      : gewerk === 'passt_nicht'
-      ? 'bg-red-100 text-red-800 border-red-200'
-      : 'bg-yellow-100 text-yellow-800 border-yellow-200';
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
-        color
-      )}
-    >
-      {gewerk}
-    </span>
-  );
-}
-
 function confidenceBadge(confidence: number | null) {
   if (confidence === null || confidence >= 0.8) return null;
   const pct = Math.round(confidence * 100);
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
-        'bg-amber-50 text-amber-700 border-amber-200'
+        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+        'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
       )}
       title="KI ist sich nicht sicher – Entwurf bitte besonders prüfen"
     >
@@ -228,43 +203,6 @@ function confidenceBadge(confidence: number | null) {
   );
 }
 
-function kategorieBadge(kategorie: string | null | undefined) {
-  if (!kategorie) return null;
-  const mapping: Record<string, { label: string; color: string }> = {
-    rechnung: {
-      label: '💶 Rechnung',
-      color: 'bg-purple-100 text-purple-800 border-purple-200',
-    },
-    bestellung_versand: {
-      label: '📦 Bestellung',
-      color: 'bg-blue-100 text-blue-800 border-blue-200',
-    },
-    innung_behoerde: {
-      label: '📋 Innung/Behörde',
-      color: 'bg-amber-100 text-amber-800 border-amber-200',
-    },
-    werbung: {
-      label: '📢 Werbung',
-      color: 'bg-gray-100 text-gray-700 border-gray-200',
-    },
-    sonstiges: {
-      label: '❓ Sonstiges',
-      color: 'bg-slate-100 text-slate-700 border-slate-200',
-    },
-  };
-  const conf = mapping[kategorie];
-  if (!conf) return null;
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
-        conf.color
-      )}
-    >
-      {conf.label}
-    </span>
-  );
-}
 
 export default async function InboxPage({
   searchParams,
@@ -337,7 +275,9 @@ export default async function InboxPage({
   return (
     <div className="container mx-auto py-8 px-6 max-w-5xl">
       <div className="mb-4">
-        <h1 className="text-3xl font-semibold tracking-tight mb-1">Inbox</h1>
+        <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1">
+          Inbox
+        </h1>
         <p className="text-muted-foreground text-sm">
           {items.length} {items.length === 1 ? 'Anfrage' : 'Anfragen'} insgesamt
         </p>
@@ -441,7 +381,6 @@ export default async function InboxPage({
                     : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                 )}
               >
-                <span>{tab.icon}</span>
                 <span>{tab.label}</span>
                 {count > 0 && (
                   <span
@@ -470,9 +409,20 @@ export default async function InboxPage({
       )}
 
       {filtered.length === 0 && !error && (
-        <Card className="p-12 text-center">
-          <p className="text-muted-foreground text-sm">
-            Keine Anfragen in „{activeTab.label}".
+        <Card className="p-12 flex flex-col items-center gap-3 text-center">
+          <div className="rounded-full bg-secondary p-4">
+            <HugeiconsIcon
+              icon={InboxIcon}
+              size={28}
+              strokeWidth={1.5}
+              className="text-primary"
+            />
+          </div>
+          <p className="text-sm font-medium text-foreground">
+            Keine Anfragen in „{activeTab.label}"
+          </p>
+          <p className="text-xs text-muted-foreground max-w-sm">
+            {activeTab.description}
           </p>
         </Card>
       )}
@@ -481,7 +431,6 @@ export default async function InboxPage({
         {filtered.map((anfrage) => {
           const klass = anfrage.analysen?.[0];
           const hatEntwurf = anfrage.status === 'entwurf_bereit';
-          const istInfo = anfrage.status === 'info';
 
           return (
             <div key={anfrage.id} className="relative group">
@@ -515,9 +464,11 @@ export default async function InboxPage({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {istInfo && kategorieBadge(klass?.kategorie)}
-                      {!istInfo && klass && gewerkBadge(klass.gewerk_match)}
-                      {!istInfo && klass && confidenceBadge(klass.confidence)}
+                      <KategorieBadge
+                        kategorie={klass?.kategorie as Parameters<typeof KategorieBadge>[0]['kategorie']}
+                        gewerkMatch={klass?.gewerk_match as Parameters<typeof KategorieBadge>[0]['gewerkMatch']}
+                      />
+                      {klass && confidenceBadge(klass.confidence)}
                     </div>
                   </div>
                 </Card>

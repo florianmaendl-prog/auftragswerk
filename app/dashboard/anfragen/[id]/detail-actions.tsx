@@ -12,32 +12,45 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
+import {
+  Edit02Icon,
+  AlertCircleIcon,
+  PinIcon,
+  SentIcon,
+  ChatIcon,
+  CheckmarkCircle02Icon,
+  Delete02Icon,
+  InboxIcon,
+  ArrowDown01Icon,
+  Tick02Icon,
+} from '@hugeicons/core-free-icons';
 
 type StatusOption = {
   value: string;
   label: string;
-  icon: string;
+  icon: IconSvgElement;
 };
 
 const STATUS_OPTIONEN: StatusOption[] = [
-  { value: 'entwurf_bereit', label: 'Freigabe', icon: '✏️' },
-  { value: 'manuell_pruefen', label: 'Manuell prüfen', icon: '⚠️' },
-  { value: 'info', label: 'Info', icon: '📌' },
-  { value: 'versendet', label: 'Versendet', icon: '📤' },
-  { value: 'reply_eingegangen', label: 'Im Gespräch', icon: '💬' },
-  { value: 'erledigt', label: 'Erledigt', icon: '✅' },
-  { value: 'aussortiert', label: 'Aussortiert', icon: '🗑️' },
+  { value: 'entwurf_bereit', label: 'Freigabe', icon: Edit02Icon },
+  { value: 'manuell_pruefen', label: 'Manuell prüfen', icon: AlertCircleIcon },
+  { value: 'info', label: 'Info', icon: PinIcon },
+  { value: 'versendet', label: 'Versendet', icon: SentIcon },
+  { value: 'reply_eingegangen', label: 'Im Gespräch', icon: ChatIcon },
+  { value: 'erledigt', label: 'Erledigt', icon: CheckmarkCircle02Icon },
+  { value: 'aussortiert', label: 'Aussortiert', icon: Delete02Icon },
 ];
 
-const STATUS_LABELS: Record<string, { label: string; icon: string }> = {
-  neu: { label: 'Eingang', icon: '📥' },
-  entwurf_bereit: { label: 'Freigabe', icon: '✏️' },
-  manuell_pruefen: { label: 'Manuell prüfen', icon: '⚠️' },
-  info: { label: 'Info', icon: '📌' },
-  versendet: { label: 'Versendet', icon: '📤' },
-  reply_eingegangen: { label: 'Im Gespräch', icon: '💬' },
-  erledigt: { label: 'Erledigt', icon: '✅' },
-  aussortiert: { label: 'Aussortiert', icon: '🗑️' },
+const STATUS_LABELS: Record<string, { label: string; icon: IconSvgElement }> = {
+  neu: { label: 'Eingang', icon: InboxIcon },
+  entwurf_bereit: { label: 'Freigabe', icon: Edit02Icon },
+  manuell_pruefen: { label: 'Manuell prüfen', icon: AlertCircleIcon },
+  info: { label: 'Info', icon: PinIcon },
+  versendet: { label: 'Versendet', icon: SentIcon },
+  reply_eingegangen: { label: 'Im Gespräch', icon: ChatIcon },
+  erledigt: { label: 'Erledigt', icon: CheckmarkCircle02Icon },
+  aussortiert: { label: 'Aussortiert', icon: Delete02Icon },
 };
 
 // Quick-Erledigt-Button: nur bei Workflow-Schritten, die natürlich "fertig" werden können
@@ -60,7 +73,7 @@ export function DetailActions({
 
   const currentLabel = STATUS_LABELS[currentStatus] ?? {
     label: currentStatus,
-    icon: '•',
+    icon: PinIcon,
   };
 
   const zeigeErledigtButton = STATUS_MIT_ERLEDIGT_BUTTON.has(currentStatus);
@@ -126,21 +139,10 @@ export function DetailActions({
           size="sm"
           onClick={() => aendereStatus('erledigt')}
           disabled={isLoading}
-          className="gap-1.5 bg-green-600 text-white hover:bg-green-700"
+          className="gap-1.5"
           title="Diese Anfrage als erledigt markieren – wandert in den Erledigt-Tab"
         >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+          <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
           <span>Als erledigt markieren</span>
         </Button>
       )}
@@ -153,21 +155,14 @@ export function DetailActions({
             disabled={isLoading}
             className="gap-2"
           >
-            <span>{currentLabel.icon}</span>
+            <HugeiconsIcon icon={currentLabel.icon} size={14} strokeWidth={1.5} />
             <span>{currentLabel.label}</span>
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+            <HugeiconsIcon
+              icon={ArrowDown01Icon}
+              size={12}
+              strokeWidth={1.5}
               className="opacity-50"
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
+            />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
@@ -185,7 +180,12 @@ export function DetailActions({
               disabled={opt.value === currentStatus}
               className={cn(opt.value === currentStatus && 'opacity-50')}
             >
-              <span className="mr-2">{opt.icon}</span>
+              <HugeiconsIcon
+                icon={opt.icon}
+                size={16}
+                strokeWidth={1.5}
+                className="mr-2"
+              />
               {opt.label}
               {opt.value === currentStatus && (
                 <span className="ml-auto text-xs text-muted-foreground">
@@ -204,19 +204,12 @@ export function DetailActions({
         disabled={isLoading}
         className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <HugeiconsIcon
+          icon={Delete02Icon}
+          size={14}
+          strokeWidth={1.5}
           className="mr-1.5"
-        >
-          <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z" />
-        </svg>
+        />
         Löschen
       </Button>
     </div>

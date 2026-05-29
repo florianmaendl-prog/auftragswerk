@@ -20,6 +20,14 @@ import {
   utcIsoToBerlinLocal,
   formatBerlinDatetime,
 } from '@/lib/datetime';
+import { HugeiconsIcon } from '@hugeicons/react';
+import {
+  TimeScheduleIcon,
+  CancelCircleIcon,
+  Delete02Icon,
+  Edit02Icon,
+  Location01Icon,
+} from '@hugeicons/core-free-icons';
 
 const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const WOCHENTAGE_LANG = [
@@ -525,12 +533,15 @@ export function WochenGrid({
                 onClick={macheFrei}
                 disabled={busy}
               >
-                <div>
-                  <div className="font-medium">🟢 Regelmäßig frei machen</div>
-                  <div className="text-xs text-muted-foreground font-normal mt-0.5">
-                    Jeden {WOCHENTAGE_LANG[selectedCell.dayIdx + 1]}{' '}
-                    {String(selectedCell.hour).padStart(2, '0')}:00–
-                    {String(selectedCell.hour + 1).padStart(2, '0')}:00 Uhr (Regel)
+                <div className="flex items-start gap-2.5">
+                  <span className="mt-0.5 inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full bg-green-500" />
+                  <div>
+                    <div className="font-medium">Regelmäßig frei machen</div>
+                    <div className="text-xs text-muted-foreground font-normal mt-0.5">
+                      Jeden {WOCHENTAGE_LANG[selectedCell.dayIdx + 1]}{' '}
+                      {String(selectedCell.hour).padStart(2, '0')}:00–
+                      {String(selectedCell.hour + 1).padStart(2, '0')}:00 Uhr (Regel)
+                    </div>
                   </div>
                 </div>
               </Button>
@@ -540,10 +551,13 @@ export function WochenGrid({
                 onClick={macheSperre}
                 disabled={busy}
               >
-                <div>
-                  <div className="font-medium">🔴 Diesen Slot sperren</div>
-                  <div className="text-xs text-muted-foreground font-normal mt-0.5">
-                    Einmalig an diesem Datum, eine Stunde
+                <div className="flex items-start gap-2.5">
+                  <span className="mt-0.5 inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full bg-rose-500" />
+                  <div>
+                    <div className="font-medium">Diesen Slot sperren</div>
+                    <div className="text-xs text-muted-foreground font-normal mt-0.5">
+                      Einmalig an diesem Datum, eine Stunde
+                    </div>
                   </div>
                 </div>
               </Button>
@@ -553,10 +567,18 @@ export function WochenGrid({
                 onClick={() => setSubMode('create-termin')}
                 disabled={busy}
               >
-                <div>
-                  <div className="font-medium">📅 Termin anlegen</div>
-                  <div className="text-xs text-muted-foreground font-normal mt-0.5">
-                    Ohne Anfrage-Bezug (Wartung, Privattermin, Innung etc.)
+                <div className="flex items-start gap-2.5">
+                  <HugeiconsIcon
+                    icon={TimeScheduleIcon}
+                    size={14}
+                    strokeWidth={1.5}
+                    className="mt-1 flex-shrink-0"
+                  />
+                  <div>
+                    <div className="font-medium">Termin anlegen</div>
+                    <div className="text-xs text-muted-foreground font-normal mt-0.5">
+                      Ohne Anfrage-Bezug (Wartung, Privattermin, Innung etc.)
+                    </div>
                   </div>
                 </div>
               </Button>
@@ -567,8 +589,13 @@ export function WochenGrid({
           {selectedCell?.kind === 'termin' && subMode === 'view' && selectedCell.termin && (
             <div className="space-y-3 py-2">
               <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm space-y-1">
-                <p className="font-medium text-blue-900">
-                  📅 {selectedCell.termin.betreff || '(Termin ohne Betreff)'}
+                <p className="font-medium text-blue-900 flex items-center gap-1.5">
+                  <HugeiconsIcon
+                    icon={TimeScheduleIcon}
+                    size={14}
+                    strokeWidth={1.5}
+                  />
+                  {selectedCell.termin.betreff || '(Termin ohne Betreff)'}
                 </p>
                 <p className="text-xs text-blue-800">
                   {formatBerlinDatetime(
@@ -577,7 +604,14 @@ export function WochenGrid({
                   )}
                 </p>
                 {selectedCell.termin.ort && (
-                  <p className="text-xs text-blue-800">📍 {selectedCell.termin.ort}</p>
+                  <p className="text-xs text-blue-800 flex items-center gap-1">
+                    <HugeiconsIcon
+                      icon={Location01Icon}
+                      size={12}
+                      strokeWidth={1.5}
+                    />
+                    {selectedCell.termin.ort}
+                  </p>
                 )}
                 {selectedCell.termin.notiz && (
                   <p className="text-xs text-blue-700">{selectedCell.termin.notiz}</p>
@@ -594,11 +628,24 @@ export function WochenGrid({
                   variant="outline"
                   onClick={() => setSubMode('edit-termin')}
                   disabled={busy}
+                  className="gap-1.5"
                 >
-                  ✏️ Bearbeiten
+                  <HugeiconsIcon icon={Edit02Icon} size={14} strokeWidth={1.5} />
+                  Bearbeiten
                 </Button>
-                <Button size="sm" variant="outline" onClick={sageTerminAb} disabled={busy}>
-                  🔴 Absagen
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={sageTerminAb}
+                  disabled={busy}
+                  className="gap-1.5"
+                >
+                  <HugeiconsIcon
+                    icon={CancelCircleIcon}
+                    size={14}
+                    strokeWidth={1.5}
+                  />
+                  Absagen
                 </Button>
                 {selectedCell.termin.anfrage_id && (
                   <Link href={`/dashboard/anfragen/${selectedCell.termin.anfrage_id}`}>
@@ -623,25 +670,38 @@ export function WochenGrid({
                   size="sm"
                   onClick={() => setSubMode('create-termin')}
                   disabled={busy}
+                  className="gap-1.5"
                 >
-                  📅 Termin anlegen
+                  <HugeiconsIcon
+                    icon={TimeScheduleIcon}
+                    size={14}
+                    strokeWidth={1.5}
+                  />
+                  Termin anlegen
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={macheSperre}
                   disabled={busy}
+                  className="gap-1.5"
                 >
-                  🔴 Trotzdem sperren
+                  <span className="inline-block h-2 w-2 flex-shrink-0 rounded-full bg-rose-500" />
+                  Trotzdem sperren
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => loescheRegel(selectedCell.regelId!)}
                   disabled={busy}
-                  className="text-destructive"
+                  className="text-destructive gap-1.5"
                 >
-                  🗑 Regel löschen
+                  <HugeiconsIcon
+                    icon={Delete02Icon}
+                    size={14}
+                    strokeWidth={1.5}
+                  />
+                  Regel löschen
                 </Button>
               </div>
             </div>
@@ -663,17 +723,28 @@ export function WochenGrid({
                   size="sm"
                   onClick={() => setSubMode('create-termin')}
                   disabled={busy}
+                  className="gap-1.5"
                 >
-                  📅 Trotzdem Termin anlegen
+                  <HugeiconsIcon
+                    icon={TimeScheduleIcon}
+                    size={14}
+                    strokeWidth={1.5}
+                  />
+                  Trotzdem Termin anlegen
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => loescheSperre(selectedCell.sperreId!)}
                   disabled={busy}
-                  className="text-destructive"
+                  className="text-destructive gap-1.5"
                 >
-                  🗑 Sperre löschen
+                  <HugeiconsIcon
+                    icon={Delete02Icon}
+                    size={14}
+                    strokeWidth={1.5}
+                  />
+                  Sperre löschen
                 </Button>
               </div>
             </div>

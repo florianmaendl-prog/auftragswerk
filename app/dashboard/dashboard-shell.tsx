@@ -6,19 +6,39 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase-browser';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Wortmarke } from '@/components/brand/wortmarke';
 import { cn } from '@/lib/utils';
+import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
+import {
+  InboxIcon,
+  UserGroupIcon,
+  TimeScheduleIcon,
+  Calendar02Icon,
+  Building03Icon,
+  WrenchIcon,
+  Delete02Icon,
+  Menu02Icon,
+} from '@hugeicons/core-free-icons';
 
-const mainNavItems = [
-  { href: '/dashboard', label: 'Inbox', icon: '📥' },
-  { href: '/dashboard/kunden', label: 'Kunden', icon: '👥' },
-  { href: '/dashboard/termine', label: 'Termine', icon: '📅' },
-  { href: '/dashboard/kalender', label: 'Kalender', icon: '📆' },
-  { href: '/dashboard/profil', label: 'Betriebsprofil', icon: '🏢' },
+type NavItem = {
+  href: string;
+  label: string;
+  icon: IconSvgElement;
+};
+
+const mainNavItems: NavItem[] = [
+  { href: '/dashboard', label: 'Inbox', icon: InboxIcon },
+  { href: '/dashboard/kunden', label: 'Kunden', icon: UserGroupIcon },
+  // Termine = Liste konkreter Termin-Slots (Zeit-fokussiert) → Calendar+Uhr
+  { href: '/dashboard/termine', label: 'Termine', icon: TimeScheduleIcon },
+  // Kalender = Wochen-/Monatsansicht (Grid-fokussiert) → Calendar+Days
+  { href: '/dashboard/kalender', label: 'Kalender', icon: Calendar02Icon },
+  { href: '/dashboard/profil', label: 'Betriebsprofil', icon: Building03Icon },
 ];
 
-const utilityNavItems = [
-  { href: '/dashboard/diagnose', label: 'Diagnose', icon: '🛠️' },
-  { href: '/dashboard/papierkorb', label: 'Papierkorb', icon: '🗑️' },
+const utilityNavItems: NavItem[] = [
+  { href: '/dashboard/diagnose', label: 'Diagnose', icon: WrenchIcon },
+  { href: '/dashboard/papierkorb', label: 'Papierkorb', icon: Delete02Icon },
 ];
 
 export default function DashboardShell({
@@ -53,9 +73,9 @@ export default function DashboardShell({
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className="h-16 flex items-center px-6 border-b border-sidebar-border">
-          <Link href="/dashboard" className="font-bold tracking-tight uppercase text-lg">
-            Auftragswerk
+        <div className="h-20 flex items-center px-6 border-b border-sidebar-border">
+          <Link href="/dashboard" aria-label="Auftragswerk Startseite">
+            <Wortmarke size="sm" withTagline />
           </Link>
         </div>
 
@@ -74,7 +94,7 @@ export default function DashboardShell({
                     : 'hover:bg-sidebar-accent text-sidebar-foreground'
                 )}
               >
-                <span className="text-base">{item.icon}</span>
+                <HugeiconsIcon icon={item.icon} size={18} strokeWidth={1.5} />
                 {item.label}
               </Link>
             );
@@ -97,7 +117,7 @@ export default function DashboardShell({
                     : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                 )}
               >
-                <span className="text-base">{item.icon}</span>
+                <HugeiconsIcon icon={item.icon} size={18} strokeWidth={1.5} />
                 {item.label}
               </Link>
             );
@@ -135,10 +155,11 @@ export default function DashboardShell({
             variant="ghost"
             size="sm"
             onClick={() => setSidebarOpen(true)}
+            aria-label="Menü öffnen"
           >
-            ☰
+            <HugeiconsIcon icon={Menu02Icon} size={20} strokeWidth={1.5} />
           </Button>
-          <span className="font-bold tracking-tight uppercase">Auftragswerk</span>
+          <Wortmarke size="sm" />
           <div className="w-10" />
         </header>
 
