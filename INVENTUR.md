@@ -1,11 +1,13 @@
 # Auftragswerk – System-Inventur
 
-> **Stand: 29.5.2026 (Tag 15 – Mobile-Optimierung + Rechtstexte durch)**
+> **Stand: 29.5.2026 abends (Tag 15 – Mobile + Rechtstexte + Gmail-OAuth durch)**
 > Aktueller Referenz-Snapshot. Jeder neue Claude/Entwickler liest das + BACKLOG.md.
 >
-> **Welle-Stand:** A (Mobile) + B (Rechtstexte) durch und live. C (Gmail-OAuth)
-> ist nächste Welle. D (Wow-Onboarding) folgt. Dann Compliance-Block
-> (Owner-Aufgabe). Plan-File: `~/.claude/plans/sooo-lies-backlog-md-delegated-moler.md`.
+> **Welle-Stand:** A (Mobile) + B (Rechtstexte) + C (Gmail-OAuth) durch und live.
+> Smoke-Test Welle C verifiziert: Mail aus echtem Gmail-Account des Owners.
+> **Welle E.1 (Reply-To-Quick-Fix) als nächstes**, dann D (Wow-Onboarding),
+> dann E.2 (Catch-All-Subdomain) vor Max-Live. Plan-File:
+> `~/.claude/plans/sooo-lies-backlog-md-delegated-moler.md`.
 
 ---
 
@@ -38,6 +40,7 @@
 | `termine` | Aufmaß-/Vor-Ort-Termine (status-getrieben, optional ohne Anfrage) |
 | `verfuegbarkeit_regel` | Wiederkehrende Verfügbarkeit (Mo-So × Uhrzeit-Range) pro Betrieb |
 | `verfuegbarkeit_sperre` | Einmalige Sperren (Urlaub, fester Termin) |
+| `gmail_connections` | Gmail-OAuth-Tokens pro Betrieb (AES-256-GCM-verschlüsselt), Scope `gmail.send`, Status aktiv/fehler/widerrufen |
 | `ai_runs` | Audit-Log aller KI-Aufrufe |
 | `processing_errors` | Fehler-Log (Klassifikation, Entwurf, Storage-Upload) – sichtbar in `/dashboard/diagnose` |
 | `feedback` | User-Feedback (ungenutzt) |
@@ -101,10 +104,23 @@ app/api/
 ├── inbound/route.ts          Postmark-Webhook (über Edge-Proxy vorgereicht)
 │                              – Idempotenz (Pre-Check + UNIQUE), KI-Cap (50/h),
 │                                Threading, Klassifikation, Entwurf, Anhänge-Link
-├── versand/route.ts          Entwurf freigeben + Postmark-Send
+├── versand/route.ts          Entwurf freigeben + Send
 │                              – Status-Lock entwurf_bereit→in_versand→versendet
+│                              – 3-stufige From-Wahl: Gmail (OAuth) → Custom
+│                                Sender (Postmark) → Postmark-Default-Fallback
 ├── versand/manuell/route.ts  Manuelle Antwort (ohne Entwurf)
 │                              – 5s-zeitbasierter Doppelklick-Schutz
+│                              – gleiche 3-stufige From-Wahl
+├── auth/google/start/        OAuth-Start: CSRF-State-Cookie,
+│   route.ts                  redirect zu Google Consent (gmail.send scope,
+│                              access_type=offline + prompt=consent für
+│                              refresh_token)
+├── auth/google/callback/     OAuth-Callback: state-check, code→token-tausch,
+│   route.ts                  id_token→email, encrypt + UPSERT in gmail_
+│                              connections, redirect zu /dashboard/profil
+│                              ?gmail=connected|error&detail=...
+├── auth/google/disconnect/   POST: best-effort google-revoke + DB-delete
+│   route.ts
 ├── anfragen/[id]/route.ts    PATCH Status / DELETE Soft-Delete
 ├── betriebe/[id]/route.ts    Betriebsprofil-Update
 ├── termine/route.ts          POST (vorschlagen/festmachen) + PATCH (bestätigen/
@@ -343,6 +359,21 @@ Nicht verlieren beim Refactoring:
     der amber "in juristischer Prüfung"-Hinweis auf /datenschutz und /agb
     steht, sind das KEINE produktiv-pilot-tauglichen Texte. Vor Max-Live
     Compliance-Block durchgehen (siehe unten).
+24. **OAuth-Tokens NIE plain speichern oder loggen** — `lib/crypto.ts`
+    AES-256-GCM ist die einzig zulässige Speicher-Form. Niemals Tokens in
+    `processing_errors.fehler_text` schreiben, in `console.log` ausgeben
+    oder im response-Body zurückgeben. DSGVO-kritisch.
+25. **3-stufige From-Wahl beim Versand** — `gmail_connections` aktiv →
+    Gmail-API (echte Mail des Betriebs). Sonst `sender_verified` →
+    Postmark Custom-Sender. Sonst → `info@auftragswerk.app`-Fallback.
+    Reihenfolge in `app/api/versand/route.ts` + `versand/manuell/route.ts`
+    nicht ändern – Iron-Rule "Auftragswerk nie sichtbar" hängt davon ab.
+26. **Reply-To darf NIE die Postmark-Hex-Adresse für Endkunden sein** —
+    sieht scammy aus. Aktuell ist `betrieb.inbound_email` der Reply-To-
+    Wert, was bei manchen Test-Setups die Hex-Adresse ist. Welle E.1
+    (Quick-Fix vor Welle D): wenn Gmail-OAuth aktiv → Reply-To =
+    `gmail_connections.google_email`. Welle E.2 (Premium): Catch-All-
+    Subdomain `kunden.auftragswerk.app` für saubere Reply-To-Adressen.
 
 ---
 
@@ -379,6 +410,12 @@ ANTHROPIC_API_KEY
 NEXT_PUBLIC_APP_URL                 = https://auftragswerk.app
 POSTMARK_SERVER_TOKEN
 POSTMARK_ACCOUNT_TOKEN              ← für Sender-Signature-API (postmark-sender.ts)
+GOOGLE_OAUTH_CLIENT_ID              ← Welle C – Gmail-OAuth
+GOOGLE_OAUTH_CLIENT_SECRET          ← Welle C – Gmail-OAuth
+GOOGLE_OAUTH_REDIRECT_URI           = https://www.auftragswerk.app/api/auth/google/callback
+TOKEN_ENCRYPTION_KEY                ← 32 Bytes base64, AES-256-GCM-Key. DARF NIE VERLOREN GEHEN
+                                      sonst sind alle gespeicherten gmail_connections-Tokens
+                                      unentschlüsselbar. Backup in 1Password/Bitwarden!
 POSTMARK_FROM_EMAIL                 = info@auftragswerk.app
 POSTMARK_FROM_NAME                  = Auftragswerk
 POSTMARK_REPLY_TO                   = 22410d58…@inbound.postmarkapp.com

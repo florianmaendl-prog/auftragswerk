@@ -1,9 +1,10 @@
 # Auftragswerk – Backlog
 
-> **Stand: 29.5.2026 (Tag 15 – Mobile-Optimierung + Rechtstexte durch)**
+> **Stand: 29.5.2026 abends (Tag 15 – Mobile + Rechtstexte + Gmail-OAuth durch)**
 >
-> Säule 1 production-live, production-reif, brand-konsistent, mobile-tauglich.
-> Drei strategische Wellen aus dem Premium-Pivot-Plan abgearbeitet:
+> Säule 1 production-live, production-reif, brand-konsistent, mobile-tauglich,
+> Gmail-OAuth funktioniert (Outbound verifiziert). Drei strategische Wellen
+> aus dem Premium-Pivot-Plan abgearbeitet:
 >
 > - **Welle A (Mobile-Optimierung)** durch – Dashboard auf 380px-Screens
 >   spielbar. Sidebar als sticky-Header mit 44×44-Hamburger, Inbox-Tabs
@@ -18,11 +19,17 @@
 >   Footer-Komponente in Dashboard + Login eingehängt. Vorbereitet für
 >   Gmail-OAuth-Consent-Screen (braucht beide URLs).
 >
-> - **Welle C (Gmail-OAuth)** als nächstes – Onboarding-Pivot: Klick →
->   Gmail verknüpft → Mail kommt aus echtem Account. Löst DKIM-Pain für
->   alle Kunden + macht Max sofort live ohne DNS-Stau.
+> - **Welle C (Gmail-OAuth)** durch – User hat eigene Gmail verbunden,
+>   Smoke-Test zeigt: Mail wird aus echtem Gmail-Account versendet
+>   (verifiziert über Empfänger-Mail-Header "Von: florian.maendl@gmail.com").
+>   Migration ausgeführt, Token-Verschlüsselung läuft, Auto-Refresh greift.
+>   **ABER:** zwei offene Premium-Probleme aus dem Live-Test → Welle E.
 >
 > - **Welle D (Wow-Onboarding-Page)** als Krönung nach Welle C.
+>
+> - **Welle E (NEU): Premium-Reply-To + Catch-All-Subdomain** vor Pilot.
+>   Aus Live-Test: Reply-To-Hex-Adresse ist "scammy" für Endkunden, Inbound-
+>   Forward-Setup braucht eine premiumere Lösung. Details unten.
 >
 > **Vor Tag 14:** Pre-Pilot-Härtung (Welle 1/1.5/2) – Idempotenz,
 > Versand-Atomarität, KI-Failures sichtbar, Edge-Proxy gehärtet, Security
@@ -37,6 +44,70 @@
 ---
 
 ## ✅ FERTIG
+
+### Tag 15 (Abend): Welle C – Gmail-OAuth (29.5.2026)
+
+#### Welle C – Gmail-OAuth-Pivot
+Premium-Onboarding-Foundation. Klick → Gmail verknüpft → Mail kommt aus
+echtem Account. Löst DKIM-Pain für alle Kunden + macht Max sofort live ohne
+DNS-Stau bei WordPress.com.
+
+- ✅ **Google Cloud Setup** durch User durchgeklickt: Projekt "Auftragswerk",
+  OAuth Client ID (Web Application), Scope `gmail.send`, Redirect URI
+  `https://www.auftragswerk.app/api/auth/google/callback`, Consent-Screen
+  befüllt + "In production" published, Gmail API aktiviert.
+- ✅ **Vercel-Env-Vars** gesetzt: `GOOGLE_OAUTH_CLIENT_ID`,
+  `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`,
+  `TOKEN_ENCRYPTION_KEY` (32 Bytes Base64).
+- ✅ **Migration** `20260530_gmail_connections.sql` ausgeführt – Tabelle
+  mit verschlüsselten Token-Spalten, RLS via `current_betrieb_id()`,
+  UNIQUE(betrieb_id).
+- ✅ **Code-Foundation komplett:**
+  - `lib/crypto.ts` – AES-256-GCM Token-Verschlüsselung (Format
+    `<iv>.<authTag>.<ciphertext>` base64, auth-Tag-Check)
+  - `lib/gmail.ts` – `getValidAccessToken()` mit Auto-Refresh (60s-Puffer),
+    `sendeViaGmail()` mit RFC822-MIME-Bau (text/plain oder multipart/mixed
+    mit base64-Anhängen, References-Cap auf 10, eigene UUID-Message-ID
+    für Threading-Konsistenz), 401-Retry mit Force-Refresh, 4xx →
+    status='fehler' + shouldFallback=true für Aufrufer.
+  - `/api/auth/google/start` – CSRF-State in HttpOnly-Cookie, OAuth-URL
+    mit `access_type=offline + prompt=consent`.
+  - `/api/auth/google/callback` – State-Check, Token-Tausch, id_token
+    decoden für google_email, Tokens verschlüsseln, UPSERT in
+    gmail_connections, Redirect zu `/dashboard/profil?gmail=connected`.
+  - `/api/auth/google/disconnect` – Best-effort Token-Revoke bei Google +
+    DB-Löschung.
+- ✅ **Versand-Routes erweitert** (gestaffelte From-Wahl): Gmail aktiv →
+  sendeViaGmail. Sonst Custom-Sender → Postmark. Sonst Postmark-Fallback.
+  Bei Gmail-permanent-Fehler (shouldFallback=true) → automatischer
+  Postmark-Fallback mit Custom-Sender oder Default-Adresse.
+- ✅ **Profil-UI** `gmail-connection-card.tsx` – drei Zustände
+  (nicht verbunden / aktiv / fehler-widerrufen), Warnscreen-Hinweis,
+  ?gmail=connected|error URL-Param-Toast, History-Cleanup.
+- ✅ **Praktiker-Text** verbessert: kein DKIM-Tech-Sprech mehr,
+  "Verbinde dein Gmail. Deine Antworten gehen dann aus deiner gewohnten
+  Mail-Adresse raus – wie immer. Ein Klick, fertig."
+- ✅ **Smoke-Test mit Flos eigenem Gmail durch:**
+  - Connection verifiziert: `status='aktiv'`, `letzter_fehler=NULL`,
+    `token_expiry` gesetzt
+  - Outbound-Test: Mail aus Dashboard rausgeschickt → kommt im
+    Empfänger-Postfach an, **From-Header zeigt
+    `Metallbau Max Test <florian.maendl@gmail.com>`** (echte Gmail,
+    NICHT info@auftragswerk.app) → Gmail-Pfad bestätigt ✓
+  - Iron Rule "Auftragswerk nie sichtbar für Endkunde" erfüllt.
+
+#### ⚠️ Welle C Live-Test brachte zwei Premium-Issues für Welle E
+1. **Reply-To-Hex-Adresse ist scammy.** Aktuell nutzt der Code
+   `betrieb.inbound_email` als Reply-To. Wenn die auf die Postmark-Hex
+   (`22410d58b0879712e00751421bbe7f29@inbound.postmarkapp.com`) gesetzt
+   ist, sehen Endkunden im Reply-To eine kryptische Hex-Adresse. Sieht
+   für Endkunde wie Spam aus. **Muss vor Pilot gefixt.**
+2. **Inbound-Forward-Setup pro Betrieb fühlt sich nicht premium an.**
+   Aktuelle Lösung: Betrieb muss Gmail-Weiterleitung auf Postmark-Hex
+   einrichten. Funktioniert, aber Anleitung "an die kryptische Adresse
+   forwarden" wirkt unsicher. Bessere Lösung: eigene Subdomain
+   `kunden.auftragswerk.app` als MX → Postmark, jeder Betrieb hat eine
+   schöne eigene Adresse wie `max@kunden.auftragswerk.app`.
 
 ### Tag 15: Mobile-Optimierung + Rechtstexte (29.5.2026)
 
@@ -304,39 +375,56 @@ Vier-Wellen-Plan vom 29.5.2026. Zwei durch, zwei offen.
 
 ### ✅ Welle A – Mobile-Optimierung (Tag 15, oben dokumentiert)
 ### ✅ Welle B – Rechtstexte (Tag 15, oben dokumentiert)
+### ✅ Welle C – Gmail-OAuth (Tag 15 Abend, oben dokumentiert)
+  Outbound-Smoke-Test verifiziert. Zwei offene Premium-Issues → Welle E.
 
-### ⏳ Welle C – Gmail-OAuth (5-7 Tage, NÄCHSTE WELLE)
-**Premium-Onboarding-Foundation:** Klick → Gmail verknüpft → Mail kommt aus
-echtem Account des Kunden. Löst DKIM-Pain für alle aktuellen + zukünftigen
-Kunden, macht Max **sofort live** ohne DNS-Stau bei WordPress.com.
-
-Strategische Vorgaben (Owner-Briefing, fixiert):
-- Nur Outbound via Gmail API (Scope `gmail.send`). Inbound bleibt Postmark-Forward.
-- App-Mode "In production", aber ohne CASA-Audit → User sehen "unverified app"-Warnscreen. Akzeptiert.
-- Postmark bleibt parallel als Universal-Fallback (~50€/Mo).
-- CASA-Audit-Entscheidung neu bewerten bei ~50-80 zahlenden Kunden.
-
-Schritte:
-1. **Google Cloud Setup** (Owner-Aufgabe im Browser, Claude liefert genaue Klick-Anleitung): Projekt anlegen, OAuth Client ID (Web), Scope `gmail.send`, Redirect-URI, Consent-Screen befüllen, "In production" publishen, Credentials in Vercel-Env.
-2. **Migration** `supabase/migrations/20260530_gmail_connections.sql` – Tabelle mit verschlüsselten Token-Spalten, RLS analog zu termine, UNIQUE(betrieb_id).
-3. **Crypto-Helper** `lib/crypto.ts` – AES-256-GCM via Node `crypto`, Key aus `TOKEN_ENCRYPTION_KEY`-Env (32 Bytes base64). Tokens NIE plain in DB/Logs.
-4. **OAuth-Flow**: `/api/auth/google/start` (mit `access_type=offline`+`prompt=consent` damit refresh_token kommt), `/api/auth/google/callback` (State-CSRF, Token-Tausch, encrypt, UPSERT), `/api/auth/google/disconnect`.
-5. **lib/gmail.ts** – `getValidAccessToken(betriebId)` mit Auto-Refresh, `sendeViaGmail(...)` mit RFC822-MIME-Bau (Threading-Headers + multipart/mixed-Anhänge), Fehler-Mapping (401→refresh+retry, 403→status='fehler'+Postmark-Fallback).
-6. **Versand-Routes erweitern** – gestaffelte From-Wahl in `/api/versand` + `/api/versand/manuell`: Gmail aktiv → Gmail-API, sonst Custom-Sender, sonst Postmark-Fallback.
-7. **UI in Profil-Seite** – Card "E-Mail-Konto verbinden" mit 3 Zuständen (nicht verbunden / verbunden / fehler), Warnscreen-Hinweis, Disconnect-Button.
-8. **Test mit Flos eigenem Gmail** end-to-end.
-
-Backup-Branch vor Start: `backup-vor-gmail-oauth`
-
-### ⏳ Welle D – Wow-Onboarding-Page (2-3 Tage, Krönung)
+### ⏳ Welle D – Wow-Onboarding-Page (2-3 Tage, NÄCHSTE WELLE nach Pause)
 Erste-Login-Detection: 0 Anfragen + 0 Regeln + 0 Termine → redirect zu
 `/dashboard/willkommen`. Hero mit Wortmarke + "Hi {inhaber}, deine
 Assistenz, die mitdenkt". Drei Schritte als Brand-Cards: 1) Gmail
-verbinden (1 Klick), 2) Verfügbarkeit eintragen (Quick-Link Kalender),
-3) Profil ausfüllen. Optional: 60s-Loom + Spickzettel-PDF im Brand-
-Briefkopf-Stil aus dem Mockup.
+verbinden (1 Klick, mit grünem Check wenn done!), 2) Verfügbarkeit
+eintragen (Quick-Link Kalender), 3) Profil ausfüllen. Optional: 60s-Loom
++ Spickzettel-PDF im Brand-Briefkopf-Stil aus dem Mockup.
 
 Backup-Branch vor Start: `backup-vor-wow-onboarding`
+
+### ⏳ Welle E – Premium-Reply-To + Catch-All-Subdomain (vor Pilot!)
+**Aus Welle-C-Live-Test entstanden.** Zwei Issues fixen damit Endkunden
+nichts Scammy sehen:
+
+**E.1 Reply-To-Logik intelligent machen** (Quick Fix, ~1h)
+- Wenn Gmail-OAuth aktiv → Reply-To = Gmail-Adresse des Betriebs
+  (`gmail_connections.google_email`). Kundenantwort landet direkt im
+  Gmail-Postfach des Inhabers.
+- Wenn kein Gmail, aber sender_verified → Reply-To = `sender_email`.
+- Sonst → Postmark-Hex-Fallback (heute, akzeptabel).
+- Anpassung in `app/api/versand/route.ts` + `versand/manuell/route.ts`
+  Zeilen mit `replyToAddress = betrieb?.inbound_email || ...`.
+- **Konsequenz:** Bei Gmail-OAuth-Setup muss der Owner einen Gmail-Filter
+  einrichten: Subjects mit "AW:" (oder ähnliches Pattern) →
+  auto-forward an Postmark-Hex. So landet die Antwort wieder in
+  Auftragswerk. Anleitung in Profil-Card erweitern.
+
+**E.2 Catch-All-Subdomain** `kunden.auftragswerk.app` (echte Premium-Lösung)
+- DNS: `MX kunden.auftragswerk.app → mx.postmark...` (Postmark-Anweisung
+  folgen, Domain in Postmark als Inbound-Domain registrieren)
+- Postmark: Wildcard-Inbound-Route auf eine Hex-Adresse
+- Jeder Betrieb bekommt bei Registrierung eine eigene saubere Adresse,
+  z.B. `max@kunden.auftragswerk.app` oder
+  `{slug}@kunden.auftragswerk.app` als `inbound_email`
+- Reply-To = `betrieb.inbound_email` (die saubere Subdomain-Adresse)
+- Endkunde sieht: schöne `kunden.auftragswerk.app`-Adresse,
+  KEIN Hex mehr.
+- Owner-Aufgaben:
+  - DNS-MX-Record bei united-domains anlegen
+  - Postmark Inbound-Domain konfigurieren
+  - Migration: betriebe.inbound_email auf Subdomain-Pattern setzen
+    (für bestehende Betriebe via UPDATE, für neue via Auto-Generierung)
+
+**Reihenfolge:** E.1 vor Welle D bauen (kleine Änderung, sofort sichtbar
+im Onboarding-Flow). E.2 nach Welle D + vor Max-Live als eigene kleine
+Welle. Backup-Branch: `backup-vor-reply-to-fix` bzw.
+`backup-vor-catchall-subdomain`.
 
 ---
 
@@ -528,12 +616,14 @@ Geplante Tabellen: `angebot_bausteine`, `material_preise`, `angebote` +
 7. ✅ **Modul 7 – Edge-Proxy für Foto-Anhänge + Bugfixes + Kalender klickbar** (Tag 13)
 8. ✅ **Pre-Pilot-Härtungssprint Welle 1 + 1.5 + Brand-Foundation Welle 2 komplett** (Tag 14)
 9. ✅ **Mobile-Optimierung Welle A + Rechtstexte Welle B** (Tag 15)
-10. ⏳ **Welle C: Gmail-OAuth** (Premium-Onboarding-Pivot, 5-7 Tage) – nach Pause
-11. ⏸ **Welle D: Wow-Onboarding-Page** (`/dashboard/willkommen`, 2-3 Tage) – Krönung
-12. ⏸ **Compliance-Block** (Owner-Aufgabe, ~3-4h): e-recht24 + DPAs + BVDW-AVV
-13. ⏸ Smoke-Tests → Max-Pilot scharfschalten (Plan A via Gmail-OAuth, Plan B via DNS)
-14. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
-15. ⏸ **Modul 8 – Google-Calendar-OAuth-Sync** (falls Max manuelles Pflegen nervt)
-16. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
-17. ⏸ 2. Pilot: Elektriker-Kumpel
-18. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
+10. ✅ **Welle C: Gmail-OAuth** (Outbound verifiziert, Reply-To-Issue offen)
+11. ⏳ **Welle E.1: Reply-To-Quick-Fix** (~1h, vor Welle D)
+12. ⏸ **Welle D: Wow-Onboarding-Page** (`/dashboard/willkommen`, 2-3 Tage)
+13. ⏸ **Welle E.2: Catch-All-Subdomain** `kunden.auftragswerk.app` vor Max-Live
+14. ⏸ **Compliance-Block** (Owner-Aufgabe, ~3-4h): e-recht24 + DPAs + BVDW-AVV
+15. ⏸ Smoke-Tests → Max-Pilot scharfschalten (Plan A via Gmail-OAuth)
+16. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
+17. ⏸ **Modul 8 – Google-Calendar-OAuth-Sync** (falls Max manuelles Pflegen nervt)
+18. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
+19. ⏸ 2. Pilot: Elektriker-Kumpel
+20. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
