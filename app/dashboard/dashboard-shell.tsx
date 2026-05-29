@@ -164,6 +164,21 @@ export default function DashboardShell({
         </header>
 
         <main className="flex-1 overflow-auto">{children}</main>
+
+        {/* Dezenter Footer mit Rechtstexte-Links – sitzt am Seitenende */}
+        <footer className="border-t bg-background py-3 px-4 sm:px-6">
+          <div className="container mx-auto max-w-5xl flex items-center justify-center gap-4 text-xs text-muted-foreground">
+            <Link href="/datenschutz" className="hover:text-foreground transition-colors">
+              Datenschutz
+            </Link>
+            <Link href="/agb" className="hover:text-foreground transition-colors">
+              AGB
+            </Link>
+            <Link href="/impressum" className="hover:text-foreground transition-colors">
+              Impressum
+            </Link>
+          </div>
+        </footer>
       </div>
     </div>
   );
