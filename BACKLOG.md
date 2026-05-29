@@ -1,20 +1,105 @@
 # Auftragswerk – Backlog
 
-> **Stand: 24.5.2026 (Tag 13 – Abend, Edge-Proxy + Bugfix-Sprint + Kalender-Klickbar durch)**
+> **Stand: 29.5.2026 (Tag 14 – Pre-Pilot-Härtungssprint + Brand-Foundation)**
 >
-> Säule 1 production-live. Max-Pilot-Setup wartet weiter auf Max' DNS.
-> Heute: Postmark-Webhook über **Supabase Edge Function** (Foto-Anhänge
-> bis 25 MB), drei Tag-12-Bugs gefixt (Mitbringsel-Floskeln raus, Timezone
-> sauber als Europe/Berlin, Kalender zeigt bestätigte Termine), und der
-> **Kalender ist endlich klickbar** – jede Zelle (leer/grün/rot/blau)
-> öffnet einen Aktions-Dialog, Standalone-Termine ohne Anfrage gehen.
+> Säule 1 production-live, jetzt **production-reif**. Max-Pilot wartet
+> immer noch auf Max' DNS (Wochenende war ruhig), aber während dessen:
+> der Code ist von "funktioniert" zu "premium" gewachsen.
 >
-> **Premise:** Tool soll "Premium" werden, nicht zu schmal bleiben – statt
-> auf Max zu warten, proaktiv die Anfrage-bis-Termin-Brücke geschlossen.
+> **Heute:** Audit-Sweep (silent-failure + edge-case + security) hat 6
+> echte Production-Blocker und mehrere stille Failure-Modes gefunden.
+> Alle gefixt: Idempotenz im Inbound, Versand-Atomarität, KI-Failures
+> sichtbar in Diagnose, Edge-Proxy gehärtet, Verfügbarkeit-Errors statt
+> belegte Slots, References-Cap, Termin-Datum-Validation, Storage-Orphans.
+> Plus Security: drei public Test-Routes (Anthropic-Kosten-Risiko!) raus,
+> Input-Limits überall, Security-Headers, KI-Kosten-Soft-Cap.
+>
+> **Plus Brand-Foundation:** Brandboard ("Auftragswerk – Stahlblau /
+> Hellgrau / Schwarz – Assistenz, die mitdenkt") jetzt im Code spürbar.
+> Saira Condensed als Display-Font, "AUFTRAGSWERK"-Wortmarke in Sidebar,
+> Kategorie-Badges (Anfrage/Prüfen/Info/Passt nicht/Aussortiert) statt
+> einer Hoch/Mittel/Niedrig-Skala – Handlungsanweisung statt Adjektiv.
+> Emojis komplett raus, alles auf hugeicons (Termine + Kalender mit
+> unterschiedlichen Icons damit klar trennbar). Page-Headlines konsequent
+> in font-heading uppercase.
+>
+> **Premise:** Quality over Velocity. Bevor der erste echte Pilot-User
+> drauf kommt, einmal Foundation reif machen. Neue Features (Notiz,
+> Sidebar-Badges, Slot-Speicherung) kommen erst nach Max-Feedback.
 
 ---
 
 ## ✅ FERTIG
+
+### Tag 14: Pre-Pilot-Härtungssprint + Brand-Foundation (29.5.2026)
+
+#### Welle 1 – Production-Blocker (9 Fixes)
+- ✅ **Idempotenz im Inbound** – UNIQUE-Index auf `nachrichten.message_id`
+  (Migration `20260528_nachrichten_message_id_unique.sql`) + Pre-Check vor
+  Klassifikation + Race-Detection beim Insert. Postmark-Retries führen
+  nicht mehr zu doppelten Anfragen/Entwürfen/KI-Kosten.
+- ✅ **Entwurf-Editor: Save-vor-Send hart** – `handleSave` returnt
+  `Promise<boolean>`, `handleSend` bricht bei Save-Fail ab. Plus
+  `setSending` im `finally` in beiden Editoren.
+- ✅ **Versand-Atomarität** – neuer Status-Lock `'in_versand'`,
+  unlock-fn an Fehlerpfaden, finale DB-Updates mit Error-Logging in
+  `processing_errors`. Doppelmails bei DB-Fehler nach Postmark-Send sind weg.
+  Manuell: 5s-zeitbasierter Doppelklick-Schutz auf `anfrage_id`.
+- ✅ **KI-Failures sichtbar** – Klassifikations- und Entwurfsfails landen
+  in `processing_errors` + Status `'manuell_pruefen'`. Auch der Race-Case
+  "Analyse-Re-Read returnt null" wird sauber abgefangen.
+- ✅ **Edge-Proxy gehärtet** – `att.Content` wird IMMER gelöscht (auch
+  bei Upload-Fail), `_upload_failed`-Marker reicht den Fehler an Vercel
+  weiter. Plus `AbortSignal.timeout(25000)` für den Forward.
+- ✅ **`getFreieSlots` wirft** statt belegte Slots zu liefern. Aufrufer
+  in inbound fängt das ab und fällt auf "kein Slot-Vorschlag" zurück.
+- ✅ **References-Header capen** – max 10 IDs in `lib/postmark.ts`.
+  **Termin-Datum-Validation** – Jahr 2020 bis +5 Jahre, sonst 400.
+- ✅ **Storage-Orphan-Cleanup** – wenn `anhaenge.insert` failt, wird
+  die schon hochgeladene Datei aus dem Bucket entfernt.
+
+#### Welle 1.5 – Security (4 Fixes)
+- ✅ **Test-Routes weg** – `/api/test-cleaner`, `/api/test-entwurf`,
+  `/api/test-klassifikation` waren komplett public ohne Auth-Check.
+  Wer den URL-Pfad findet, konnte über `supabaseAdmin` (Service-Role!)
+  beliebige Anfragen aus der DB lesen und Anthropic-Kosten verursachen.
+  Komplett gelöscht.
+- ✅ **Input-Limits** – `maxLength` auf alle Profil-Textareas
+  (Signatur 5000, Stilbeispiel 3000), max 10 Stilbeispiele, body_text-Cap
+  50.000 Zeichen im Versand, File-Size-Cap (20 MB/Datei, 25 MB/Mail)
+  + MIME-Whitelist (Bilder, PDF, Office, Text) in `lib/files.ts`.
+- ✅ **Security-Headers** – HSTS, X-Frame-Options DENY, X-Content-Type-
+  Options nosniff, Referrer-Policy, Permissions-Policy in `next.config.ts`.
+- ✅ **KI-Kosten-Soft-Cap** – mehr als 50 Analysen/h pro Betrieb →
+  Anfrage landet in `'manuell_pruefen'` ohne KI-Run + Eintrag in
+  Diagnose. Schützt vor Loop-Bugs / Spam-Wellen.
+
+#### Welle 2 erste Hälfte – Visual-Premium-Foundation
+- ✅ **Display-Font Saira Condensed** über `next/font/google` geladen,
+  `--font-heading`-Variable verdrahtet.
+- ✅ **Wortmarke "AUFTRAGSWERK"** als Komponente (`components/brand/
+  wortmarke.tsx`) in drei Größen, optional mit Tagline. In Sidebar +
+  Mobile-Header gesetzt.
+- ✅ **KategorieBadge** (`components/brand/kategorie-badge.tsx`) mappt
+  `analysen.kategorie` + `gewerk_match` auf Handlungsanweisung-Pills:
+  Anfrage (stahlblau) / Prüfen (gelb) / Info (grau) / Passt nicht
+  (dezent rot) / Aussortiert (gedämpft). Keine HOCH/MITTEL/NIEDRIG-Skala.
+- ✅ **Emojis komplett raus, hugeicons rein** – Sidebar (📥👥📅📆🛠🗑),
+  Inbox-Tabs (🔵🟡🟢📨ℹ️✅🗑), Anfrage-Detail (📥📤📎📍👤🏢📞), TerminCard
+  (📅✓📍💡), Detail-Actions (✏️⚠️📌📤💬✅🗑), Quick-Menu, Editoren (📎✕),
+  Kalender-Wochengrid (🟢🔴📅✏️🗑📍), Diagnose, Papierkorb, Profil.
+- ✅ **Termine vs. Kalender visuell trennbar** – Termine bekommt
+  `TimeScheduleIcon` (Zeit-Fokus), Kalender bekommt `Calendar02Icon`
+  (Monats-Grid). TerminCard nutzt gleiches Icon wie Sidebar-Termine,
+  damit Nav und Screen visuell zusammenpassen.
+- ✅ **Page-Headlines konsistent** – Inbox, Kunden, Termine, Kalender,
+  Diagnose, Papierkorb, Betriebsprofil alle in `font-heading uppercase
+  tracking-wide`. Detail-Page-Titles (Mail-Betreff, Kunden-Name) bleiben
+  Standard-Sans, weil User-Content.
+- ✅ **Empty-States im Brand-Stil** für Inbox (Inbox-Icon + Hellgrau)
+  und Diagnose ("Alles läuft sauber" mit grünem Checkmark-Icon).
+- ✅ **Build verifiziert** (Next 16.2.6 / Turbopack), TypeScript clean,
+  alle Routes (außer test-*) da.
 
 ### Säule 1 – Mail-Workflow
 - Production-Deploy auf Vercel mit Custom-Domain auftragswerk.app
@@ -311,10 +396,13 @@ Geplante Tabellen: `angebot_bausteine`, `material_preise`, `angebote` +
 5. ✅ **Modul 6 – Termin direkt aus Reply festmachen + KI-Auto-Extract** (Tag 12 nachts)
 6. ✅ **Modul 6.5 – Mini-Stat-Bar in Inbox** (Tag 12 nachts)
 7. ✅ **Modul 7 – Edge-Proxy für Foto-Anhänge + Bugfixes + Kalender klickbar** (Tag 13)
-8. 🚧 Max-Account angelegt, wartet auf Mail-Setup (Wochenende)
-9. ⏸ Smoke-Tests + Spickzettel → Pilot scharfschalten
-10. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
-11. ⏸ **Modul 8 – Google-Calendar-OAuth-Sync** (falls Max manuelles Pflegen nervt)
-12. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
-13. ⏸ 2. Pilot: Elektriker-Kumpel
-14. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
+8. ✅ **Pre-Pilot-Härtungssprint Welle 1 + 1.5 + Brand-Foundation (Welle 2 erste Hälfte)** (Tag 14)
+9. 🚧 Max-Account angelegt, wartet auf Mail-Setup (Wochenende lang aus)
+10. ⏸ **Welle 2 zweite Hälfte**: Token-Hygiene-Audit, Dark-Mode raus, Empty-States für Kunden/Termine/Kalender, Toast-System, Settings-Seite
+11. ⏸ **Welle 3**: Wow-Onboarding-Page für Max (`/dashboard/willkommen`)
+12. ⏸ Smoke-Tests + Spickzettel → Pilot scharfschalten
+13. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
+14. ⏸ **Modul 8 – Google-Calendar-OAuth-Sync** (falls Max manuelles Pflegen nervt)
+15. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
+16. ⏸ 2. Pilot: Elektriker-Kumpel
+17. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren

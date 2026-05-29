@@ -1,6 +1,6 @@
 # Auftragswerk – System-Inventur
 
-> **Stand: 24.5.2026 (Tag 13 – Abend)**
+> **Stand: 29.5.2026 (Tag 14 – Pre-Pilot-Härtung + Brand-Foundation durch)**
 > Aktueller Referenz-Snapshot. Jeder neue Claude/Entwickler liest das + BACKLOG.md.
 
 ---
@@ -95,18 +95,25 @@ Soft-Delete via `geloescht_am = NOW()` → Papierkorb.
 ```
 app/api/
 ├── inbound/route.ts          Postmark-Webhook (über Edge-Proxy vorgereicht)
-│                              – Threading, Klassifikation, Entwurf, Anhänge-Link
+│                              – Idempotenz (Pre-Check + UNIQUE), KI-Cap (50/h),
+│                                Threading, Klassifikation, Entwurf, Anhänge-Link
 ├── versand/route.ts          Entwurf freigeben + Postmark-Send
+│                              – Status-Lock entwurf_bereit→in_versand→versendet
 ├── versand/manuell/route.ts  Manuelle Antwort (ohne Entwurf)
+│                              – 5s-zeitbasierter Doppelklick-Schutz
 ├── anfragen/[id]/route.ts    PATCH Status / DELETE Soft-Delete
 ├── betriebe/[id]/route.ts    Betriebsprofil-Update
-├── termine/route.ts          POST (vorschlagen/festmachen) + PATCH (bestätigen/bearbeiten/absagen)
+├── termine/route.ts          POST (vorschlagen/festmachen) + PATCH (bestätigen/
+│                              bearbeiten/absagen) – Datum-Validation (2020-+5y)
 ├── verfuegbarkeit/regel/...  POST + DELETE
 ├── verfuegbarkeit/sperre/... POST + DELETE
 ├── health/route.ts           System-Status
-├── test-*/route.ts           Dev-Tools (Cleaner, Klassifikation, Entwurf)
 └── auth/callback/route.ts    Supabase Auth Callback
 ```
+**WICHTIG:** Die `test-*`-Routes (test-cleaner / test-entwurf /
+test-klassifikation) sind in Tag 14 komplett entfernt worden — sie waren
+public ohne Auth-Check und hätten beliebige Anfragen lesen + Anthropic-
+Kosten auslösen können. Nicht wieder einführen!
 
 ### Supabase Edge Functions
 ```
@@ -149,13 +156,25 @@ lib/
 ├── klassifikation.ts  KI-Klassifikator (Haiku) – extrahiert auch Termin-Daten
 ├── entwurf.ts         KI-Entwurfsgenerator (Sonnet 4.6) – Thread-Kontext bei Replies
 ├── mail-cleaner.ts    Body-Bereinigung (Quotes/Signatur/Disclaimer)
-├── postmark.ts        Postmark Outbound (Custom Sender + Attachments)
+├── postmark.ts        Postmark Outbound (Custom Sender + Attachments + References-Cap auf 10)
 ├── postmark-sender.ts Postmark Sender-Signature API (Onboarding-Vorbereitung)
 ├── anhaenge.ts        Storage-Upload (speichereAnhang) + Verlinken (verlinkeAnhang)
+│                      – mit Orphan-Cleanup bei Insert-Fail
 ├── datetime.ts        Europe/Berlin Helpers (date-fns-tz) – Termin-TZ-Konsistenz
-├── files.ts           Client-side File→base64 für Editor-Uploads
+├── files.ts           Client-side File→base64 + validateAttachments (Size+MIME)
+├── verfuegbarkeit.ts  getFreieSlots – wirft jetzt bei DB-Fehlern statt []
 ├── supabase-*.ts      Supabase Clients (Browser + Server)
 └── utils.ts           cn() helper
+```
+
+### Brand-Komponenten
+```
+components/brand/
+├── wortmarke.tsx       "AUFTRAGSWERK"-Display in Saira Condensed, 3 Größen
+│                       (sm/md/lg), optional mit Tagline "Assistenz, die mitdenkt."
+└── kategorie-badge.tsx Visualisiert analysen.kategorie + gewerk_match als
+                        Handlungsanweisung-Pill (Anfrage/Prüfen/Info/Passt nicht/
+                        Aussortiert) – keine Hoch/Mittel/Niedrig-Skala
 ```
 
 ---
@@ -201,10 +220,16 @@ lib/
 - Stammdaten, Tonbeispiele, Signatur, Was wir (nicht) machen, Stundensatz
 
 ### Allgemein
-- Sidebar: Inbox / Kunden / Termine / Kalender / Profil + Utility: Diagnose / Papierkorb
+- Sidebar mit "AUFTRAGSWERK"-Wortmarke (Saira Condensed) + Tagline oben
+- Nav: Inbox / Kunden / Termine (TimeScheduleIcon) / Kalender (Calendar02Icon)
+  / Profil + Utility: Diagnose / Papierkorb. **Alle Icons via hugeicons**,
+  keine UI-Emojis mehr.
 - Mobile-Hamburger
-- Doppelklick-Schutz an Send-Buttons
+- Doppelklick-Schutz an Send-Buttons (client + server: Status-Lock im
+  Entwurf-Versand, 5s-zeitbasiert im Manuell-Versand)
 - **KEIN** Confirm-Popup beim Senden (Gmail-Stil)
+- Page-Headlines durchgängig in `font-heading uppercase tracking-wide`
+  (außer User-Content wie Mail-Betreff / Kunden-Name)
 
 ---
 
@@ -248,11 +273,13 @@ Postmark SMTP (`smtp.postmarkapp.com:587`), From: `noreply@auftragswerk.app`
 Nicht verlieren beim Refactoring:
 
 1. **Versand: KEIN Confirm-Dialog** — direkt senden, wie Gmail
-2. **Doppelklick-Schutz** an allen Send-Buttons (isLoading-Guards)
+2. **Doppelklick-Schutz** an allen Send-Buttons (client + server: Status-Lock
+   `'in_versand'` für Entwurf-Versand, 5s-zeitbasierter Check für Manuell)
 3. **KI baut Entwurf für ALLE Kundenanfragen** — auch passt_nicht, unklar
 4. **Bei Status `versendet`** → Reply-Editor heißt "Weitere Nachricht senden"
 5. **Reply-To-Header** immer gesetzt = `betrieb.inbound_email`
 6. **References-Header** beim Versenden setzen + beim Empfangen parsen
+   (Cap: max 10 IDs, sonst SMTP-Probleme bei tiefen Threads)
 7. **Eigene UUID-Message-ID** beim Versand (lib/postmark.ts) – garantiertes Threading
 8. **body_text_clean** bei der KI verwenden (Mail-Cleaner läuft **immer**)
 9. **Eine Anfrage** kann N `nachrichten` haben (Conversation)
@@ -263,6 +290,20 @@ Nicht verlieren beim Refactoring:
 14. **Kunden-Aggregation** nur über `kategorie='kundenanfrage'`-Analysen — Werbung/Rechnung-Mails desselben Absenders fließen nicht in Stammdaten ein
 15. **Magic-Link Mails** kommen von `noreply@auftragswerk.app`
 16. **Reguläre Mails (Fallback)** kommen von `info@auftragswerk.app`
+17. **Idempotenz im Inbound**: Pre-Check auf `nachrichten.message_id` VOR
+    Klassifikation. UNIQUE-Index als DB-Garantie. Postmark retried bei
+    Timeout, ohne diesen Schutz entstehen doppelte Entwürfe + KI-Kosten.
+18. **KI-Failures landen IMMER in `processing_errors`** + Status auf
+    `'manuell_pruefen'`. Nie ein 200 mit `{ klassifikation: 'fehlgeschlagen' }`
+    zurückgeben ohne sichtbaren Eintrag in Diagnose.
+19. **KEINE UI-Emojis** — alles via hugeicons. Konsole-Logs dürfen Emojis
+    behalten (Server-side, nur in Dev-Logs sichtbar). UI = Premium-Look.
+20. **Keine Hoch/Mittel/Niedrig-Prio-Skala** — Brand-Entscheidung:
+    Handlungsanweisung statt Adjektiv (KategorieBadge in
+    `components/brand/`).
+21. **Test-Routes NIE wieder einführen ohne Auth-Check** — die alten
+    `/api/test-*` waren ein direktes Sicherheits-Loch (Service-Role über
+    `supabaseAdmin`, beliebige Anfragen lesbar, Anthropic-Kosten-Risiko).
 
 ---
 
@@ -339,7 +380,9 @@ supabase functions deploy inbound-proxy --no-verify-jwt --project-ref lfziiallrf
 ---
 
 ## 🚨 Rollback-Strategie
-- Letzter Backup-Branch: `backup-vor-tag13-bugfixes` (vor Modul 7 + Bug-Fixes)
+- Aktuellster Backup-Branch: `backup-vor-tag14-push` (vor heutigem Push)
+- Davor: `backup-vor-haertungssprint` (vor Welle 1)
+- Davor: `backup-vor-tag13-bugfixes` (vor Modul 7 + Bug-Fixes)
 - Älterer: `backup-vor-tab-umbau` (vor Inbox-Restruktur, sehr alt)
 - Rollback: `git checkout main && git reset --hard <branch> && git push --force`
 - Vercel deployt auto von main → Rollback sofort wirksam
@@ -349,7 +392,10 @@ supabase functions deploy inbound-proxy --no-verify-jwt --project-ref lfziiallrf
 ---
 
 ## 📋 Wo's weitergeht
-Siehe **BACKLOG.md** für die aktuelle Roadmap (Tag-13-Stand):
+Siehe **BACKLOG.md** für die aktuelle Roadmap (Tag-14-Stand):
+- ⏳ Welle 2 zweite Hälfte: Token-Hygiene, Dark-Mode raus, Empty-States
+  für Kunden/Termine/Kalender, Toast-System, Settings-Seite
+- ⏳ Welle 3: Wow-Onboarding-Page für Max (`/dashboard/willkommen`)
 - ⏳ Spickzettel für Max + Smoke-Tests, sobald er übers Wochenende meldet
 - ⏸ Modul 8: Google-Calendar-OAuth-Sync (wenn manuelles Kalender-Pflegen Max nervt)
 - ⏸ Säule 2 (Angebote), Phase 2 (Self-Service-Onboarding), Säule 3 (Material-Recherche)
