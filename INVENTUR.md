@@ -1,7 +1,11 @@
 # Auftragswerk – System-Inventur
 
-> **Stand: 29.5.2026 (Tag 14 – Pre-Pilot-Härtung + Brand-Foundation durch)**
+> **Stand: 29.5.2026 (Tag 15 – Mobile-Optimierung + Rechtstexte durch)**
 > Aktueller Referenz-Snapshot. Jeder neue Claude/Entwickler liest das + BACKLOG.md.
+>
+> **Welle-Stand:** A (Mobile) + B (Rechtstexte) durch und live. C (Gmail-OAuth)
+> ist nächste Welle. D (Wow-Onboarding) folgt. Dann Compliance-Block
+> (Owner-Aufgabe). Plan-File: `~/.claude/plans/sooo-lies-backlog-md-delegated-moler.md`.
 
 ---
 
@@ -126,11 +130,16 @@ supabase/functions/
 ```
 app/dashboard/
 ├── page.tsx                          Inbox: 3 Gruppen × Tabs + Mini-Stat-Bar
-├── layout.tsx + dashboard-shell.tsx  Sidebar + Mobile-Menü
-├── anfrage-quick-menu.tsx
+│                                     (Tab-Fade-Scroll-Hint auf Mobile)
+├── layout.tsx + dashboard-shell.tsx  Sidebar + Mobile-Menü (sticky Header,
+│                                     44×44 Hamburger, Mini-Footer mit
+│                                     Rechtstexte-Links)
+├── anfrage-quick-menu.tsx            Trigger 44×44 auf Mobile
 ├── anfragen/[id]/
-│   ├── page.tsx                      Detail-View
-│   ├── detail-actions.tsx
+│   ├── page.tsx                      Detail-View (responsive Grids, stack-
+│                                     Header auf Mobile, attachments full-
+│                                     width unter sm)
+│   ├── detail-actions.tsx            flex-wrap, kurze Labels auf Mobile
 │   ├── entwurf-editor.tsx            KI-Entwurf bearbeiten + Datei-Upload
 │   ├── reply-editor.tsx              Manuelle Antwort + Datei-Upload
 │   └── termin-card.tsx               Termin-Vorschlag/Festmachen + KI-Auto-Extract
@@ -139,14 +148,31 @@ app/dashboard/
 │   └── [email]/page.tsx              Detail mit Anfragen-Historie
 ├── termine/page.tsx                  Übersicht Kommende + Vergangene
 ├── kalender/                         Wochen-Verfügbarkeits-Grid
-│   ├── page.tsx
-│   ├── wochengrid.tsx                Click-to-Edit auf jeder Zelle
+│   ├── page.tsx                      Nav stack-mobile, Empty-State wenn 0 Regeln
+│   ├── wochengrid.tsx                **Zweispur:** md+ 7-Spalten-Table,
+│   │                                 <md vertikale Tag-Liste mit Stunden-
+│   │                                 Cards (gemeinsamer getSlotData-Helper).
+│   │                                 Click-to-Edit auf jeder Zelle.
 │   ├── regel-editor.tsx              Multi-Day-Regel-Editor
 │   └── sperre-editor.tsx
 ├── diagnose/page.tsx                 processing_errors-Liste (per Betrieb)
-├── papierkorb/page.tsx + actions
+├── papierkorb/page.tsx + actions     flex-col sm:flex-row Cards
 ├── profil/page.tsx + form
 └── (login/passwort-*/page.tsx)
+```
+
+### Standalone-Pages (außerhalb Dashboard, ohne Login)
+```
+app/
+├── datenschutz/page.tsx   DSGVO-Standard-Template (in jur. Prüfung).
+│                          Verantwortlicher, Subprocessors, Speicherdauer,
+│                          Betroffenenrechte, AES-256-GCM-Token-Block.
+├── agb/page.tsx           SaaS-Standard nur für Unternehmer §14 BGB,
+│                          KI-Haftungs-Ausschluss bei ungeprüften Entwürfen,
+│                          14-Tage-Kündigung. (in jur. Prüfung)
+├── impressum/page.tsx     TMG §5, Anschrift in [Klammern] als Platzhalter
+│                          (vor produktiv-Pilot durch echte Adresse ersetzen).
+└── login/page.tsx         Wortmarke + Karte, Footer mit Rechtstexte-Links
 ```
 
 ### Helper-Library
@@ -172,9 +198,14 @@ lib/
 components/brand/
 ├── wortmarke.tsx       "AUFTRAGSWERK"-Display in Saira Condensed, 3 Größen
 │                       (sm/md/lg), optional mit Tagline "Assistenz, die mitdenkt."
-└── kategorie-badge.tsx Visualisiert analysen.kategorie + gewerk_match als
-                        Handlungsanweisung-Pill (Anfrage/Prüfen/Info/Passt nicht/
-                        Aussortiert) – keine Hoch/Mittel/Niedrig-Skala
+├── kategorie-badge.tsx Visualisiert analysen.kategorie + gewerk_match als
+│                       Handlungsanweisung-Pill (Anfrage/Prüfen/Info/Passt nicht/
+│                       Aussortiert) – keine Hoch/Mittel/Niedrig-Skala
+├── empty-state.tsx     Einheitlicher Empty-State (Icon im Hellgrau-Kreis +
+│                       Title + Subtext + optionale CTA). tone="default"
+│                       (stahlblau) oder tone="success" (grün, "leer ist gut")
+└── footer.tsx          Dezenter Footer mit Datenschutz/AGB/Impressum-Links
+                        + Copyright. Auf Mobile flex-col, Desktop flex-row.
 ```
 
 ---
@@ -304,6 +335,38 @@ Nicht verlieren beim Refactoring:
 21. **Test-Routes NIE wieder einführen ohne Auth-Check** — die alten
     `/api/test-*` waren ein direktes Sicherheits-Loch (Service-Role über
     `supabaseAdmin`, beliebige Anfragen lesbar, Anthropic-Kosten-Risiko).
+22. **Mobile-First denken** — neue Pages mit `grid-cols-1 sm:grid-cols-*`,
+    `flex-col sm:flex-row` Default. Container `py-6 sm:py-8 px-4 sm:px-6`.
+    Touch-Targets ≥44px auf Mobile (`min-h-11`). Test in DevTools iPhone SE
+    (380px) vor Push.
+23. **Standard-Template-Rechtstexte sind Disclaimer-Pflicht** — solange
+    der amber "in juristischer Prüfung"-Hinweis auf /datenschutz und /agb
+    steht, sind das KEINE produktiv-pilot-tauglichen Texte. Vor Max-Live
+    Compliance-Block durchgehen (siehe unten).
+
+---
+
+## 📜 Compliance-Status (DSGVO + Rechtstexte)
+
+**Aktueller Stand (29.5.2026):**
+- Standard-Template auf `/datenschutz`, `/agb`, `/impressum` live, mit
+  prominentem amber-Disclaimer „in juristischer Prüfung".
+- Impressum hat `[Klammern]`-Platzhalter für echte Adressdaten.
+- Footer-Links überall verlinkt (Dashboard-Shell + Login).
+- KEINE DPAs (Data Processing Addenda) aktiviert.
+- KEIN BVDW-AVV mit Max geschlossen.
+
+**Vor produktivem Pilot (Owner-Aufgabe, ~3-4h, ~50€/Jahr):**
+1. e-recht24.de Premium → echte Datenschutz + Impressum generieren
+2. Texte auf `/datenschutz` + `/impressum` ersetzen (AGB optional auch)
+3. BVDW AV-Vertrag mit Max ausfüllen + unterschreiben (PDF)
+4. Anthropic Console → DPA aktivieren
+5. Supabase Settings → DPA aktivieren
+6. Postmark Settings → DPA aktivieren
+7. Vercel Settings → DPA aktivieren (Enterprise automatisch)
+
+Detail-Memory:
+`~/.claude/projects/-Users-flomandl-Code-auftragswerk/memory/compliance-pre-pilot-checkliste.md`
 
 ---
 
@@ -380,10 +443,11 @@ supabase functions deploy inbound-proxy --no-verify-jwt --project-ref lfziiallrf
 ---
 
 ## 🚨 Rollback-Strategie
-- Aktuellster Backup-Branch: `backup-vor-tag14-push` (vor heutigem Push)
-- Davor: `backup-vor-haertungssprint` (vor Welle 1)
-- Davor: `backup-vor-tag13-bugfixes` (vor Modul 7 + Bug-Fixes)
-- Älterer: `backup-vor-tab-umbau` (vor Inbox-Restruktur, sehr alt)
+- Vor Welle B (Rechtstexte): `backup-vor-rechtstexte`
+- Vor Welle A (Mobile): `backup-vor-mobile`
+- Vor Tag 14 (Welle 1/1.5/2): `backup-vor-tag14-push` + `backup-vor-haertungssprint`
+- Vor Tag 13: `backup-vor-tag13-bugfixes`
+- Sehr alt: `backup-vor-tab-umbau`
 - Rollback: `git checkout main && git reset --hard <branch> && git push --force`
 - Vercel deployt auto von main → Rollback sofort wirksam
 - DB-Backups: Supabase Auto täglich (Settings → Database → Backups)
@@ -392,12 +456,16 @@ supabase functions deploy inbound-proxy --no-verify-jwt --project-ref lfziiallrf
 ---
 
 ## 📋 Wo's weitergeht
-Siehe **BACKLOG.md** für die aktuelle Roadmap (Tag-14-Stand):
-- ⏳ Welle 2 zweite Hälfte: Token-Hygiene, Dark-Mode raus, Empty-States
-  für Kunden/Termine/Kalender, Toast-System, Settings-Seite
-- ⏳ Welle 3: Wow-Onboarding-Page für Max (`/dashboard/willkommen`)
-- ⏳ Spickzettel für Max + Smoke-Tests, sobald er übers Wochenende meldet
-- ⏸ Modul 8: Google-Calendar-OAuth-Sync (wenn manuelles Kalender-Pflegen Max nervt)
+Plan-File mit Detailstrategie: `~/.claude/plans/sooo-lies-backlog-md-delegated-moler.md`
+
+**Vier-Wellen-Plan vom 29.5.2026** (zwei durch, zwei offen):
+- ✅ Welle A: Mobile-Optimierung
+- ✅ Welle B: Rechtstexte
+- ⏳ **Welle C: Gmail-OAuth** (Pilot-Pivot, 5-7 Tage) – nach Pause
+- ⏳ Welle D: Wow-Onboarding-Page (`/dashboard/willkommen`, 2-3 Tage)
+- 🛑 Compliance-Block (Owner-Aufgabe, ~3-4h): e-recht24 + DPAs + BVDW-AVV
+- 🚧 Max-Pilot: Plan A via Gmail-OAuth (nach Welle C), Plan B via DNS
+- ⏸ Modul 8: Google-Calendar-OAuth-Sync (wenn Max manuelles Pflegen nervt)
 - ⏸ Säule 2 (Angebote), Phase 2 (Self-Service-Onboarding), Säule 3 (Material-Recherche)
 
 VISION.md hat das große Bild für Komplett-Software-Endvision.

@@ -1,35 +1,94 @@
 # Auftragswerk – Backlog
 
-> **Stand: 29.5.2026 (Tag 14 – Pre-Pilot-Härtungssprint + Brand-Foundation)**
+> **Stand: 29.5.2026 (Tag 15 – Mobile-Optimierung + Rechtstexte durch)**
 >
-> Säule 1 production-live, jetzt **production-reif**. Max-Pilot wartet
-> immer noch auf Max' DNS (Wochenende war ruhig), aber während dessen:
-> der Code ist von "funktioniert" zu "premium" gewachsen.
+> Säule 1 production-live, production-reif, brand-konsistent, mobile-tauglich.
+> Drei strategische Wellen aus dem Premium-Pivot-Plan abgearbeitet:
 >
-> **Heute:** Audit-Sweep (silent-failure + edge-case + security) hat 6
-> echte Production-Blocker und mehrere stille Failure-Modes gefunden.
-> Alle gefixt: Idempotenz im Inbound, Versand-Atomarität, KI-Failures
-> sichtbar in Diagnose, Edge-Proxy gehärtet, Verfügbarkeit-Errors statt
-> belegte Slots, References-Cap, Termin-Datum-Validation, Storage-Orphans.
-> Plus Security: drei public Test-Routes (Anthropic-Kosten-Risiko!) raus,
-> Input-Limits überall, Security-Headers, KI-Kosten-Soft-Cap.
+> - **Welle A (Mobile-Optimierung)** durch – Dashboard auf 380px-Screens
+>   spielbar. Sidebar als sticky-Header mit 44×44-Hamburger, Inbox-Tabs
+>   mit Scroll-Fade, Anfrage-Detail responsive (Header stack, Grids,
+>   Attachments), Container-Padding mobile-friendly, Touch-Targets +44px.
+>   Größter Brocken: **Kalender-Wochengrid Mobile-Variante** – auf <md
+>   vertikale Tag-Liste (jeder Tag eine Section mit Stunden-Cards),
+>   auf md+ klassisches 7-Spalten-Grid. Gemeinsamer getSlotData()-Helper.
 >
-> **Plus Brand-Foundation:** Brandboard ("Auftragswerk – Stahlblau /
-> Hellgrau / Schwarz – Assistenz, die mitdenkt") jetzt im Code spürbar.
-> Saira Condensed als Display-Font, "AUFTRAGSWERK"-Wortmarke in Sidebar,
-> Kategorie-Badges (Anfrage/Prüfen/Info/Passt nicht/Aussortiert) statt
-> einer Hoch/Mittel/Niedrig-Skala – Handlungsanweisung statt Adjektiv.
-> Emojis komplett raus, alles auf hugeicons (Termine + Kalender mit
-> unterschiedlichen Icons damit klar trennbar). Page-Headlines konsequent
-> in font-heading uppercase.
+> - **Welle B (Rechtstexte)** durch – /datenschutz, /agb, /impressum als
+>   Standard-Template mit prominentem "in juristischer Prüfung"-Disclaimer.
+>   Footer-Komponente in Dashboard + Login eingehängt. Vorbereitet für
+>   Gmail-OAuth-Consent-Screen (braucht beide URLs).
 >
-> **Premise:** Quality over Velocity. Bevor der erste echte Pilot-User
-> drauf kommt, einmal Foundation reif machen. Neue Features (Notiz,
-> Sidebar-Badges, Slot-Speicherung) kommen erst nach Max-Feedback.
+> - **Welle C (Gmail-OAuth)** als nächstes – Onboarding-Pivot: Klick →
+>   Gmail verknüpft → Mail kommt aus echtem Account. Löst DKIM-Pain für
+>   alle Kunden + macht Max sofort live ohne DNS-Stau.
+>
+> - **Welle D (Wow-Onboarding-Page)** als Krönung nach Welle C.
+>
+> **Vor Tag 14:** Pre-Pilot-Härtung (Welle 1/1.5/2) – Idempotenz,
+> Versand-Atomarität, KI-Failures sichtbar, Edge-Proxy gehärtet, Security
+> (Test-Routes raus, Input-Limits, Security-Headers, KI-Kosten-Cap),
+> Brand-Foundation (Saira Condensed, Wortmarke, KategorieBadge, Hugeicons,
+> Empty-States, Toasts, Token-Hygiene). Details siehe Tag-14-Block.
+>
+> **Premise:** Quality over Velocity. Foundation premium-reif. Welle C ist
+> der Pilot-Pivot, Welle D die Krönung – danach DSGVO-Compliance-Block
+> (siehe unten), dann Max live.
 
 ---
 
 ## ✅ FERTIG
+
+### Tag 15: Mobile-Optimierung + Rechtstexte (29.5.2026)
+
+#### Welle A – Mobile-Optimierung
+Mobile-Audit (Explore-Agent) lieferte 20 konkrete Bruchstellen, Critical+Important durchgezogen. Quick-Wins parallel zu größtem Brocken (Kalender-Mobile-Refactor).
+
+- ✅ **Container-Padding mobile-friendly** – alle Dashboard-Pages auf
+  `py-6 sm:py-8 px-4 sm:px-6` (statt fix px-6). 8px mehr Content-Breite
+  auf 380px-Screens.
+- ✅ **Sidebar / Mobile-Header** – Mobile-Header sticky (bleibt beim
+  Scroll), Hamburger 44×44 (Apple-Touch-Standard) als Button statt
+  sm-Button. Sidebar-Nav-Items min-h-11 auf Mobile.
+- ✅ **Inbox** – Tab-Gruppen + Sub-Tabs mit `mask-image`-Fade-Edge als
+  Scroll-Hint auf Mobile, md+ wieder hart abgeschnitten. Quick-Menu-
+  Trigger w-11 h-11 auf Mobile (war w-8 h-8). Card-Padding `pr-16` auf
+  Mobile (Platz für 44px-Trigger).
+- ✅ **Anfrage-Detail** – Header `flex-col sm:flex-row`, Headline-Size
+  xl→2xl, `break-words` damit lange Betreffe sauber umbrechen.
+  Attachments `max-w-full sm:max-w-48 + w-full`. KI-Analyse-Grid
+  `grid-cols-1 sm:grid-cols-2`. DetailActions `flex-wrap`, Button-Label
+  „Als erledigt markieren" → „Erledigt" auf Mobile.
+- ✅ **Termin-Card** – Festmachen-Grid (Datum/Ort) `grid-cols-1 sm:grid-cols-2`.
+- ✅ **Kalender-Navigation** – Wochen-Nav `flex-col sm:flex-row`:
+  Label oben, beide Pfeile unten nebeneinander. Pfeile min-h-11 mobile.
+- ✅ **WOCHENGRID MOBILE-VARIANTE** (größte Arbeit) – auf md+
+  klassisches 7-Spalten-Table (unverändert), auf <md vertikale
+  Tag-Liste: jeder Tag eine Section mit Wochentag-Label (Montag,
+  Dienstag, …) + Datum, darunter Stunden-Slots als Button-Cards mit
+  Zeit links + Status rechts. Heute-Tag mit `primary/5`-Background.
+  Gemeinsamer `getSlotData()`-Helper teilt Logik mit Desktop-Version.
+  Touch-friendly: jeder Slot `min-h-11`.
+- ✅ **Kunden-Detail** – Container `py-6 px-4 sm:px-6`.
+- ✅ **Papierkorb-Cards** – `flex-col sm:flex-row`, Actions stacken
+  unter Content auf Mobile.
+
+#### Welle B – Rechtstexte (Standard-Template, in juristischer Prüfung)
+- ✅ **`/datenschutz`** – DSGVO-konform: Verantwortlicher, Was wir
+  verarbeiten, Rechtsgrundlage Art. 6, Subprocessors (Supabase
+  EU/Frankfurt, Vercel, Anthropic, Postmark, Google bei OAuth),
+  Gmail-OAuth-Block inkl. AES-256-GCM-Token-Storage, Speicherdauer,
+  Betroffenenrechte, Datensicherheits-Maßnahmen. Amber-Disclaimer
+  prominent oben.
+- ✅ **`/agb`** – SaaS-Standard: Geltungsbereich (nur Unternehmer
+  §14 BGB), Leistungsbeschreibung mit KI-Haftungs-Ausschluss bei
+  ungeprüften Entwürfen, Pflichten (kein Spam, eigene DSGVO-Pflichten),
+  Early-Access kostenfrei, 14-Tage-Kündigung. Gleicher Disclaimer.
+- ✅ **`/impressum`** – TMG §5: Anschrift mit Platzhaltern in
+  `[Klammern]` (Florian ergänzt vor produktiv-Pilot), USt-IdNr optional,
+  EU-Streitschlichtung-Hinweis, TMG-Haftungsklausel.
+- ✅ **Footer-Komponente** (`components/brand/footer.tsx`) – dezent,
+  Copyright links + drei Links rechts. Dashboard-Shell hat Mini-Footer
+  (nur die 3 Links). Login-Page mit vollem Footer.
 
 ### Tag 14: Pre-Pilot-Härtungssprint + Brand-Foundation (29.5.2026)
 
@@ -239,7 +298,72 @@
 
 ---
 
-## 🚧 LAUFEND: Max-Pilot Go-Live (Bauelemente Rapp GmbH)
+## 🚧 LAUFEND: Premium-Pivot-Plan (Plan-File: `~/.claude/plans/sooo-lies-backlog-md-delegated-moler.md`)
+
+Vier-Wellen-Plan vom 29.5.2026. Zwei durch, zwei offen.
+
+### ✅ Welle A – Mobile-Optimierung (Tag 15, oben dokumentiert)
+### ✅ Welle B – Rechtstexte (Tag 15, oben dokumentiert)
+
+### ⏳ Welle C – Gmail-OAuth (5-7 Tage, NÄCHSTE WELLE)
+**Premium-Onboarding-Foundation:** Klick → Gmail verknüpft → Mail kommt aus
+echtem Account des Kunden. Löst DKIM-Pain für alle aktuellen + zukünftigen
+Kunden, macht Max **sofort live** ohne DNS-Stau bei WordPress.com.
+
+Strategische Vorgaben (Owner-Briefing, fixiert):
+- Nur Outbound via Gmail API (Scope `gmail.send`). Inbound bleibt Postmark-Forward.
+- App-Mode "In production", aber ohne CASA-Audit → User sehen "unverified app"-Warnscreen. Akzeptiert.
+- Postmark bleibt parallel als Universal-Fallback (~50€/Mo).
+- CASA-Audit-Entscheidung neu bewerten bei ~50-80 zahlenden Kunden.
+
+Schritte:
+1. **Google Cloud Setup** (Owner-Aufgabe im Browser, Claude liefert genaue Klick-Anleitung): Projekt anlegen, OAuth Client ID (Web), Scope `gmail.send`, Redirect-URI, Consent-Screen befüllen, "In production" publishen, Credentials in Vercel-Env.
+2. **Migration** `supabase/migrations/20260530_gmail_connections.sql` – Tabelle mit verschlüsselten Token-Spalten, RLS analog zu termine, UNIQUE(betrieb_id).
+3. **Crypto-Helper** `lib/crypto.ts` – AES-256-GCM via Node `crypto`, Key aus `TOKEN_ENCRYPTION_KEY`-Env (32 Bytes base64). Tokens NIE plain in DB/Logs.
+4. **OAuth-Flow**: `/api/auth/google/start` (mit `access_type=offline`+`prompt=consent` damit refresh_token kommt), `/api/auth/google/callback` (State-CSRF, Token-Tausch, encrypt, UPSERT), `/api/auth/google/disconnect`.
+5. **lib/gmail.ts** – `getValidAccessToken(betriebId)` mit Auto-Refresh, `sendeViaGmail(...)` mit RFC822-MIME-Bau (Threading-Headers + multipart/mixed-Anhänge), Fehler-Mapping (401→refresh+retry, 403→status='fehler'+Postmark-Fallback).
+6. **Versand-Routes erweitern** – gestaffelte From-Wahl in `/api/versand` + `/api/versand/manuell`: Gmail aktiv → Gmail-API, sonst Custom-Sender, sonst Postmark-Fallback.
+7. **UI in Profil-Seite** – Card "E-Mail-Konto verbinden" mit 3 Zuständen (nicht verbunden / verbunden / fehler), Warnscreen-Hinweis, Disconnect-Button.
+8. **Test mit Flos eigenem Gmail** end-to-end.
+
+Backup-Branch vor Start: `backup-vor-gmail-oauth`
+
+### ⏳ Welle D – Wow-Onboarding-Page (2-3 Tage, Krönung)
+Erste-Login-Detection: 0 Anfragen + 0 Regeln + 0 Termine → redirect zu
+`/dashboard/willkommen`. Hero mit Wortmarke + "Hi {inhaber}, deine
+Assistenz, die mitdenkt". Drei Schritte als Brand-Cards: 1) Gmail
+verbinden (1 Klick), 2) Verfügbarkeit eintragen (Quick-Link Kalender),
+3) Profil ausfüllen. Optional: 60s-Loom + Spickzettel-PDF im Brand-
+Briefkopf-Stil aus dem Mockup.
+
+Backup-Branch vor Start: `backup-vor-wow-onboarding`
+
+---
+
+## 🛑 VOR PRODUKTIVEM PILOT (Compliance-Block, Owner-Aufgabe)
+
+**Aktueller Stand:** Standard-Template-Rechtstexte mit "in juristischer
+Prüfung"-Disclaimer auf /datenschutz, /agb, /impressum. Reicht für
+Early-Access mit Florian selbst, NICHT für Max-Live oder weitere Kunden.
+
+**Sieben Schritte** (~3-4h Aufwand, ~50€/Jahr, NACH Welle C+D, vor Max-Live):
+- [ ] **e-recht24.de Premium-Account** → Datenschutzerklärung + Impressum generieren (echte Versionen). ~50€/Jahr.
+- [ ] **Generierte Texte auf auftragswerk.app einbinden** – ersetzt Standard-Template auf /datenschutz + /impressum. AGB optional ebenfalls über e-recht24. Footer-Links sind schon da.
+- [ ] **BVDW AV-Vertrag-Template** → mit Max ausfüllen + unterschreiben (PDF). Pflicht weil Auftragswerk Max' Kundendaten verarbeitet.
+- [ ] **Anthropic Console** → DPA aktivieren.
+- [ ] **Supabase Settings** → DPA aktivieren.
+- [ ] **Postmark Settings** → DPA aktivieren.
+- [ ] **Vercel Settings** → DPA aktivieren (Enterprise haben sie automatisch, Pro/Hobby explizit aktivieren).
+
+Memory-Pointer: `~/.claude/projects/-Users-flomandl-Code-auftragswerk/memory/compliance-pre-pilot-checkliste.md`
+
+---
+
+## 🚧 Max-Pilot Go-Live (Bauelemente Rapp GmbH)
+
+**Strategischer Pivot durch Welle C:** Wenn Gmail-OAuth durch ist, BRAUCHT
+Max keinen DNS-Setup mehr. Postmark Sender Signature + DKIM-CNAME bei
+WordPress.com werden zur **Plan-B-Option** für Kunden ohne Gmail.
 
 ### ✅ Erledigt
 - Supabase Auth-User für Max (`info@bauelemente-rapp.com`, Auto-Confirm)
@@ -247,16 +371,22 @@
 - `profiles`-Zeile verknüpft, Login funktioniert (RLS end-to-end bewiesen)
 - Postmark Sender Signature für `info@bauelemente-rapp.com` angelegt
 
-### ⏳ Wartet auf Max (Wochenende offen)
-- [ ] Bestätigungsmail von Postmark im Gmail klicken
-- [ ] DKIM-TXT + Return-Path-CNAME bei **WordPress.com DNS** eintragen
-- [ ] DMARC für `bauelemente-rapp.com` setzen (analog zu auftragswerk.app)
-- [ ] **Gmail-Weiterleitung** info@bauelemente-rapp.com → Postmark-Hex-Inbound
+### ⏳ Plan A: nach Welle C live (Gmail-OAuth)
+- [ ] Max klickt "Mit Gmail verbinden" in Profil → Mail geht aus seinem
+  echten Gmail raus. **Kein DNS, kein DKIM, kein DMARC nötig.**
+- [ ] Inbound bleibt Postmark-Forward: Gmail-Weiterleitung info@... →
+  Postmark-Hex-Inbound. Das ist die einzige verbliebene Max-Aufgabe.
 
-### ⏳ Dann (Flo, nach Max' DNS)
-- [ ] `UPDATE betriebe SET sender_verified=true, sender_email=...` etc.
+### ⏸ Plan B: nach Postmark-Sender-Setup (falls Max Gmail nicht will)
+- [ ] Bestätigungsmail von Postmark im Gmail klicken
+- [ ] DKIM-TXT + Return-Path-CNAME bei WordPress.com DNS eintragen
+- [ ] DMARC für `bauelemente-rapp.com` setzen
+- [ ] Gmail-Weiterleitung info@... → Postmark-Hex-Inbound
+- [ ] `UPDATE betriebe SET sender_verified=true, sender_email=...`
+
+### ⏳ Dann (Flo, nach Plan A oder B)
 - [ ] **Smoke-Test A** (Inbound) + **Smoke-Test B** (Outbound + Threading)
-- [ ] **Ein-Seiten-Spickzettel** für Max schreiben
+- [ ] **Spickzettel/Onboarding** über Welle-D-Page abgedeckt
 - [ ] Pilot scharfschalten – Max gibt `info@bauelemente-rapp.com` weiter
 
 ---
@@ -396,13 +526,14 @@ Geplante Tabellen: `angebot_bausteine`, `material_preise`, `angebote` +
 5. ✅ **Modul 6 – Termin direkt aus Reply festmachen + KI-Auto-Extract** (Tag 12 nachts)
 6. ✅ **Modul 6.5 – Mini-Stat-Bar in Inbox** (Tag 12 nachts)
 7. ✅ **Modul 7 – Edge-Proxy für Foto-Anhänge + Bugfixes + Kalender klickbar** (Tag 13)
-8. ✅ **Pre-Pilot-Härtungssprint Welle 1 + 1.5 + Brand-Foundation (Welle 2 erste Hälfte)** (Tag 14)
-9. 🚧 Max-Account angelegt, wartet auf Mail-Setup (Wochenende lang aus)
-10. ⏸ **Welle 2 zweite Hälfte**: Token-Hygiene-Audit, Dark-Mode raus, Empty-States für Kunden/Termine/Kalender, Toast-System, Settings-Seite
-11. ⏸ **Welle 3**: Wow-Onboarding-Page für Max (`/dashboard/willkommen`)
-12. ⏸ Smoke-Tests + Spickzettel → Pilot scharfschalten
-13. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
-14. ⏸ **Modul 8 – Google-Calendar-OAuth-Sync** (falls Max manuelles Pflegen nervt)
-15. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
-16. ⏸ 2. Pilot: Elektriker-Kumpel
-17. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
+8. ✅ **Pre-Pilot-Härtungssprint Welle 1 + 1.5 + Brand-Foundation Welle 2 komplett** (Tag 14)
+9. ✅ **Mobile-Optimierung Welle A + Rechtstexte Welle B** (Tag 15)
+10. ⏳ **Welle C: Gmail-OAuth** (Premium-Onboarding-Pivot, 5-7 Tage) – nach Pause
+11. ⏸ **Welle D: Wow-Onboarding-Page** (`/dashboard/willkommen`, 2-3 Tage) – Krönung
+12. ⏸ **Compliance-Block** (Owner-Aufgabe, ~3-4h): e-recht24 + DPAs + BVDW-AVV
+13. ⏸ Smoke-Tests → Max-Pilot scharfschalten (Plan A via Gmail-OAuth, Plan B via DNS)
+14. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
+15. ⏸ **Modul 8 – Google-Calendar-OAuth-Sync** (falls Max manuelles Pflegen nervt)
+16. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
+17. ⏸ 2. Pilot: Elektriker-Kumpel
+18. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
