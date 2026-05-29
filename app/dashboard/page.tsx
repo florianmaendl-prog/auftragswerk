@@ -273,7 +273,7 @@ export default async function InboxPage({
   const subTabs = TABS.filter((t) => t.group === activeGroupId);
 
   return (
-    <div className="container mx-auto py-8 px-6 max-w-5xl">
+    <div className="container mx-auto py-6 sm:py-8 px-4 sm:px-6 max-w-5xl">
       <div className="mb-4">
         <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1">
           Inbox
@@ -327,8 +327,8 @@ export default async function InboxPage({
         </div>
       </div>
 
-      {/* HAUPTREIHE: Gruppen */}
-      <div className="mb-3 overflow-x-auto">
+      {/* HAUPTREIHE: Gruppen – mit Fade-Edge auf Mobile als Scroll-Hint */}
+      <div className="mb-3 -mx-2 px-2 overflow-x-auto [mask-image:linear-gradient(to_right,transparent,black_1rem,black_calc(100%-1rem),transparent)] sm:[mask-image:none]">
         <div className="flex gap-1 border-b border-border min-w-max">
           {GROUPS.map((group) => {
             const isActive = group.id === activeGroupId;
@@ -365,7 +365,7 @@ export default async function InboxPage({
       </div>
 
       {/* SUB-TABS */}
-      <div className="mb-4 overflow-x-auto">
+      <div className="mb-4 -mx-2 px-2 overflow-x-auto [mask-image:linear-gradient(to_right,transparent,black_1rem,black_calc(100%-1rem),transparent)] sm:[mask-image:none]">
         <div className="flex gap-1 min-w-max">
           {subTabs.map((tab) => {
             const count = counts[tab.id];
@@ -429,7 +429,7 @@ export default async function InboxPage({
               >
                 <Card
                   className={cn(
-                    'p-4 pr-14 hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer',
+                    'p-4 pr-16 sm:pr-14 hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer',
                     hatEntwurf && 'border-l-4 border-l-primary'
                   )}
                 >

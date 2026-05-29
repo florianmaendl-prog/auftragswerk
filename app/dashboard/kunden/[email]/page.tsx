@@ -77,7 +77,7 @@ export default async function KundeDetailPage({
   const kundeTyp = latestKundenAnalyse?.kunde_typ;
 
   return (
-    <div className="container mx-auto py-6 px-6 max-w-5xl">
+    <div className="container mx-auto py-6 px-4 sm:px-6 max-w-5xl">
       <Link
         href="/dashboard/kunden"
         className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mb-3"

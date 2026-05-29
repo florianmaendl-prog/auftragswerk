@@ -373,7 +373,7 @@ export function TerminCard({
             <p className="text-xs text-muted-foreground">
               Termin direkt als bestätigt anlegen – erscheint danach im Kalender.
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="text-xs text-muted-foreground mb-0.5 block">
                   Datum + Uhrzeit

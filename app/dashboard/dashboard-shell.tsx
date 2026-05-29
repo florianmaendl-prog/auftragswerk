@@ -88,7 +88,7 @@ export default function DashboardShell({
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                  'flex items-center gap-3 px-3 py-2.5 md:py-2 rounded-md text-sm transition-colors min-h-11 md:min-h-0',
                   isActive
                     ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                     : 'hover:bg-sidebar-accent text-sidebar-foreground'
@@ -111,7 +111,7 @@ export default function DashboardShell({
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                  'flex items-center gap-3 px-3 py-2.5 md:py-2 rounded-md text-sm transition-colors min-h-11 md:min-h-0',
                   isActive
                     ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                     : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -149,18 +149,18 @@ export default function DashboardShell({
 
       {/* Main */}
       <div className="flex-1 md:ml-64 flex flex-col min-w-0">
-        {/* Mobile Header */}
-        <header className="md:hidden h-16 border-b flex items-center justify-between px-4 bg-background">
-          <Button
-            variant="ghost"
-            size="sm"
+        {/* Mobile Header – Hamburger min 44x44 (Apple-Touch-Standard) */}
+        <header className="md:hidden h-14 sticky top-0 z-20 border-b flex items-center justify-between px-2 bg-background">
+          <button
+            type="button"
             onClick={() => setSidebarOpen(true)}
             aria-label="Menü öffnen"
+            className="inline-flex items-center justify-center h-11 w-11 rounded-md text-foreground hover:bg-accent active:bg-accent/70 transition-colors"
           >
-            <HugeiconsIcon icon={Menu02Icon} size={20} strokeWidth={1.5} />
-          </Button>
+            <HugeiconsIcon icon={Menu02Icon} size={22} strokeWidth={1.5} />
+          </button>
           <Wortmarke size="sm" />
-          <div className="w-10" />
+          <div className="w-11" />
         </header>
 
         <main className="flex-1 overflow-auto">{children}</main>

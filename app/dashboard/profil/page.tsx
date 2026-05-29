@@ -21,7 +21,7 @@ export default async function ProfilPage() {
 
   if (!profile?.betrieb_id) {
     return (
-      <div className="container mx-auto py-8 px-6 max-w-3xl">
+      <div className="container mx-auto py-6 sm:py-8 px-4 sm:px-6 max-w-3xl">
         <Card className="p-12 text-center">
           <p className="text-muted-foreground text-sm">
             Kein Betrieb verknüpft. Bitte Admin kontaktieren.
@@ -41,7 +41,7 @@ export default async function ProfilPage() {
 
   if (error || !betrieb) {
     return (
-      <div className="container mx-auto py-8 px-6 max-w-3xl">
+      <div className="container mx-auto py-6 sm:py-8 px-4 sm:px-6 max-w-3xl">
         <Card className="p-12 text-center">
           <p className="text-destructive text-sm">
             Fehler beim Laden: {error?.message || 'Betrieb nicht gefunden'}
@@ -52,7 +52,7 @@ export default async function ProfilPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-6 max-w-3xl">
+    <div className="container mx-auto py-6 sm:py-8 px-4 sm:px-6 max-w-3xl">
       <div className="mb-8">
         <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1">
           Betriebsprofil

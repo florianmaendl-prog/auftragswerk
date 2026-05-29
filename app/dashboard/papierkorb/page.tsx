@@ -70,7 +70,7 @@ export default async function PapierkorbPage() {
   const anfragen = (items as AnfrageWithJoins[]) || [];
 
   return (
-    <div className="container mx-auto py-8 px-6 max-w-5xl">
+    <div className="container mx-auto py-6 sm:py-8 px-4 sm:px-6 max-w-5xl">
       <div className="mb-6">
         <Link
           href="/dashboard"
@@ -109,7 +109,7 @@ export default async function PapierkorbPage() {
 
           return (
             <Card key={anfrage.id} className="p-4">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-medium truncate">{anfrage.betreff}</h3>

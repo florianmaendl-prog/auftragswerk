@@ -106,7 +106,7 @@ export function AnfrageQuickMenu({
         }}
         disabled={isLoading}
         className={cn(
-          'flex items-center justify-center w-8 h-8 rounded-md',
+          'flex items-center justify-center h-11 w-11 sm:h-9 sm:w-9 rounded-md',
           'text-muted-foreground hover:text-foreground hover:bg-muted',
           'transition-colors',
           isLoading && 'opacity-50 cursor-wait'

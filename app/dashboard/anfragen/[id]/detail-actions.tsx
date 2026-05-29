@@ -133,7 +133,7 @@ export function DetailActions({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {/* Quick-Erledigt-Button: klare Aktion, kein State-Look */}
       {zeigeErledigtButton && (
         <Button
@@ -145,7 +145,8 @@ export function DetailActions({
           title="Diese Anfrage als erledigt markieren – wandert in den Erledigt-Tab"
         >
           <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
-          <span>Als erledigt markieren</span>
+          <span className="hidden sm:inline">Als erledigt markieren</span>
+          <span className="sm:hidden">Erledigt</span>
         </Button>
       )}
 

@@ -418,9 +418,95 @@ export function WochenGrid({
 
   // ---------- RENDER ----------
 
+  // Renderer-Helfer: Slot-Daten (gemeinsam für Desktop-Tabelle + Mobile-Liste).
+  function getSlotData(dayIdx: number, h: number) {
+    const info = cellInfo(dayIdx, h);
+    const hasTermin = info.termine.length > 0;
+    const cellLabel = hasTermin
+      ? info.termine[0].betreff || '(Termin)'
+      : info.sperreGrund ?? (info.istFrei ? 'frei' : '+ belegen');
+    const cellTitle = hasTermin
+      ? `${info.termine[0].betreff || '(Termin)'} – ${info.termine[0].von_name || 'Standalone'}`
+      : info.sperreGrund
+      ? info.sperreGrund
+      : info.istFrei
+      ? 'Freier Slot – klicken zum Bearbeiten der Regel'
+      : 'Klicken um Slot zu belegen';
+    return { info, hasTermin, cellLabel, cellTitle };
+  }
+
   return (
     <>
-      <div className="overflow-x-auto">
+      {/* MOBILE: vertikale Tag-Liste statt 7-Spalten-Tabelle */}
+      <div className="md:hidden divide-y">
+        {days.map((d, dayIdx) => {
+          const istHeute = d.label === todayLabel;
+          return (
+            <section
+              key={dayIdx}
+              className={cn(
+                'p-3',
+                istHeute && 'bg-primary/5'
+              )}
+            >
+              <header className="mb-2 flex items-baseline justify-between">
+                <h3 className="text-sm font-semibold">
+                  {WOCHENTAGE_LANG[dayIdx + 1]}
+                  {istHeute && (
+                    <span className="ml-2 text-xs font-normal text-primary">
+                      heute
+                    </span>
+                  )}
+                </h3>
+                <span className="text-xs text-muted-foreground">
+                  {formatDateShort(d)}
+                </span>
+              </header>
+              <ul className="space-y-1">
+                {STUNDEN.map((h) => {
+                  const { info, hasTermin, cellLabel, cellTitle } = getSlotData(dayIdx, h);
+                  return (
+                    <li key={h}>
+                      <button
+                        type="button"
+                        onClick={() => openCell(dayIdx, h)}
+                        disabled={busy}
+                        title={cellTitle}
+                        aria-label={`${WOCHENTAGE_LANG[dayIdx + 1]} ${h}:00 öffnen`}
+                        className={cn(
+                          'flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-sm text-left transition-colors min-h-11',
+                          'hover:bg-accent/30 active:bg-accent/50',
+                          info.istFrei && !hasTermin && 'border-green-200 bg-green-50/60',
+                          info.sperreGrund && 'border-rose-200 bg-rose-50/60',
+                          hasTermin && 'border-primary/30 bg-primary/10',
+                          !info.istFrei && !info.sperreGrund && !hasTermin && 'border-dashed border-input bg-transparent text-muted-foreground/70'
+                        )}
+                      >
+                        <span className="text-xs font-medium tabular-nums text-muted-foreground w-12 flex-shrink-0">
+                          {String(h).padStart(2, '0')}:00
+                        </span>
+                        <span
+                          className={cn(
+                            'flex-1 min-w-0 truncate',
+                            hasTermin && 'text-primary font-medium',
+                            info.sperreGrund && 'text-rose-700 line-through',
+                            info.istFrei && !hasTermin && 'text-green-700'
+                          )}
+                        >
+                          {cellLabel}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
+
+      {/* DESKTOP (md+): klassisches 7-Spalten-Wochengrid */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="border-b">

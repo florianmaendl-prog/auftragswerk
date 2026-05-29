@@ -260,7 +260,7 @@ export default async function AnfrageDetailPage({
   const entwurfIstVersendet = entwurf?.status === 'versendet';
 
   return (
-    <div className="container mx-auto py-6 px-6 max-w-7xl">
+    <div className="container mx-auto py-6 px-4 sm:px-6 max-w-7xl">
       {/* Header */}
       <div className="mb-6">
         <Link
@@ -279,9 +279,9 @@ export default async function AnfrageDetailPage({
           </div>
         )}
 
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight mb-1">{anfrage.betreff}</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight mb-1 break-words">{anfrage.betreff}</h1>
             <p className="text-sm text-muted-foreground">
               von <span className="text-foreground">{anfrage.von_name || anfrage.von_email}</span>
               {anfrage.von_name && <> &lt;{anfrage.von_email}&gt;</>}
@@ -395,7 +395,7 @@ export default async function AnfrageDetailPage({
                                   <img
                                     src={a.signed_url}
                                     alt={a.dateiname}
-                                    className="block max-h-32 max-w-48 object-cover"
+                                    className="block max-h-32 w-full max-w-full sm:max-w-48 object-cover"
                                   />
                                 </a>
                               ) : (
@@ -442,7 +442,7 @@ export default async function AnfrageDetailPage({
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t">
                   <div>
                     <p className="text-muted-foreground text-xs">Kategorie</p>
                     <p className="font-medium">{klass.kategorie}</p>

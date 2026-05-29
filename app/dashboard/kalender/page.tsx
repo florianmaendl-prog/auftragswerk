@@ -105,7 +105,7 @@ export default async function KalenderPage({
 
 
   return (
-    <div className="container mx-auto py-8 px-6 max-w-7xl">
+    <div className="container mx-auto py-6 sm:py-8 px-4 sm:px-6 max-w-7xl">
       <div className="mb-6">
         <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1">
           Kalender
@@ -116,20 +116,28 @@ export default async function KalenderPage({
         </p>
       </div>
 
-      <div className="flex items-center justify-between mb-3 gap-2">
-        <Link
-          href={`/dashboard/kalender?offset=${offset - 1}`}
-          className="text-sm hover:underline"
-        >
-          ← Vorherige
-        </Link>
-        <div className="text-sm font-medium">
+      <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="order-2 sm:order-1 flex items-center justify-between sm:justify-start gap-4">
+          <Link
+            href={`/dashboard/kalender?offset=${offset - 1}`}
+            className="inline-flex items-center min-h-11 sm:min-h-0 px-2 -mx-2 text-sm hover:underline"
+          >
+            ← Vorherige
+          </Link>
+          <Link
+            href={`/dashboard/kalender?offset=${offset + 1}`}
+            className="inline-flex items-center min-h-11 sm:min-h-0 px-2 -mx-2 text-sm hover:underline sm:hidden"
+          >
+            Nächste →
+          </Link>
+        </div>
+        <div className="order-1 sm:order-2 text-sm font-medium text-center">
           {formatWeekLabel(monday, sundayInclusive)}
           {offset === 0 ? <span className="text-muted-foreground"> · aktuelle Woche</span> : null}
         </div>
         <Link
           href={`/dashboard/kalender?offset=${offset + 1}`}
-          className="text-sm hover:underline"
+          className="order-3 hidden sm:inline-flex items-center text-sm hover:underline"
         >
           Nächste →
         </Link>
