@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Saira_Condensed } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
   subsets: ['latin'],
@@ -37,6 +38,7 @@ export default function RootLayout({
     >
       <body className="min-h-screen bg-background text-foreground font-sans">
         {children}
+        <Toaster position="top-right" richColors closeButton />
       </body>
     </html>
   );

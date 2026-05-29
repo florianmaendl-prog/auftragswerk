@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-server';
 import { Card, CardContent } from '@/components/ui/card';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { EmptyState } from '@/components/brand/empty-state';
 import { CheckmarkCircle02Icon } from '@hugeicons/core-free-icons';
 
 type ProcessingError = {
@@ -24,21 +24,18 @@ function formatDateTime(date: string): string {
 }
 
 function schrittBadge(schritt: string) {
-  // Farbcode nach Schritt – grob nach "wer war's"
-  const color = schritt.includes('klassifikation')
-    ? 'bg-amber-100 text-amber-800 border-amber-200'
-    : schritt.includes('entwurf')
-    ? 'bg-blue-100 text-blue-800 border-blue-200'
-    : schritt.includes('versand')
-    ? 'bg-purple-100 text-purple-800 border-purple-200'
-    : schritt.includes('attachment')
-    ? 'bg-cyan-100 text-cyan-800 border-cyan-200'
-    : schritt.includes('mail') || schritt.includes('nachricht')
-    ? 'bg-slate-100 text-slate-800 border-slate-200'
-    : 'bg-gray-100 text-gray-800 border-gray-200';
+  // Farbcode in 3 semantischen Gruppen statt Zufallsfarben:
+  //   KI-Schritte (klassifikation/entwurf/ki) → amber (warn, "KI-Issue")
+  //   Versand-Schritte → destructive-tint (rot, "Kunden-relevant")
+  //   Rest (mail/nachricht/attachment/storage) → muted (neutral)
+  const color = /klassifikation|entwurf|ki_/.test(schritt)
+    ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-200'
+    : /versand/.test(schritt)
+    ? 'bg-rose-50 text-rose-800 ring-1 ring-rose-200'
+    : 'bg-secondary text-foreground/70 ring-1 ring-border';
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-mono ${color}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-mono ${color}`}
     >
       {schritt}
     </span>
@@ -94,23 +91,12 @@ export default async function DiagnosePage() {
       </div>
 
       {errors.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 flex flex-col items-center gap-3 text-center">
-            <div className="rounded-full bg-green-100 p-4">
-              <HugeiconsIcon
-                icon={CheckmarkCircle02Icon}
-                size={28}
-                strokeWidth={1.5}
-                className="text-green-700"
-              />
-            </div>
-            <p className="text-sm font-medium text-foreground">Alles läuft sauber</p>
-            <p className="text-xs text-muted-foreground max-w-sm">
-              Keine Verarbeitungs-Fehler gespeichert. Sobald hier etwas auftaucht,
-              kannst du nachsehen, was schiefgegangen ist.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={CheckmarkCircle02Icon}
+          tone="success"
+          title="Alles läuft sauber"
+          description="Keine Verarbeitungs-Fehler gespeichert. Sobald hier etwas auftaucht, kannst du nachsehen, was schiefgegangen ist."
+        />
       ) : (
         <div className="space-y-2">
           {errors.map((e) => (

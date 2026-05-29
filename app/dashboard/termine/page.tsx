@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-server';
 import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/brand/empty-state';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { Location01Icon } from '@hugeicons/core-free-icons';
+import { Location01Icon, TimeScheduleIcon } from '@hugeicons/core-free-icons';
 
 type TerminRow = {
   id: string;
@@ -29,17 +30,20 @@ function formatTermin(datum: string): string {
 }
 
 function statusBadge(status: string) {
+  // "bestätigt" bleibt bewusst grün (user-feedback: gefällt, nicht anfassen).
+  // Andere Status auf Brand-Tokens umgestellt: vorgeschlagen amber (wie
+  // KategorieBadge), absolviert muted, abgesagt/sonstiges rose-tint.
   const conf =
     status === 'bestaetigt'
-      ? { color: 'bg-green-100 text-green-800 border-green-200', label: 'bestätigt' }
+      ? { color: 'bg-green-100 text-green-800 border border-green-200', label: 'bestätigt' }
       : status === 'vorgeschlagen'
-      ? { color: 'bg-yellow-100 text-yellow-800 border-yellow-200', label: 'vorgeschlagen' }
+      ? { color: 'bg-amber-100 text-amber-900 ring-1 ring-amber-200', label: 'vorgeschlagen' }
       : status === 'absolviert'
-      ? { color: 'bg-slate-100 text-slate-700 border-slate-200', label: 'absolviert' }
-      : { color: 'bg-red-100 text-red-800 border-red-200', label: status };
+      ? { color: 'bg-secondary text-foreground/70 ring-1 ring-border', label: 'absolviert' }
+      : { color: 'bg-rose-50 text-rose-800 ring-1 ring-rose-200', label: status };
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${conf.color}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${conf.color}`}
     >
       {conf.label}
     </span>
@@ -105,36 +109,46 @@ export default async function TerminePage() {
         </p>
       </div>
 
-      <section className="mb-8">
-        <h2 className="text-sm font-semibold text-muted-foreground mb-2">
-          Kommende ({kommende.length})
-        </h2>
-        {kommende.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              Keine kommenden Termine.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {kommende.map((t) => (
-              <TerminItem key={t.id} t={t} />
-            ))}
-          </div>
-        )}
-      </section>
+      {kommende.length === 0 && vergangen.length === 0 ? (
+        <EmptyState
+          icon={TimeScheduleIcon}
+          title="Noch keine Termine"
+          description="Bestätige einen vorgeschlagenen Slot in einer Anfrage oder lege im Kalender direkt einen Standalone-Termin an – z. B. für Wartung, Innung oder Privates."
+        />
+      ) : (
+        <>
+          <section className="mb-8">
+            <h2 className="text-sm font-semibold text-muted-foreground mb-2">
+              Kommende ({kommende.length})
+            </h2>
+            {kommende.length === 0 ? (
+              <Card>
+                <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                  Keine kommenden Termine.
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {kommende.map((t) => (
+                  <TerminItem key={t.id} t={t} />
+                ))}
+              </div>
+            )}
+          </section>
 
-      {vergangen.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-muted-foreground mb-2">
-            Vergangene ({vergangen.length})
-          </h2>
-          <div className="space-y-2">
-            {vergangen.map((t) => (
-              <TerminItem key={t.id} t={t} />
-            ))}
-          </div>
-        </section>
+          {vergangen.length > 0 && (
+            <section>
+              <h2 className="text-sm font-semibold text-muted-foreground mb-2">
+                Vergangene ({vergangen.length})
+              </h2>
+              <div className="space-y-2">
+                {vergangen.map((t) => (
+                  <TerminItem key={t.id} t={t} />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
     </div>
   );

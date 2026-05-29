@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-server';
 import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/brand/empty-state';
+import { UserGroupIcon } from '@hugeicons/core-free-icons';
 
 type AnalyseRow = {
   kategorie: string | null;
@@ -100,11 +102,11 @@ export default async function KundenPage() {
       </div>
 
       {kunden.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Noch keine Kunden – sobald Anfragen eingehen, erscheinen die Absender hier.
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={UserGroupIcon}
+          title="Noch keine Kunden"
+          description="Sobald Kundenanfragen eingehen, sammeln sich die Absender hier automatisch als Kunden-Liste."
+        />
       ) : (
         <div className="space-y-2">
           {kunden.map((k) => (

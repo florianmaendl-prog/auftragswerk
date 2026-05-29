@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { AnfrageQuickMenu } from './anfrage-quick-menu';
 import { KategorieBadge } from '@/components/brand/kategorie-badge';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { EmptyState } from '@/components/brand/empty-state';
 import { InboxIcon } from '@hugeicons/core-free-icons';
 
 type AnfrageWithJoins = {
@@ -409,22 +409,11 @@ export default async function InboxPage({
       )}
 
       {filtered.length === 0 && !error && (
-        <Card className="p-12 flex flex-col items-center gap-3 text-center">
-          <div className="rounded-full bg-secondary p-4">
-            <HugeiconsIcon
-              icon={InboxIcon}
-              size={28}
-              strokeWidth={1.5}
-              className="text-primary"
-            />
-          </div>
-          <p className="text-sm font-medium text-foreground">
-            Keine Anfragen in „{activeTab.label}"
-          </p>
-          <p className="text-xs text-muted-foreground max-w-sm">
-            {activeTab.description}
-          </p>
-        </Card>
+        <EmptyState
+          icon={InboxIcon}
+          title={`Keine Anfragen in „${activeTab.label}"`}
+          description={activeTab.description}
+        />
       )}
 
       <div className="space-y-2">

@@ -468,9 +468,9 @@ export function WochenGrid({
                       ? 'Freier Slot – klicken zum Bearbeiten der Regel'
                       : 'Klicken um Slot zu belegen';
                   const cellTextClass = hasTermin
-                    ? 'text-blue-900 hover:underline truncate'
+                    ? 'text-primary hover:underline truncate'
                     : info.sperreGrund
-                    ? 'text-red-700 line-through block truncate'
+                    ? 'text-rose-700 line-through block truncate'
                     : info.istFrei
                     ? 'text-green-700'
                     : 'text-muted-foreground/40 hover:text-foreground';
@@ -480,8 +480,8 @@ export function WochenGrid({
                       className={cn(
                         'border-l align-top h-12 p-0',
                         info.istFrei && 'bg-green-50',
-                        info.sperreGrund && 'bg-red-50',
-                        hasTermin && 'bg-blue-50'
+                        info.sperreGrund && 'bg-rose-50',
+                        hasTermin && 'bg-primary/10'
                       )}
                     >
                       <button
@@ -588,8 +588,8 @@ export function WochenGrid({
           {/* --- TERMIN: View-Mode --- */}
           {selectedCell?.kind === 'termin' && subMode === 'view' && selectedCell.termin && (
             <div className="space-y-3 py-2">
-              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm space-y-1">
-                <p className="font-medium text-blue-900 flex items-center gap-1.5">
+              <div className="rounded-md border border-primary/30 bg-primary/10 p-3 text-sm space-y-1">
+                <p className="font-medium text-primary flex items-center gap-1.5">
                   <HugeiconsIcon
                     icon={TimeScheduleIcon}
                     size={14}
@@ -597,14 +597,14 @@ export function WochenGrid({
                   />
                   {selectedCell.termin.betreff || '(Termin ohne Betreff)'}
                 </p>
-                <p className="text-xs text-blue-800">
+                <p className="text-xs text-foreground/80">
                   {formatBerlinDatetime(
                     selectedCell.termin.datum,
                     "EEEEEE, dd.MM.yyyy, HH:mm 'Uhr'"
                   )}
                 </p>
                 {selectedCell.termin.ort && (
-                  <p className="text-xs text-blue-800 flex items-center gap-1">
+                  <p className="text-xs text-foreground/80 flex items-center gap-1">
                     <HugeiconsIcon
                       icon={Location01Icon}
                       size={12}
@@ -614,10 +614,10 @@ export function WochenGrid({
                   </p>
                 )}
                 {selectedCell.termin.notiz && (
-                  <p className="text-xs text-blue-700">{selectedCell.termin.notiz}</p>
+                  <p className="text-xs text-foreground/70">{selectedCell.termin.notiz}</p>
                 )}
                 {selectedCell.termin.von_name && (
-                  <p className="text-xs text-blue-700">
+                  <p className="text-xs text-foreground/70">
                     Kunde: {selectedCell.termin.von_name}
                   </p>
                 )}

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -89,12 +90,12 @@ export function DetailActions({
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(`Fehler: ${data.error || 'Unbekannt'}`);
+        toast.error(data.error || 'Status ändern fehlgeschlagen');
         return;
       }
       router.refresh();
     } catch (err) {
-      alert(`Fehler: ${err instanceof Error ? err.message : 'Unbekannt'}`);
+      toast.error(err instanceof Error ? err.message : 'Status ändern fehlgeschlagen');
     } finally {
       setIsLoading(false);
     }
@@ -118,13 +119,14 @@ export function DetailActions({
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(`Fehler: ${data.error || 'Unbekannt'}`);
+        toast.error(data.error || 'In Papierkorb verschieben fehlgeschlagen');
         return;
       }
+      toast.success('In Papierkorb verschoben');
       router.push('/dashboard');
       router.refresh();
     } catch (err) {
-      alert(`Fehler: ${err instanceof Error ? err.message : 'Unbekannt'}`);
+      toast.error(err instanceof Error ? err.message : 'In Papierkorb verschieben fehlgeschlagen');
     } finally {
       setIsLoading(false);
     }

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { HugeiconsIcon } from '@hugeicons/react';
@@ -21,12 +22,13 @@ export function PapierkorbItemActions({ anfrageId }: { anfrageId: string }) {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(`Fehler: ${data.error || 'Unbekannt'}`);
+        toast.error(data.error || 'Wiederherstellen fehlgeschlagen');
         return;
       }
+      toast.success('Anfrage wiederhergestellt');
       router.refresh();
     } catch (err) {
-      alert(`Fehler: ${err instanceof Error ? err.message : 'Unbekannt'}`);
+      toast.error(err instanceof Error ? err.message : 'Wiederherstellen fehlgeschlagen');
     } finally {
       setIsLoading(false);
     }
@@ -47,12 +49,13 @@ export function PapierkorbItemActions({ anfrageId }: { anfrageId: string }) {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(`Fehler: ${data.error || 'Unbekannt'}`);
+        toast.error(data.error || 'Endgültig löschen fehlgeschlagen');
         return;
       }
+      toast.success('Anfrage endgültig gelöscht');
       router.refresh();
     } catch (err) {
-      alert(`Fehler: ${err instanceof Error ? err.message : 'Unbekannt'}`);
+      toast.error(err instanceof Error ? err.message : 'Endgültig löschen fehlgeschlagen');
     } finally {
       setIsLoading(false);
     }

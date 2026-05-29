@@ -6,6 +6,8 @@ import { RegelEditor, type Regel } from './regel-editor';
 import { SperreEditor, type Sperre } from './sperre-editor';
 import { WochenGrid } from './wochengrid';
 import { berlinStartOfWeek, BETRIEB_TZ } from '@/lib/datetime';
+import { EmptyState } from '@/components/brand/empty-state';
+import { Calendar02Icon } from '@hugeicons/core-free-icons';
 
 /**
  * Liefert das UTC-Date für Mo 00:00 Berliner Zeit der aktuellen Woche +/- offset.
@@ -143,6 +145,16 @@ export default async function KalenderPage({
         </div>
       )}
 
+      {regeln.length === 0 && (
+        <div className="mb-6">
+          <EmptyState
+            icon={Calendar02Icon}
+            title="Noch keine Verfügbarkeit hinterlegt"
+            description={'Leg unten deine erste Regel an (z. B. Mo–Mi 8–12 Uhr). Die KI nutzt diese Slots, um Kunden bei neuen Anfragen konkrete Termin-Vorschläge zu machen statt nur „melde mich".'}
+          />
+        </div>
+      )}
+
       <Card className="mb-6 overflow-hidden p-0">
         <WochenGrid
           dayLabels={dayLabels}
@@ -159,11 +171,11 @@ export default async function KalenderPage({
           frei (laut Regel)
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded bg-blue-50 border border-blue-200"></span>
+          <span className="inline-block w-3 h-3 rounded bg-primary/10 border border-primary/30"></span>
           Termin
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded bg-red-50 border border-red-200"></span>
+          <span className="inline-block w-3 h-3 rounded bg-rose-50 border border-rose-200"></span>
           gesperrt
         </span>
       </div>

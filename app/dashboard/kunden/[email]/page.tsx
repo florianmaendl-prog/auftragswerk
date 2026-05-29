@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase-server';
 import { Card, CardContent } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
+import { KategorieBadge } from '@/components/brand/kategorie-badge';
 
 type AnalyseRow = {
   kategorie: string | null;
@@ -35,25 +35,6 @@ function timeAgo(date: string): string {
   return new Date(date).toLocaleDateString('de-DE');
 }
 
-function gewerkBadge(gewerk: string | null) {
-  if (!gewerk) return null;
-  const color =
-    gewerk === 'passt'
-      ? 'bg-green-100 text-green-800 border-green-200'
-      : gewerk === 'passt_nicht'
-      ? 'bg-red-100 text-red-800 border-red-200'
-      : 'bg-yellow-100 text-yellow-800 border-yellow-200';
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
-        color
-      )}
-    >
-      {gewerk}
-    </span>
-  );
-}
 
 export default async function KundeDetailPage({
   params,
@@ -135,7 +116,10 @@ export default async function KundeDetailPage({
                       {a.betreff || '(kein Betreff)'}
                     </p>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {gewerkBadge(analyse?.gewerk_match || null)}
+                      <KategorieBadge
+                        kategorie={analyse?.kategorie as Parameters<typeof KategorieBadge>[0]['kategorie']}
+                        gewerkMatch={analyse?.gewerk_match as Parameters<typeof KategorieBadge>[0]['gewerkMatch']}
+                      />
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
                         {timeAgo(a.created_at)}
                       </span>
