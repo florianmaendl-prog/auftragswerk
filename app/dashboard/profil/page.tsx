@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase-server';
 import { Card } from '@/components/ui/card';
 import { ProfilForm } from './profil-form';
+import { GmailConnectionCard } from './gmail-connection-card';
 
 export default async function ProfilPage() {
   const supabase = await createClient();
@@ -31,13 +32,20 @@ export default async function ProfilPage() {
     );
   }
 
-  const { data: betrieb, error } = await supabase
-    .from('betriebe')
-    .select(
-      'id, name, inhaber, branche, inbound_email, region, mindestauftragswert, was_wir_machen, was_wir_nicht_machen, wichtige_kunden, signatur, ton_beispiele'
-    )
-    .eq('id', profile.betrieb_id)
-    .single();
+  const [{ data: betrieb, error }, { data: gmailConn }] = await Promise.all([
+    supabase
+      .from('betriebe')
+      .select(
+        'id, name, inhaber, branche, inbound_email, region, mindestauftragswert, was_wir_machen, was_wir_nicht_machen, wichtige_kunden, signatur, ton_beispiele'
+      )
+      .eq('id', profile.betrieb_id)
+      .single(),
+    supabase
+      .from('gmail_connections')
+      .select('google_email, status, letzter_fehler')
+      .eq('betrieb_id', profile.betrieb_id)
+      .maybeSingle(),
+  ]);
 
   if (error || !betrieb) {
     return (
@@ -61,6 +69,20 @@ export default async function ProfilPage() {
           Diese Daten fließen in jede KI-Antwort. Je präziser hier gepflegt, desto
           besser werden die Entwürfe.
         </p>
+      </div>
+
+      <div className="mb-6">
+        <GmailConnectionCard
+          initial={
+            gmailConn
+              ? {
+                  google_email: gmailConn.google_email,
+                  status: gmailConn.status as 'aktiv' | 'fehler' | 'widerrufen',
+                  letzter_fehler: gmailConn.letzter_fehler,
+                }
+              : null
+          }
+        />
       </div>
 
       <ProfilForm

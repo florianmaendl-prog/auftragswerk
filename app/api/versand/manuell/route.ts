@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendMail } from '@/lib/postmark';
+import { sendeViaGmail } from '@/lib/gmail';
 import { speichereAnhang, type AnhangInput } from '@/lib/anhaenge';
 
 export const maxDuration = 30;
@@ -88,21 +89,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Betrieb holen (mit Custom-Sender-Feldern)
-    const { data: betrieb } = await supabaseAdmin
-      .from('betriebe')
-      .select('inbound_email, name, sender_email, sender_name, sender_verified')
-      .eq('id', anfrage.betrieb_id)
-      .single();
+    // Betrieb + Gmail-Connection parallel holen
+    const [{ data: betrieb }, { data: gmailConn }] = await Promise.all([
+      supabaseAdmin
+        .from('betriebe')
+        .select('inbound_email, name, sender_email, sender_name, sender_verified')
+        .eq('id', anfrage.betrieb_id)
+        .single(),
+      supabaseAdmin
+        .from('gmail_connections')
+        .select('id, google_email, status')
+        .eq('betrieb_id', anfrage.betrieb_id)
+        .eq('status', 'aktiv')
+        .maybeSingle(),
+    ]);
 
-    // From-Adresse bestimmen
-    const useCustomSender = Boolean(
+    // From-Adresse: Gmail → Custom Sender → Postmark-Fallback
+    const useGmail = Boolean(gmailConn?.google_email);
+    const useCustomSender = !useGmail && Boolean(
       betrieb?.sender_verified && betrieb?.sender_email
     );
-    const fromEmail = useCustomSender
+    const fromEmail = useGmail
+      ? gmailConn!.google_email
+      : useCustomSender
       ? betrieb!.sender_email!
       : process.env.POSTMARK_FROM_EMAIL || 'info@auftragswerk.app';
-    const fromName = useCustomSender
+    const fromName = useGmail
+      ? betrieb?.name || 'Auftragswerk'
+      : useCustomSender
       ? betrieb!.sender_name || betrieb!.name || 'Auftragswerk'
       : process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
 
@@ -133,26 +147,86 @@ export async function POST(req: NextRequest) {
       betrieb?.inbound_email || process.env.POSTMARK_REPLY_TO || undefined;
     const replyToName = betrieb?.name || fromName;
 
-    // Mail versenden
-    const sendResult = await sendMail({
-      to: anfrage.von_email,
-      toName: anfrage.von_name || undefined,
-      fromEmail: fromEmail,
-      fromName: fromName,
-      subject: betreff,
-      bodyText: bodyText,
-      replyTo: replyToAddress,
-      replyToName: replyToName,
-      inReplyTo: letzteEingangsnachricht?.message_id || undefined,
-      references: references.length > 0 ? references : undefined,
-      tag: 'manueller_reply',
-      metadata: {
-        anfrage_id: anfrage.id,
-        betrieb_id: anfrage.betrieb_id,
-        manuell: 'true',
-      },
-      attachments: anhaenge.length > 0 ? anhaenge : undefined,
-    });
+    // Mail versenden – Gmail wenn aktiv, sonst Postmark.
+    let sendResult: Awaited<ReturnType<typeof sendMail>>;
+    if (useGmail) {
+      const gmailResult = await sendeViaGmail(anfrage.betrieb_id, {
+        to: anfrage.von_email,
+        toName: anfrage.von_name || undefined,
+        fromEmail,
+        fromName,
+        subject: betreff,
+        bodyText: bodyText,
+        replyTo: replyToAddress,
+        replyToName: replyToName,
+        inReplyTo: letzteEingangsnachricht?.message_id || undefined,
+        references: references.length > 0 ? references : undefined,
+        attachments: anhaenge.length > 0 ? anhaenge : undefined,
+      });
+
+      if (gmailResult.success) {
+        sendResult = {
+          success: true,
+          messageId: gmailResult.messageId,
+          postmarkMessageId: gmailResult.gmailMessageId,
+        };
+      } else if (gmailResult.shouldFallback) {
+        console.warn(
+          `Gmail-Send failed (manuell, ${gmailResult.error}) – Fallback auf Postmark`
+        );
+        const fallbackFrom = useCustomSender
+          ? betrieb!.sender_email!
+          : process.env.POSTMARK_FROM_EMAIL || 'info@auftragswerk.app';
+        const fallbackName = useCustomSender
+          ? betrieb!.sender_name || betrieb!.name || 'Auftragswerk'
+          : process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
+        sendResult = await sendMail({
+          to: anfrage.von_email,
+          toName: anfrage.von_name || undefined,
+          fromEmail: fallbackFrom,
+          fromName: fallbackName,
+          subject: betreff,
+          bodyText: bodyText,
+          replyTo: replyToAddress,
+          replyToName: replyToName,
+          inReplyTo: letzteEingangsnachricht?.message_id || undefined,
+          references: references.length > 0 ? references : undefined,
+          tag: 'manueller_reply-fallback',
+          metadata: {
+            anfrage_id: anfrage.id,
+            betrieb_id: anfrage.betrieb_id,
+            manuell: 'true',
+            gmail_fallback: 'true',
+          },
+          attachments: anhaenge.length > 0 ? anhaenge : undefined,
+        });
+      } else {
+        sendResult = {
+          success: false,
+          error: gmailResult.error,
+        };
+      }
+    } else {
+      sendResult = await sendMail({
+        to: anfrage.von_email,
+        toName: anfrage.von_name || undefined,
+        fromEmail: fromEmail,
+        fromName: fromName,
+        subject: betreff,
+        bodyText: bodyText,
+        replyTo: replyToAddress,
+        replyToName: replyToName,
+        inReplyTo: letzteEingangsnachricht?.message_id || undefined,
+        references: references.length > 0 ? references : undefined,
+        tag: 'manueller_reply',
+        metadata: {
+          anfrage_id: anfrage.id,
+          betrieb_id: anfrage.betrieb_id,
+          manuell: 'true',
+        },
+        attachments: anhaenge.length > 0 ? anhaenge : undefined,
+      });
+    }
 
     if (!sendResult.success) {
       await supabaseAdmin.from('processing_errors').insert({

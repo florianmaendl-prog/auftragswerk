@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendMail } from '@/lib/postmark';
+import { sendeViaGmail } from '@/lib/gmail';
 import { speichereAnhang, type AnhangInput } from '@/lib/anhaenge';
 
 export const maxDuration = 30;
@@ -122,23 +123,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Anfrage nicht gefunden' }, { status: 404 });
     }
 
-    // 5. Betrieb holen (mit Custom-Sender-Feldern)
-    const { data: betrieb } = await supabaseAdmin
-      .from('betriebe')
-      .select('inbound_email, name, sender_email, sender_name, sender_verified')
-      .eq('id', entwurf.betrieb_id)
-      .single();
+    // 5. Betrieb + Gmail-Connection parallel holen
+    const [{ data: betrieb }, { data: gmailConn }] = await Promise.all([
+      supabaseAdmin
+        .from('betriebe')
+        .select('inbound_email, name, sender_email, sender_name, sender_verified')
+        .eq('id', entwurf.betrieb_id)
+        .single(),
+      supabaseAdmin
+        .from('gmail_connections')
+        .select('id, google_email, status')
+        .eq('betrieb_id', entwurf.betrieb_id)
+        .eq('status', 'aktiv')
+        .maybeSingle(),
+    ]);
 
-    // 6. From-Adresse bestimmen
-    //    Priorität: betrieb.sender_email (wenn verified)
-    //    Fallback: POSTMARK_FROM_EMAIL aus Env
-    const useCustomSender = Boolean(
+    // 6. From-Adresse bestimmen (3-stufige Hierarchie):
+    //    1. Gmail-OAuth aktiv → senden aus echtem Gmail-Account
+    //    2. Custom Sender verified (Postmark) → bisheriger Weg
+    //    3. Postmark-Fallback → info@auftragswerk.app
+    const useGmail = Boolean(gmailConn?.google_email);
+    const useCustomSender = !useGmail && Boolean(
       betrieb?.sender_verified && betrieb?.sender_email
     );
-    const fromEmail = useCustomSender
+    const fromEmail = useGmail
+      ? gmailConn!.google_email
+      : useCustomSender
       ? betrieb!.sender_email!
       : process.env.POSTMARK_FROM_EMAIL || 'info@auftragswerk.app';
-    const fromName = useCustomSender
+    const fromName = useGmail
+      ? betrieb?.name || 'Auftragswerk'
+      : useCustomSender
       ? betrieb!.sender_name || betrieb!.name || 'Auftragswerk'
       : process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
 
@@ -169,26 +184,90 @@ export async function POST(req: NextRequest) {
       betrieb?.inbound_email || process.env.POSTMARK_REPLY_TO || undefined;
     const replyToName = betrieb?.name || fromName;
 
-    // 10. Mail versenden via Postmark
-    const sendResult = await sendMail({
-      to: anfrage.von_email,
-      toName: anfrage.von_name || undefined,
-      fromEmail: fromEmail,
-      fromName: fromName,
-      subject: entwurf.betreff_vorschlag,
-      bodyText: entwurf.body_text,
-      replyTo: replyToAddress,
-      replyToName: replyToName,
-      inReplyTo: letzteEingangsnachricht?.message_id || undefined,
-      references: references.length > 0 ? references : undefined,
-      tag: 'antwortentwurf',
-      metadata: {
-        anfrage_id: anfrage.id,
-        entwurf_id: entwurf.id,
-        betrieb_id: entwurf.betrieb_id,
-      },
-      attachments: anhaenge.length > 0 ? anhaenge : undefined,
-    });
+    // 10. Mail versenden – Gmail wenn aktiv, sonst Postmark.
+    //     Bei dauerhaftem Gmail-Fehler (4xx, status auf 'fehler' gesetzt) →
+    //     Fallback auf Postmark, damit Versand nicht hängen bleibt.
+    let sendResult: Awaited<ReturnType<typeof sendMail>>;
+    if (useGmail) {
+      const gmailResult = await sendeViaGmail(entwurf.betrieb_id, {
+        to: anfrage.von_email,
+        toName: anfrage.von_name || undefined,
+        fromEmail,
+        fromName,
+        subject: entwurf.betreff_vorschlag,
+        bodyText: entwurf.body_text,
+        replyTo: replyToAddress,
+        replyToName: replyToName,
+        inReplyTo: letzteEingangsnachricht?.message_id || undefined,
+        references: references.length > 0 ? references : undefined,
+        attachments: anhaenge.length > 0 ? anhaenge : undefined,
+      });
+
+      if (gmailResult.success) {
+        sendResult = {
+          success: true,
+          messageId: gmailResult.messageId,
+          postmarkMessageId: gmailResult.gmailMessageId, // wir nutzen denselben Slot für die externe ID
+        };
+      } else if (gmailResult.shouldFallback) {
+        console.warn(
+          `Gmail-Send failed (${gmailResult.error}) – Fallback auf Postmark für betrieb=${entwurf.betrieb_id}`
+        );
+        // Fallback-From auf Postmark-Defaults wechseln (Gmail-Adresse passt da nicht)
+        const fallbackFrom = useCustomSender
+          ? betrieb!.sender_email!
+          : process.env.POSTMARK_FROM_EMAIL || 'info@auftragswerk.app';
+        const fallbackName = useCustomSender
+          ? betrieb!.sender_name || betrieb!.name || 'Auftragswerk'
+          : process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
+        sendResult = await sendMail({
+          to: anfrage.von_email,
+          toName: anfrage.von_name || undefined,
+          fromEmail: fallbackFrom,
+          fromName: fallbackName,
+          subject: entwurf.betreff_vorschlag,
+          bodyText: entwurf.body_text,
+          replyTo: replyToAddress,
+          replyToName: replyToName,
+          inReplyTo: letzteEingangsnachricht?.message_id || undefined,
+          references: references.length > 0 ? references : undefined,
+          tag: 'antwortentwurf-fallback',
+          metadata: {
+            anfrage_id: anfrage.id,
+            entwurf_id: entwurf.id,
+            betrieb_id: entwurf.betrieb_id,
+            gmail_fallback: 'true',
+          },
+          attachments: anhaenge.length > 0 ? anhaenge : undefined,
+        });
+      } else {
+        // Transienter Fehler → kein Fallback, Aufrufer sieht Error
+        sendResult = {
+          success: false,
+          error: gmailResult.error,
+        };
+      }
+    } else {
+      sendResult = await sendMail({
+        to: anfrage.von_email,
+        toName: anfrage.von_name || undefined,
+        fromEmail: fromEmail,
+        fromName: fromName,
+        subject: entwurf.betreff_vorschlag,
+        bodyText: entwurf.body_text,
+        replyTo: replyToAddress,
+        replyToName: replyToName,
+        inReplyTo: letzteEingangsnachricht?.message_id || undefined,
+        references: references.length > 0 ? references : undefined,
+        tag: 'antwortentwurf',
+        metadata: {
+          anfrage_id: anfrage.id,
+          entwurf_id: entwurf.id,
+          betrieb_id: entwurf.betrieb_id,
+        },
+        attachments: anhaenge.length > 0 ? anhaenge : undefined,
+      });
+    }
 
     if (!sendResult.success) {
       await unlock();
