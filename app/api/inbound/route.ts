@@ -51,7 +51,9 @@ type PostmarkAttachment = {
   Content?: string;          // base64; fehlt wenn Proxy schon hochgeladen hat
   ContentType: string;
   ContentLength: number;
-  _storage_path?: string;    // vom Edge-Proxy gesetzt
+  _storage_path?: string;    // vom Edge-Proxy gesetzt bei Erfolg
+  _upload_failed?: boolean;  // vom Edge-Proxy gesetzt wenn Storage-Upload failte
+  _upload_error?: string;
 };
 
 export async function POST(req: NextRequest) {
@@ -85,6 +87,28 @@ export async function POST(req: NextRequest) {
       : getHeader('Message-ID');
     const inReplyTo = getHeader('In-Reply-To');
     const referencesHeader = getHeader('References');
+
+    // Idempotenz: Postmark retried Webhooks bei Timeout (langer Claude-Call).
+    // Wenn wir die message_id schon kennen, war der Webhook schon erfolgreich –
+    // 200 zurückgeben, damit Postmark sich beruhigt, ohne erneut zu klassifizieren.
+    if (messageId) {
+      const { data: dupNachricht } = await supabaseAdmin
+        .from('nachrichten')
+        .select('id, anfrage_id')
+        .eq('message_id', messageId)
+        .maybeSingle();
+
+      if (dupNachricht) {
+        console.log(
+          `↺ Duplikat erkannt (messageId=${messageId}, anfrage=${dupNachricht.anfrage_id}) – Skip`
+        );
+        return NextResponse.json({
+          success: true,
+          duplicate: true,
+          anfrage_id: dupNachricht.anfrage_id,
+        });
+      }
+    }
 
     // Sammle ALLE möglichen Threading-IDs (References + In-Reply-To).
     // Postmark transformiert beim Versand die Message-ID auf @mtasv.net,
@@ -230,6 +254,25 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (nachrichtInsertError || !neueNachricht) {
+      // Race-Detection: zweiter Postmark-Webhook hat Pre-Check und UNIQUE
+      // gleichzeitig passiert. Erster ist durch, wir sind der zweite und
+      // dürfen NICHT weiterklassifizieren – sonst doppelter Entwurf trotz Schutz.
+      const isUniqueViolation =
+        nachrichtInsertError?.code === '23505' &&
+        (nachrichtInsertError.message?.includes('nachrichten_message_id_uniq') ||
+          nachrichtInsertError.message?.includes('message_id'));
+
+      if (isUniqueViolation) {
+        console.log(
+          `↺ Race erkannt: nachricht_insert UNIQUE-Violation für ${messageId} – Skip`
+        );
+        return NextResponse.json({
+          success: true,
+          duplicate: true,
+          anfrage_id: anfrageId,
+        });
+      }
+
       console.error('Nachricht-Insert fehlgeschlagen:', nachrichtInsertError);
       await supabaseAdmin.from('processing_errors').insert({
         betrieb_id: betrieb.id,
@@ -252,7 +295,14 @@ export async function POST(req: NextRequest) {
         const content = att.Content;
 
         let res: { success: boolean; error?: string };
-        if (storagePath) {
+        if (att._upload_failed) {
+          // Edge-Proxy hat den Upload schon versucht und gemeldet.
+          // Wir loggen das, machen aber keinen erneuten Versuch.
+          res = {
+            success: false,
+            error: `Edge-Proxy-Upload fehlgeschlagen: ${att._upload_error || 'unbekannt'}`,
+          };
+        } else if (storagePath) {
           res = await verlinkeAnhang(
             {
               name: att.Name,
@@ -291,6 +341,41 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // SCHRITT 2a: KI-Kosten-Soft-Cap (50 Analysen pro Betrieb pro Stunde).
+    // Schützt vor Loop-Bugs, kompromittierten Inboxen, Spam-Wellen die die
+    // Anthropic-Rechnung explodieren lassen würden. Pragmatisch: einfache
+    // DB-Query, kein Redis nötig für Pilot-Phase.
+    const eineStundeZurueck = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count: analysenLetzteStunde } = await supabaseAdmin
+      .from('analysen')
+      .select('id', { count: 'exact', head: true })
+      .eq('betrieb_id', betrieb.id)
+      .gte('analysiert_am', eineStundeZurueck);
+
+    if ((analysenLetzteStunde ?? 0) >= 50) {
+      console.warn(
+        `KI-Cap überschritten für Betrieb ${betrieb.id}: ${analysenLetzteStunde} Analysen in 60 Min → skip`
+      );
+      await supabaseAdmin.from('processing_errors').insert({
+        betrieb_id: betrieb.id,
+        anfrage_id: anfrageId,
+        schritt: 'ki_kosten_cap',
+        fehler_text: `KI-Cap überschritten: ${analysenLetzteStunde} Analysen/h. Mail liegt in 'manuell_pruefen' ohne Klassifikation/Entwurf.`,
+        fehler_details: { cap: 50, ist_reply: istReply, von_email: vonEmail },
+      });
+      await supabaseAdmin
+        .from('anfragen')
+        .update({ status: istReply ? 'reply_eingegangen' : 'manuell_pruefen' })
+        .eq('id', anfrageId);
+
+      return NextResponse.json({
+        success: true,
+        anfrage_id: anfrageId,
+        ist_reply: istReply,
+        ki_cap: true,
+      });
+    }
+
     // SCHRITT 2: Klassifikation
     const { data: anfrageFuerKlass } = await supabaseAdmin
       .from('anfragen')
@@ -324,6 +409,20 @@ export async function POST(req: NextRequest) {
 
     if (!klassRes.success) {
       console.error(`✗ Klassifikation fehlgeschlagen: ${klassRes.error}`);
+      // KI down / kaputt – Anfrage darf nicht im Nirvana hängen.
+      // Status auf 'manuell_pruefen' + Eintrag in Diagnose, damit Max es sieht.
+      await supabaseAdmin.from('processing_errors').insert({
+        betrieb_id: betrieb.id,
+        anfrage_id: anfrageId,
+        schritt: 'klassifikation',
+        fehler_text: klassRes.error || 'Klassifikation ohne Fehlertext fehlgeschlagen',
+        fehler_details: { ist_reply: istReply, von_email: vonEmail, betreff },
+      });
+      await supabaseAdmin
+        .from('anfragen')
+        .update({ status: istReply ? 'reply_eingegangen' : 'manuell_pruefen' })
+        .eq('id', anfrageId);
+
       return NextResponse.json({
         success: true,
         anfrage_id: anfrageId,
@@ -369,7 +468,7 @@ export async function POST(req: NextRequest) {
 
     if (klass?.kategorie === 'kundenanfrage') {
       // IMMER Entwurf bauen für Kundenanfragen – egal ob passt, unklar, passt_nicht
-      const { data: klassifikation } = await supabaseAdmin
+      const { data: klassifikation, error: klassifikationError } = await supabaseAdmin
         .from('analysen')
         .select('*')
         .eq('anfrage_id', anfrageId)
@@ -377,7 +476,21 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .single();
 
-      if (klassifikation) {
+      if (!klassifikation) {
+        // Race-Condition: Analyse wurde gerade in klassifiziereAnfrage
+        // geschrieben, aber Re-Read findet sie nicht. Statt still zu fallen –
+        // loggen und Status auf manuell_pruefen setzen.
+        console.error('Analyse nach Klassifikation nicht lesbar:', klassifikationError);
+        await supabaseAdmin.from('processing_errors').insert({
+          betrieb_id: betrieb.id,
+          anfrage_id: anfrageId,
+          schritt: 'analyse_re_read',
+          fehler_text: klassifikationError?.message || 'Analyse-Re-Read returned null',
+          fehler_details: { kategorie: klass.kategorie },
+        });
+        entwurfStatus = 'fehlgeschlagen';
+        neuerStatus = 'manuell_pruefen';
+      } else {
         // Bei Replies den kompletten Thread laden, damit die KI auf die LETZTE
         // Kunden-Nachricht reagieren kann statt blind die Ursprungs-Anfrage
         // nochmal zu beantworten.
@@ -443,6 +556,15 @@ export async function POST(req: NextRequest) {
           }
         } else {
           console.error(`✗ Entwurf fehlgeschlagen: ${entwurfRes.error}`);
+          // Entwurf konnte nicht gebaut werden – Max muss manuell antworten.
+          // Diagnose-Eintrag, damit es nicht still im Hintergrund verschwindet.
+          await supabaseAdmin.from('processing_errors').insert({
+            betrieb_id: betrieb.id,
+            anfrage_id: anfrageId,
+            schritt: 'entwurf_generierung',
+            fehler_text: entwurfRes.error || 'Entwurf-Generierung ohne Fehlertext',
+            fehler_details: { kategorie: klass.kategorie, gewerk_match: klass.gewerk_match },
+          });
           entwurfStatus = 'fehlgeschlagen';
           neuerStatus = 'manuell_pruefen';
         }

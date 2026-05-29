@@ -91,7 +91,14 @@ export async function sendMail(opts: SendMailOptions): Promise<SendMailResult> {
     headers.push({ Name: 'In-Reply-To', Value: opts.inReplyTo });
   }
   if (opts.references && opts.references.length > 0) {
-    headers.push({ Name: 'References', Value: opts.references.join(' ') });
+    // RFC 5322 hat eine Soft-Length-Empfehlung von 78 Zeichen pro Zeile und
+    // einen Hard-Limit von 998. SMTP-Server droppen oft lange Headers.
+    // Bei langen Threads (10+ Hin-und-Her) hier capen – wir behalten die
+    // letzten 10 IDs (chronologisch, der Originalfaden ist meist erste).
+    const cappedReferences = opts.references.length > 10
+      ? [opts.references[0], ...opts.references.slice(-9)]
+      : opts.references;
+    headers.push({ Name: 'References', Value: cappedReferences.join(' ') });
   }
 
   const payload: Record<string, unknown> = {

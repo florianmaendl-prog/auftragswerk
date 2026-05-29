@@ -3,6 +3,21 @@ import { createClient } from '@/lib/supabase-server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 /**
+ * Akzeptiert nur parsebare Datums-Strings im sinnvollen Range (Jahr 2020
+ * bis +5 Jahre ab heute). Schützt vor 'not-a-date'-Crashes und Tippfehlern
+ * wie 2099/1900. Rückgabe: ISO-String oder null bei invalid.
+ */
+function parseTerminDatum(input: unknown): string | null {
+  if (typeof input !== 'string' || !input.trim()) return null;
+  const d = new Date(input);
+  if (isNaN(d.getTime())) return null;
+  const jahr = d.getUTCFullYear();
+  const maxJahr = new Date().getUTCFullYear() + 5;
+  if (jahr < 2020 || jahr > maxJahr) return null;
+  return d.toISOString();
+}
+
+/**
  * POST /api/termine
  * Body: {
  *   anfrage_id?,                     // OPTIONAL – wenn null: Standalone-Termin
@@ -71,20 +86,44 @@ export async function POST(req: NextRequest) {
 
     const status = direktBestaetigen ? 'bestaetigt' : 'vorgeschlagen';
 
-    const rows = slots
-      .filter((s) => s.datum && s.datum.trim().length > 0)
-      .map((s) => ({
+    // Validierung pro Slot: Datum parsebar + im sinnvollen Range
+    const rows: Array<{
+      anfrage_id: string | null;
+      betrieb_id: string;
+      datum: string;
+      dauer_min: number;
+      ort: string | null;
+      notiz: string | null;
+      status: string;
+    }> = [];
+    const invalidGruende: string[] = [];
+
+    for (const s of slots) {
+      const datumIso = parseTerminDatum(s.datum);
+      if (!datumIso) {
+        invalidGruende.push(`"${s.datum}" ist kein gültiges Datum (Jahr 2020 bis +5 Jahre)`);
+        continue;
+      }
+      rows.push({
         anfrage_id: anfrageId ?? null,
         betrieb_id: betriebId,
-        datum: new Date(s.datum).toISOString(),
+        datum: datumIso,
         dauer_min: s.dauer_min ?? 60,
         ort: s.ort?.trim() || null,
         notiz: s.notiz?.trim() || null,
         status,
-      }));
+      });
+    }
 
     if (rows.length === 0) {
-      return NextResponse.json({ error: 'Kein gültiger Slot übergeben' }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: invalidGruende.length > 0
+            ? `Kein gültiger Slot: ${invalidGruende.join('; ')}`
+            : 'Kein gültiger Slot übergeben',
+        },
+        { status: 400 }
+      );
     }
 
     const { data: inserted, error } = await supabaseAdmin
@@ -164,7 +203,14 @@ export async function PATCH(req: NextRequest) {
     if (action === 'bearbeiten') {
       const update: Record<string, string | null> = {};
       if (typeof body.datum === 'string' && body.datum) {
-        update.datum = new Date(body.datum).toISOString();
+        const datumIso = parseTerminDatum(body.datum);
+        if (!datumIso) {
+          return NextResponse.json(
+            { error: `"${body.datum}" ist kein gültiges Datum (Jahr 2020 bis +5 Jahre)` },
+            { status: 400 }
+          );
+        }
+        update.datum = datumIso;
       }
       if (typeof body.ort !== 'undefined') {
         update.ort = (body.ort ? String(body.ort).trim() : '') || null;

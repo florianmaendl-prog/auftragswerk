@@ -62,6 +62,54 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (entwurf.status === 'in_versand') {
+      return NextResponse.json(
+        { error: 'Entwurf wird gerade versendet' },
+        { status: 409 }
+      );
+    }
+
+    // 3b. Atomaren Lock setzen: Status auf 'in_versand' nur wenn er das nicht
+    //     schon ist. Zweiter Klick / paralleler Request kriegt 0 rows → 409.
+    //     Schützt davor dass Postmark zweimal feuert wenn die DB-Updates später
+    //     stocken.
+    const vorigerStatus = entwurf.status;
+    const { data: lockedRows, error: lockError } = await supabaseAdmin
+      .from('entwuerfe')
+      .update({
+        status: 'in_versand',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', entwurf.id)
+      .neq('status', 'versendet')
+      .neq('status', 'in_versand')
+      .select('id');
+
+    if (lockError) {
+      console.error('Versand-Lock fehlgeschlagen:', lockError);
+      return NextResponse.json(
+        { error: 'Lock-Fehler', details: lockError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!lockedRows || lockedRows.length === 0) {
+      return NextResponse.json(
+        { error: 'Entwurf wird gerade versendet oder ist schon raus' },
+        { status: 409 }
+      );
+    }
+
+    // Helper: bei jedem späteren Fehler den Lock wieder lösen
+    const entwurfIdForUnlock = entwurf.id;
+    async function unlock() {
+      await supabaseAdmin
+        .from('entwuerfe')
+        .update({ status: vorigerStatus, updated_at: new Date().toISOString() })
+        .eq('id', entwurfIdForUnlock)
+        .eq('status', 'in_versand');
+    }
+
     // 4. Anfrage holen
     const { data: anfrage } = await supabase
       .from('anfragen')
@@ -70,6 +118,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (!anfrage) {
+      await unlock();
       return NextResponse.json({ error: 'Anfrage nicht gefunden' }, { status: 404 });
     }
 
@@ -142,6 +191,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!sendResult.success) {
+      await unlock();
       await supabaseAdmin.from('processing_errors').insert({
         betrieb_id: entwurf.betrieb_id,
         schritt: 'versand',
@@ -205,8 +255,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 12. Entwurf-Status updaten
-    await supabaseAdmin
+    // 12. Entwurf-Status updaten → 'versendet' (löst den 'in_versand'-Lock).
+    //     Mail ist schon raus, also bei Fehler nur loggen, NICHT 500 zurückgeben –
+    //     sonst klickt Max nochmal und Kunde kriegt 2 Mails.
+    const { error: entwurfUpdateError } = await supabaseAdmin
       .from('entwuerfe')
       .update({
         status: 'versendet',
@@ -216,11 +268,32 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', entwurf.id);
 
+    if (entwurfUpdateError) {
+      console.error('KRITISCH: Mail raus aber entwuerfe-Update failed:', entwurfUpdateError);
+      await supabaseAdmin.from('processing_errors').insert({
+        betrieb_id: entwurf.betrieb_id,
+        anfrage_id: anfrage.id,
+        schritt: 'versand_status_update',
+        fehler_text: `Mail an ${anfrage.von_email} versendet (Postmark ${sendResult.postmarkMessageId}), aber entwuerfe-Update fehlgeschlagen: ${entwurfUpdateError.message}`,
+        fehler_details: { entwurf_id: entwurf.id, postmark_id: sendResult.postmarkMessageId },
+      });
+    }
+
     // 13. Anfrage-Status updaten → 'versendet'
-    await supabaseAdmin
+    const { error: anfrageUpdateError } = await supabaseAdmin
       .from('anfragen')
       .update({ status: 'versendet' })
       .eq('id', anfrage.id);
+
+    if (anfrageUpdateError) {
+      console.error('Anfrage-Status-Update failed:', anfrageUpdateError);
+      await supabaseAdmin.from('processing_errors').insert({
+        betrieb_id: entwurf.betrieb_id,
+        anfrage_id: anfrage.id,
+        schritt: 'versand_anfrage_status',
+        fehler_text: anfrageUpdateError.message,
+      });
+    }
 
     console.log(
       `✓ Mail versendet: ${sendResult.postmarkMessageId} an ${anfrage.von_email} ` +

@@ -219,6 +219,7 @@ export function ProfilForm({
             value={data.signatur}
             onChange={(e) => setData({ ...data, signatur: e.target.value })}
             rows={6}
+            maxLength={5000}
             placeholder={`Mit freundlichen Grüßen\nMax Mustermann\nMetallbau Max\n...`}
             className="font-sans"
           />
@@ -251,7 +252,7 @@ export function ProfilForm({
         <div className="flex items-center justify-between gap-4 rounded-md border bg-background px-4 py-3 shadow-md">
           <div className="flex-1 text-sm">
             {saveStatus === 'saved' && (
-              <span className="text-green-600 font-medium">✓ Gespeichert</span>
+              <span className="text-green-600 font-medium">Gespeichert</span>
             )}
             {saveStatus === 'error' && (
               <span className="text-destructive">
@@ -357,6 +358,7 @@ function ListEditor({
               }
             }}
             placeholder={placeholder}
+            maxLength={500}
             className="flex-1"
           />
           <Button variant="outline" size="sm" onClick={add} disabled={!draft.trim()}>
@@ -432,7 +434,7 @@ function TonbeispieleEditor({
                   {preview(item)}
                 </span>
                 <span className="text-xs text-muted-foreground flex-shrink-0">
-                  {isExpanded ? '▴ einklappen' : '▾ bearbeiten'}
+                  {isExpanded ? 'einklappen' : 'bearbeiten'}
                 </span>
               </button>
               {isExpanded && (
@@ -441,6 +443,7 @@ function TonbeispieleEditor({
                     value={item}
                     onChange={(e) => update(idx, e.target.value)}
                     rows={Math.max(6, Math.min(20, item.split('\n').length + 1))}
+                    maxLength={3000}
                     className="font-sans"
                   />
                   <div className="flex justify-end">
@@ -466,7 +469,13 @@ function TonbeispieleEditor({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           rows={6}
-          placeholder={`Servus Herr ...,\n\nvielen Dank für Ihre Anfrage. ...\n\nBeste Grüße\nMax`}
+          maxLength={3000}
+          disabled={items.length >= 10}
+          placeholder={
+            items.length >= 10
+              ? 'Maximum von 10 Stilbeispielen erreicht – ältere entfernen für neue.'
+              : `Servus Herr ...,\n\nvielen Dank für Ihre Anfrage. ...\n\nBeste Grüße\nMax`
+          }
           className="font-sans"
         />
         <div className="flex justify-end">

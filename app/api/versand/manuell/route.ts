@@ -40,6 +40,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Schutz gegen DB-Bloat + Postmark-Limits + KI-Token-Explosion
+    if (betreff.length > 500) {
+      return NextResponse.json(
+        { error: 'Betreff zu lang (max 500 Zeichen)' },
+        { status: 400 }
+      );
+    }
+    if (bodyText.length > 50000) {
+      return NextResponse.json(
+        { error: 'Nachricht zu lang (max 50.000 Zeichen)' },
+        { status: 400 }
+      );
+    }
+
     // Anfrage holen (RLS prüft Zugriff)
     const { data: anfrage, error: anfrageError } = await supabase
       .from('anfragen')
@@ -49,6 +63,29 @@ export async function POST(req: NextRequest) {
 
     if (anfrageError || !anfrage) {
       return NextResponse.json({ error: 'Anfrage nicht gefunden' }, { status: 404 });
+    }
+
+    // Serverseitiger Doppelklick-Schutz: wurde in den letzten 5 Sekunden
+    // schon eine Ausgangsnachricht für diese anfrage_id geschrieben?
+    // (Manuell-Versand hat keinen Entwurf-Status für atomaren Lock, also
+    // zeitbasiert.) Schützt vor Doppelklick + Browser-Reload + Multi-Tab.
+    const fuenfSekundenZurueck = new Date(Date.now() - 5000).toISOString();
+    const { data: recentSends } = await supabaseAdmin
+      .from('nachrichten')
+      .select('id, versendet_am')
+      .eq('anfrage_id', anfrage.id)
+      .eq('typ', 'ausgang')
+      .gte('versendet_am', fuenfSekundenZurueck)
+      .limit(1);
+
+    if (recentSends && recentSends.length > 0) {
+      console.log(
+        `↺ Doppelklick-Schutz: vor <5s wurde schon eine Mail für anfrage=${anfrage.id} versendet`
+      );
+      return NextResponse.json(
+        { error: 'Es wurde gerade schon eine Mail versendet – bitte kurz warten' },
+        { status: 409 }
+      );
     }
 
     // Betrieb holen (mit Custom-Sender-Feldern)
@@ -134,7 +171,7 @@ export async function POST(req: NextRequest) {
     // Nachricht in Thread speichern
     const versendetAm = new Date().toISOString();
 
-    const { data: ausgangNachricht } = await supabaseAdmin
+    const { data: ausgangNachricht, error: ausgangError } = await supabaseAdmin
       .from('nachrichten')
       .insert({
         anfrage_id: anfrage.id,
@@ -154,6 +191,17 @@ export async function POST(req: NextRequest) {
       })
       .select('id')
       .single();
+
+    if (ausgangError) {
+      console.error('KRITISCH: Mail raus aber nachrichten-Insert failed:', ausgangError);
+      await supabaseAdmin.from('processing_errors').insert({
+        betrieb_id: anfrage.betrieb_id,
+        anfrage_id: anfrage.id,
+        schritt: 'versand_manuell_threading',
+        fehler_text: `Mail an ${anfrage.von_email} versendet (Postmark ${sendResult.postmarkMessageId}), aber nachrichten-Insert fehlgeschlagen: ${ausgangError.message}`,
+        fehler_details: { postmark_id: sendResult.postmarkMessageId, message_id: sendResult.messageId },
+      });
+    }
 
     // Outbound-Anhänge in Storage + anhaenge speichern (verlinkt zur Ausgang-Nachricht)
     if (ausgangNachricht && anhaenge.length > 0) {
@@ -177,10 +225,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Anfrage-Status auf 'versendet' setzen (warten auf Kunde)
-    await supabaseAdmin
+    const { error: anfrageStatusError } = await supabaseAdmin
       .from('anfragen')
       .update({ status: 'versendet' })
       .eq('id', anfrage.id);
+
+    if (anfrageStatusError) {
+      console.error('Anfrage-Status-Update failed:', anfrageStatusError);
+      await supabaseAdmin.from('processing_errors').insert({
+        betrieb_id: anfrage.betrieb_id,
+        anfrage_id: anfrage.id,
+        schritt: 'versand_manuell_status',
+        fehler_text: anfrageStatusError.message,
+      });
+    }
 
     console.log(
       `✓ Manuelle Antwort versendet: ${sendResult.postmarkMessageId} an ${anfrage.von_email} ` +

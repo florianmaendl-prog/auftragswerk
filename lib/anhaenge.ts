@@ -58,6 +58,17 @@ export async function speichereAnhang(
     });
 
     if (insertError) {
+      // Storage hat die Datei – aber wir haben keine DB-Referenz mehr.
+      // Best-effort cleanup, damit der Bucket nicht mit Orphans volläuft.
+      // Fehler beim Remove ignorieren wir, das ist nur Hygiene.
+      const { error: removeError } = await supabaseAdmin.storage
+        .from('anhaenge')
+        .remove([path]);
+      if (removeError) {
+        console.warn(
+          `Orphan-Cleanup für ${path} fehlgeschlagen (nicht-blockend): ${removeError.message}`
+        );
+      }
       return { success: false, error: `metadata-insert: ${insertError.message}` };
     }
 

@@ -129,6 +129,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ist meist klein weil eh kein matchender Betrieb existiert).
   if (betriebId && attachments.length > 0) {
     for (const att of attachments) {
+      // CRITICAL: bei JEDEM Pfad muss att.Content am Ende weg – sonst leakt die
+      // base64-Payload weiter zu Vercel, sprengt das 4.5 MB-Limit, 413,
+      // Postmark-Retry-Loop, Anfrage kommt nie an.
       try {
         if (!att.Content) continue;
         const safeName = sanitizeFilename(att.Name);
@@ -148,6 +151,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         if (uploadError) {
           console.error(`Proxy-Upload fehlgeschlagen (${att.Name}):`, uploadError.message);
+          // Content trotzdem entfernen + Failure-Marker setzen, damit Vercel
+          // den Fehler loggen kann ohne dass die Payload explodiert.
+          att._upload_failed = true;
+          att._upload_error = uploadError.message;
+          delete att.Content;
           failed++;
           continue;
         }
@@ -159,6 +167,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'unbekannt';
         console.error(`Proxy-Anhang-Fehler (${att?.Name}):`, msg);
+        // Wenn der catch-Pfad erreicht wird, ist Content evtl. noch da → raus damit.
+        if (att) {
+          att._upload_failed = true;
+          att._upload_error = msg;
+          delete att.Content;
+        }
         failed++;
       }
     }
@@ -168,7 +182,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     `📩 Proxy: betrieb=${betriebId ?? 'unknown'}, anhänge=${attachments.length}, uploaded=${uploaded}, failed=${failed}`
   );
 
-  // "Lite" Payload an Vercel weiterleiten – mit gleichem Basic-Auth
+  // "Lite" Payload an Vercel weiterleiten – mit gleichem Basic-Auth.
+  // Timeout 25s damit der Deno-Edge nicht unkontrolliert hängt wenn Vercel down
+  // ist (Postmark würde sonst auf Postmark-Side timeouten und retrien → Loop).
   const credentials = btoa(`${INBOUND_WEBHOOK_USER}:${INBOUND_WEBHOOK_PASS}`);
   let vercelRes: Response;
   try {
@@ -179,13 +195,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
         Authorization: `Basic ${credentials}`,
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(25000),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unbekannt';
-    console.error('Proxy-Forward an Vercel fehlgeschlagen:', msg);
-    return new Response(JSON.stringify({ error: `Forward fehlgeschlagen: ${msg}` }), {
-      status: 502,
-    });
+    const isTimeout = err instanceof DOMException && err.name === 'TimeoutError';
+    console.error(
+      `Proxy-Forward an Vercel ${isTimeout ? 'TIMEOUT' : 'fehlgeschlagen'}:`,
+      msg
+    );
+    return new Response(
+      JSON.stringify({ error: `Forward ${isTimeout ? 'timeout' : 'fehlgeschlagen'}: ${msg}` }),
+      { status: 502 }
+    );
   }
 
   const responseBody = await vercelRes.text();

@@ -8,7 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { fileToBase64Payload, formatBytes } from '@/lib/files';
+import { fileToBase64Payload, formatBytes, validateAttachments } from '@/lib/files';
+import { HugeiconsIcon } from '@hugeicons/react';
+import {
+  FileAttachmentIcon,
+  CancelCircleIcon,
+  CheckmarkCircle02Icon,
+  Idea01Icon,
+} from '@hugeicons/core-free-icons';
 
 type Entwurf = {
   id: string;
@@ -43,7 +50,7 @@ export default function EntwurfEditor({
     betreff !== entwurf.betreff_vorschlag || body !== entwurf.body_text;
   const istBusy = saving || sending;
 
-  async function handleSave() {
+  async function handleSave(): Promise<boolean> {
     setSaving(true);
     setError(null);
 
@@ -58,21 +65,26 @@ export default function EntwurfEditor({
       })
       .eq('id', entwurf.id);
 
+    setSaving(false);
+
     if (updateError) {
       setError(updateError.message);
-    } else {
-      setSavedAt(new Date());
-      router.refresh();
+      return false;
     }
 
-    setSaving(false);
+    setSavedAt(new Date());
+    router.refresh();
+    return true;
   }
 
   async function handleSend() {
     if (istBusy || istVersendet) return; // Doppelklick-Schutz
 
+    // Wenn der User Änderungen am Entwurf hat, muss der Save klappen –
+    // sonst würde die ALTE Version rausgehen und die Bearbeitung wäre weg.
     if (hatAenderungen) {
-      await handleSave();
+      const saved = await handleSave();
+      if (!saved) return;
     }
 
     setSending(true);
@@ -100,9 +112,9 @@ export default function EntwurfEditor({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Versand fehlgeschlagen');
+    } finally {
+      setSending(false);
     }
-
-    setSending(false);
   }
 
   return (
@@ -130,6 +142,7 @@ export default function EntwurfEditor({
             value={betreff}
             onChange={(e) => setBetreff(e.target.value)}
             disabled={istBusy || istVersendet}
+            maxLength={500}
           />
         </div>
 
@@ -140,6 +153,7 @@ export default function EntwurfEditor({
             onChange={(e) => setBody(e.target.value)}
             rows={18}
             disabled={istBusy || istVersendet}
+            maxLength={50000}
             className="font-sans text-sm leading-relaxed"
           />
         </div>
@@ -152,8 +166,15 @@ export default function EntwurfEditor({
               multiple
               onChange={(e) => {
                 const selected = Array.from(e.target.files || []);
-                if (selected.length > 0) setFiles((prev) => [...prev, ...selected]);
                 e.target.value = '';
+                if (selected.length === 0) return;
+                const check = validateAttachments(selected, files);
+                if (!check.ok) {
+                  setError(check.fehler);
+                  return;
+                }
+                setError(null);
+                setFiles((prev) => [...prev, ...check.files]);
               }}
               disabled={istBusy}
               className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-accent"
@@ -165,8 +186,13 @@ export default function EntwurfEditor({
                     key={`${file.name}-${idx}`}
                     className="flex items-center justify-between text-xs rounded-md border border-input bg-muted/30 px-2 py-1.5"
                   >
-                    <span className="truncate">
-                      📎 {file.name}{' '}
+                    <span className="truncate flex items-center gap-1.5">
+                      <HugeiconsIcon
+                        icon={FileAttachmentIcon}
+                        size={12}
+                        strokeWidth={1.5}
+                      />
+                      {file.name}{' '}
                       <span className="text-muted-foreground">
                         ({formatBytes(file.size)})
                       </span>
@@ -178,7 +204,11 @@ export default function EntwurfEditor({
                       className="ml-2 text-muted-foreground hover:text-destructive disabled:opacity-50"
                       aria-label="Anhang entfernen"
                     >
-                      ✕
+                      <HugeiconsIcon
+                        icon={CancelCircleIcon}
+                        size={14}
+                        strokeWidth={1.5}
+                      />
                     </button>
                   </li>
                 ))}
@@ -189,7 +219,14 @@ export default function EntwurfEditor({
 
         {entwurf.interne_notiz && (
           <div className="rounded-md border bg-muted/30 p-3 text-xs">
-            <p className="font-medium text-muted-foreground mb-1">💡 Interne KI-Notiz</p>
+            <p className="font-medium text-muted-foreground mb-1 flex items-center gap-1.5">
+              <HugeiconsIcon
+                icon={Idea01Icon}
+                size={12}
+                strokeWidth={1.5}
+              />
+              Interne KI-Notiz
+            </p>
             <p className="leading-relaxed">{entwurf.interne_notiz}</p>
           </div>
         )}
@@ -201,8 +238,13 @@ export default function EntwurfEditor({
         )}
 
         {sentAt && (
-          <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-            ✓ Mail erfolgreich versendet um {sentAt.toLocaleTimeString('de-DE')}
+          <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800 flex items-center gap-2">
+            <HugeiconsIcon
+              icon={CheckmarkCircle02Icon}
+              size={16}
+              strokeWidth={2}
+            />
+            Mail erfolgreich versendet um {sentAt.toLocaleTimeString('de-DE')}
           </div>
         )}
 

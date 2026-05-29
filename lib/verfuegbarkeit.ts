@@ -56,32 +56,47 @@ export async function getFreieSlots(
   const endIso = new Date(endMs).toISOString();
   const fromIso = new Date(startMs).toISOString();
 
+  // WICHTIG: ALLE drei Queries müssen den error auswerten und werfen.
+  // Wenn wir bei einem DB-Fehler still mit [] weitermachen, schlägt die KI
+  // dem Kunden BELEGTE Slots vor – sichtbarer Vertrauens-Bug. Lieber keine
+  // Slots als falsche. Aufrufer in /api/inbound hat schon einen try/catch
+  // um getFreieSlots und fällt auf "kein Slot-Vorschlag" zurück.
+
   // 1. Regeln laden
-  const { data: regelnData } = await supabaseAdmin
+  const { data: regelnData, error: regelnError } = await supabaseAdmin
     .from('verfuegbarkeit_regel')
     .select('wochentag, start_uhrzeit, ende_uhrzeit')
     .eq('betrieb_id', betriebId)
     .eq('aktiv', true);
+  if (regelnError) {
+    throw new Error(`verfuegbarkeit_regel-Query fehlgeschlagen: ${regelnError.message}`);
+  }
   const regeln = (regelnData as Regel[]) || [];
   if (regeln.length === 0) return [];
 
   // 2. Sperren im Zeitraum
-  const { data: sperrenData } = await supabaseAdmin
+  const { data: sperrenData, error: sperrenError } = await supabaseAdmin
     .from('verfuegbarkeit_sperre')
     .select('datum_von, datum_bis')
     .eq('betrieb_id', betriebId)
     .lte('datum_von', endIso)
     .gte('datum_bis', fromIso);
+  if (sperrenError) {
+    throw new Error(`verfuegbarkeit_sperre-Query fehlgeschlagen: ${sperrenError.message}`);
+  }
   const sperren = (sperrenData as Sperre[]) || [];
 
   // 3. Bestätigte Termine im Zeitraum
-  const { data: termineData } = await supabaseAdmin
+  const { data: termineData, error: termineError } = await supabaseAdmin
     .from('termine')
     .select('datum, dauer_min')
     .eq('betrieb_id', betriebId)
     .eq('status', 'bestaetigt')
     .gte('datum', fromIso)
     .lte('datum', endIso);
+  if (termineError) {
+    throw new Error(`termine-Query fehlgeschlagen: ${termineError.message}`);
+  }
   const termine = (termineData as BestaetigterTermin[]) || [];
 
   const slots: FreierSlot[] = [];
