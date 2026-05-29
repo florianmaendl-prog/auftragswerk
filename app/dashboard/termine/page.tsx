@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-server';
 import { Card, CardContent } from '@/components/ui/card';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { Location01Icon } from '@hugeicons/core-free-icons';
 
 type TerminRow = {
   id: string;
@@ -58,7 +60,10 @@ function TerminItem({ t }: { t: TerminRow }) {
                 {anfrage?.von_name || anfrage?.von_email}
               </p>
               {t.ort && (
-                <p className="text-xs text-muted-foreground mt-0.5">📍 {t.ort}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                  <HugeiconsIcon icon={Location01Icon} size={12} strokeWidth={1.5} />
+                  {t.ort}
+                </p>
               )}
             </div>
             <div className="flex-shrink-0">{statusBadge(t.status)}</div>
