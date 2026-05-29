@@ -166,16 +166,15 @@ export function GmailConnectionCard({
         {!initial && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Verbinde dein Gmail-Konto, damit Antworten aus deinem echten
-              Account versendet werden. Kein DKIM-Setup, kein DNS-Gefrickel –
-              ein Klick reicht.
+              Verbinde dein Gmail. Deine Antworten gehen dann aus deiner
+              gewohnten Mail-Adresse raus – wie immer. Ein Klick, fertig.
             </p>
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              <strong className="font-medium">Hinweis:</strong> Google zeigt
-              beim ersten Klick einen „Diese App ist nicht verifiziert"-Screen.
-              Klick dort auf <strong>„Erweitert"</strong> →{' '}
+              <strong className="font-medium">Beim ersten Klick:</strong> Google
+              zeigt eine Warnung „Diese App ist nicht verifiziert" – ist
+              normal. Klick auf <strong>„Erweitert"</strong> →{' '}
               <strong>„Auftragswerk (unsicher) öffnen"</strong>. Die App ist
-              sicher, befindet sich nur in der Google-Verifizierung.
+              sicher, läuft nur gerade durch die Google-Prüfung.
             </div>
             <Button asChild className="w-full sm:w-auto">
               <a href="/api/auth/google/start">Mit Gmail verbinden</a>
