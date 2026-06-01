@@ -110,6 +110,16 @@ export default function LoginPage() {
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? 'Anmelden...' : 'Anmelden'}
               </Button>
+
+              <p className="text-sm text-center text-muted-foreground pt-2 border-t border-border">
+                Noch keinen Account?{' '}
+                <Link
+                  href="/registrieren"
+                  className="text-foreground underline underline-offset-2 hover:no-underline"
+                >
+                  Jetzt anmelden
+                </Link>
+              </p>
             </form>
           </CardContent>
         </Card>
