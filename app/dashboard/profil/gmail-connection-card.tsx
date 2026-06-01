@@ -22,6 +22,13 @@ type GmailConnection = {
   letzter_fehler: string | null;
 };
 
+// Welle E.2: wenn inbound_email auf der Subdomain liegt, ist kein
+// Gmail-Forward-Filter mehr nötig – die Subdomain routet direkt zu
+// Postmark. Wir zeigen dann nur den sauberen Hinweis.
+function istSubdomainAdresse(email: string | null | undefined): boolean {
+  return Boolean(email && email.endsWith('@kunden.auftragswerk.app'));
+}
+
 /**
  * Card im Profil für die Gmail-OAuth-Verbindung. Drei sichtbare Zustände:
  *
@@ -34,8 +41,10 @@ type GmailConnection = {
  */
 export function GmailConnectionCard({
   initial,
+  inboundEmail,
 }: {
   initial: GmailConnection | null;
+  inboundEmail: string | null;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -111,6 +120,7 @@ export function GmailConnectionCard({
   const istVerbunden = initial && initial.status === 'aktiv';
   const istFehler =
     initial && (initial.status === 'fehler' || initial.status === 'widerrufen');
+  const hatSubdomainInbound = istSubdomainAdresse(inboundEmail);
 
   return (
     <Card>
@@ -139,7 +149,23 @@ export function GmailConnectionCard({
               </p>
             </div>
 
-            {anleitungDismissed ? (
+            {hatSubdomainInbound ? (
+              <div className="rounded-md border border-input bg-muted/30 p-3 text-xs text-foreground/80 space-y-1">
+                <p className="font-medium text-foreground">
+                  Kunden-Antworten landen automatisch in Auftragswerk
+                </p>
+                <p>
+                  Deine Inbound-Adresse:{' '}
+                  <span className="font-mono text-[0.75rem] bg-background rounded px-1.5 py-0.5 inline-block mt-0.5">
+                    {inboundEmail}
+                  </span>
+                </p>
+                <p className="text-muted-foreground pt-1">
+                  Antworten auf deine versendeten Mails kommen direkt hier im
+                  Dashboard an – kein Filter, keine Weiterleitung nötig.
+                </p>
+              </div>
+            ) : anleitungDismissed ? (
               <button
                 type="button"
                 onClick={showAnleitung}

@@ -82,6 +82,7 @@ export default async function ProfilPage() {
                 }
               : null
           }
+          inboundEmail={betrieb.inbound_email || null}
         />
       </div>
 
