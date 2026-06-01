@@ -63,9 +63,12 @@ export default async function Home() {
             Du arbeitest weiter.
           </h1>
           <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-10">
-            Auftragswerk liest deine Kundenmails, schreibt passende Antworten
-            vor und schlägt Termine vor. Aus deinem echten Gmail – als wärst
-            du selbst dran. Du gibst frei. Fertig.
+            Du musst nicht mehr abends am Laptop sitzen, um Mails zu
+            beantworten. Auftragswerk liest jede Kundenanfrage, schreibt
+            dir einen Antwortentwurf in deinem Ton und schlägt gleich
+            freie Termine vor. Du liest kurz drüber, klickst frei – fertig.
+            Versendet wird aus deinem normalen Mail-Postfach, deine Kunden
+            merken keinen Unterschied.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
             <Button asChild size="lg" className="w-full sm:w-auto gap-2">
