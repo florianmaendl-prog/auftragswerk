@@ -99,21 +99,61 @@ export function GmailConnectionCard({
       </CardHeader>
       <CardContent className="space-y-3">
         {istVerbunden && (
-          <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm">
-            <p className="font-medium text-green-900 flex items-center gap-2">
-              <HugeiconsIcon
-                icon={CheckmarkCircle02Icon}
-                size={16}
-                strokeWidth={2}
-              />
-              Verbunden als{' '}
-              <span className="font-mono text-xs">{initial!.google_email}</span>
-            </p>
-            <p className="text-xs text-green-800 mt-1">
-              Antworten werden aus deinem Gmail-Account versendet – Auftragswerk
-              ist für deine Kunden komplett unsichtbar.
-            </p>
-            <div className="mt-3">
+          <div className="space-y-3">
+            <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm">
+              <p className="font-medium text-green-900 flex items-center gap-2">
+                <HugeiconsIcon
+                  icon={CheckmarkCircle02Icon}
+                  size={16}
+                  strokeWidth={2}
+                />
+                Verbunden als{' '}
+                <span className="font-mono text-xs">{initial!.google_email}</span>
+              </p>
+              <p className="text-xs text-green-800 mt-1">
+                Antworten werden aus deinem Gmail-Account versendet – Auftragswerk
+                ist für deine Kunden komplett unsichtbar.
+              </p>
+            </div>
+
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-2">
+              <p className="font-medium">
+                Damit Kunden-Antworten zurück in Auftragswerk kommen:
+              </p>
+              <p>
+                Antworten landen automatisch in deinem Gmail. Damit sie
+                auch hier im Tool auftauchen, richte einmal einen Gmail-Filter ein:
+              </p>
+              <ol className="list-decimal pl-5 space-y-1">
+                <li>
+                  In Gmail: <strong>Einstellungen</strong> (Zahnrad) →{' '}
+                  <strong>Alle Einstellungen aufrufen</strong> →{' '}
+                  <strong>Filter und blockierte Adressen</strong> →{' '}
+                  <strong>Neuen Filter erstellen</strong>
+                </li>
+                <li>
+                  Feld <strong>Betreff</strong>: <code className="rounded bg-amber-100 px-1 py-0.5">AW:</code> (oder
+                  passendes Pattern für deine Antworten)
+                </li>
+                <li>
+                  <strong>Filter erstellen</strong> klicken →{' '}
+                  <strong>„Weiterleiten an"</strong> ankreuzen → die
+                  Auftragswerk-Inbound-Adresse hinzufügen + bestätigen
+                </li>
+              </ol>
+              <p className="pt-1">
+                Inbound-Adresse für die Weiterleitung:
+              </p>
+              <p className="font-mono text-[0.7rem] break-all bg-amber-100 rounded px-2 py-1">
+                22410d58b0879712e00751421bbe7f29@inbound.postmarkapp.com
+              </p>
+              <p className="pt-1 italic text-amber-800">
+                Bald nicht mehr nötig: wir bauen eine eigene Adresse pro Betrieb
+                (`max@kunden.auftragswerk.app`-Stil). Dann fällt dieser Schritt weg.
+              </p>
+            </div>
+
+            <div>
               <Button
                 variant="outline"
                 size="sm"

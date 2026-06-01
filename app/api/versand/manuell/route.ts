@@ -142,9 +142,16 @@ export async function POST(req: NextRequest) {
       .map((n) => n.message_id)
       .filter((id): id is string => Boolean(id));
 
-    // Reply-To Adresse
-    const replyToAddress =
-      betrieb?.inbound_email || process.env.POSTMARK_REPLY_TO || undefined;
+    // Reply-To-Hierarchie (Iron Rule 26: NIE die Postmark-Hex für Endkunden):
+    //    1. Gmail-OAuth aktiv → Gmail-Adresse des Owners
+    //    2. sender_verified → sender_email
+    //    3. betrieb.inbound_email (z.B. später kunden.auftragswerk.app)
+    //    4. POSTMARK_REPLY_TO-Fallback (nur Owner-Tests akzeptabel)
+    const replyToAddress = useGmail
+      ? gmailConn!.google_email
+      : useCustomSender
+      ? betrieb!.sender_email!
+      : betrieb?.inbound_email || process.env.POSTMARK_REPLY_TO || undefined;
     const replyToName = betrieb?.name || fromName;
 
     // Mail versenden – Gmail wenn aktiv, sonst Postmark.

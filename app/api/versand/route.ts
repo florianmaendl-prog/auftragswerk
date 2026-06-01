@@ -179,9 +179,22 @@ export async function POST(req: NextRequest) {
       .map((n) => n.message_id)
       .filter((id): id is string => Boolean(id));
 
-    // 9. Reply-To bestimmen (Postmark-Inbound-Adresse für Threading-Returns)
-    const replyToAddress =
-      betrieb?.inbound_email || process.env.POSTMARK_REPLY_TO || undefined;
+    // 9. Reply-To-Hierarchie (Iron Rule 26: NIE die Postmark-Hex für Endkunden):
+    //    1. Gmail-OAuth aktiv → Reply-To = Gmail-Adresse des Owners.
+    //       Antworten landen direkt in seinem Postfach. Owner muss in Gmail
+    //       einen Filter+Forward einrichten ("Subject AW: → forwarde an
+    //       Postmark-Hex"), damit die Antwort wieder in Auftragswerk landet.
+    //    2. sender_verified (Postmark Custom Sender) → Reply-To = sender_email
+    //       (saubere Geschäftsadresse).
+    //    3. betrieb.inbound_email → falls da eine echte Adresse hinterlegt
+    //       ist (z.B. später kunden.auftragswerk.app-Subdomain via Welle E.2).
+    //    4. Letzter Fallback POSTMARK_REPLY_TO – nur akzeptabel solange
+    //       Owner selbst testet, NICHT für Endkunden-Mails.
+    const replyToAddress = useGmail
+      ? gmailConn!.google_email
+      : useCustomSender
+      ? betrieb!.sender_email!
+      : betrieb?.inbound_email || process.env.POSTMARK_REPLY_TO || undefined;
     const replyToName = betrieb?.name || fromName;
 
     // 10. Mail versenden – Gmail wenn aktiv, sonst Postmark.
