@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase-server';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -235,6 +236,25 @@ export default async function InboxPage({
     .limit(500);
 
   const items = (alle as AnfrageWithJoins[]) || [];
+
+  // First-Run-Detection: brand-neuer User ohne irgendetwas → Wow-Onboarding.
+  // Sobald irgendein Schritt erledigt (Anfrage da, Gmail verbunden oder Regel
+  // angelegt), zeigen wir die Inbox normal (mit Empty-State falls leer).
+  // Wenn explizit ?tab=... gesetzt ist, hat der User schon was geklickt – kein
+  // Redirect mehr.
+  if (items.length === 0 && !params.tab) {
+    const [{ count: gmailCount }, { count: regelCount }] = await Promise.all([
+      supabase
+        .from('gmail_connections')
+        .select('id', { count: 'exact', head: true }),
+      supabase
+        .from('verfuegbarkeit_regel')
+        .select('id', { count: 'exact', head: true }),
+    ]);
+    if ((gmailCount ?? 0) === 0 && (regelCount ?? 0) === 0) {
+      redirect('/dashboard/willkommen');
+    }
+  }
 
   // Mini-Stats für die Top-Bar: Termine dieser Woche separat zählen
   const startWoche = getStartOfWeek();
