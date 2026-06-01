@@ -11,23 +11,13 @@ import {
   CheckmarkCircle02Icon,
   Alert02Icon,
   CancelCircleIcon,
-  HelpCircleIcon,
 } from '@hugeicons/core-free-icons';
-
-const ANLEITUNG_DISMISSED_KEY = 'auftragswerk:gmail-filter-anleitung-dismissed';
 
 type GmailConnection = {
   google_email: string;
   status: 'aktiv' | 'fehler' | 'widerrufen';
   letzter_fehler: string | null;
 };
-
-// Welle E.2: wenn inbound_email auf der Subdomain liegt, ist kein
-// Gmail-Forward-Filter mehr nötig – die Subdomain routet direkt zu
-// Postmark. Wir zeigen dann nur den sauberen Hinweis.
-function istSubdomainAdresse(email: string | null | undefined): boolean {
-  return Boolean(email && email.endsWith('@kunden.auftragswerk.app'));
-}
 
 /**
  * Card im Profil für die Gmail-OAuth-Verbindung. Drei sichtbare Zustände:
@@ -41,34 +31,12 @@ function istSubdomainAdresse(email: string | null | undefined): boolean {
  */
 export function GmailConnectionCard({
   initial,
-  inboundEmail,
 }: {
   initial: GmailConnection | null;
-  inboundEmail: string | null;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [busy, setBusy] = useState(false);
-  // Filter-Anleitung minimieren wenn User "Erledigt" geklickt hat.
-  // Persistiert in localStorage damit's nach Reload weg bleibt.
-  const [anleitungDismissed, setAnleitungDismissed] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (window.localStorage.getItem(ANLEITUNG_DISMISSED_KEY) === '1') {
-      setAnleitungDismissed(true);
-    }
-  }, []);
-
-  function dismissAnleitung() {
-    setAnleitungDismissed(true);
-    window.localStorage.setItem(ANLEITUNG_DISMISSED_KEY, '1');
-  }
-
-  function showAnleitung() {
-    setAnleitungDismissed(false);
-    window.localStorage.removeItem(ANLEITUNG_DISMISSED_KEY);
-  }
 
   // OAuth-Callback-Feedback verarbeiten + URL bereinigen
   useEffect(() => {
@@ -120,7 +88,6 @@ export function GmailConnectionCard({
   const istVerbunden = initial && initial.status === 'aktiv';
   const istFehler =
     initial && (initial.status === 'fehler' || initial.status === 'widerrufen');
-  const hatSubdomainInbound = istSubdomainAdresse(inboundEmail);
 
   return (
     <Card>
@@ -149,105 +116,18 @@ export function GmailConnectionCard({
               </p>
             </div>
 
-            {hatSubdomainInbound ? (
-              <div className="rounded-md border border-input bg-muted/30 p-3 text-xs text-foreground/80 space-y-1">
-                <p className="font-medium text-foreground">
-                  Kunden-Antworten landen automatisch in Auftragswerk
-                </p>
-                <p>
-                  Deine Inbound-Adresse:{' '}
-                  <span className="font-mono text-[0.75rem] bg-background rounded px-1.5 py-0.5 inline-block mt-0.5">
-                    {inboundEmail}
-                  </span>
-                </p>
-                <p className="text-muted-foreground pt-1">
-                  Antworten auf deine versendeten Mails kommen direkt hier im
-                  Dashboard an – kein Filter, keine Weiterleitung nötig.
-                </p>
-              </div>
-            ) : anleitungDismissed ? (
-              <button
-                type="button"
-                onClick={showAnleitung}
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <HugeiconsIcon
-                  icon={HelpCircleIcon}
-                  size={14}
-                  strokeWidth={1.5}
-                />
-                Gmail-Filter-Anleitung wieder anzeigen
-              </button>
-            ) : (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="font-medium">
-                    Damit Kunden-Antworten zurück in Auftragswerk kommen:
-                  </p>
-                  <button
-                    type="button"
-                    onClick={dismissAnleitung}
-                    aria-label="Anleitung schließen"
-                    title="Filter ist eingerichtet – Anleitung schließen"
-                    className="flex-shrink-0 -mt-0.5 -mr-1 rounded p-1 text-amber-700 hover:bg-amber-100 hover:text-amber-900 transition-colors"
-                  >
-                    <HugeiconsIcon
-                      icon={CancelCircleIcon}
-                      size={16}
-                      strokeWidth={1.5}
-                    />
-                  </button>
-                </div>
-                <p>
-                  Antworten landen automatisch in deinem Gmail. Damit sie
-                  auch hier im Tool auftauchen, richte einmal einen Gmail-Filter ein:
-                </p>
-                <ol className="list-decimal pl-5 space-y-1">
-                  <li>
-                    In Gmail: <strong>Einstellungen</strong> (Zahnrad) →{' '}
-                    <strong>Alle Einstellungen aufrufen</strong> →{' '}
-                    <strong>Filter und blockierte Adressen</strong> →{' '}
-                    <strong>Neuen Filter erstellen</strong>
-                  </li>
-                  <li>
-                    Feld <strong>Betreff</strong>:{' '}
-                    <code className="rounded bg-amber-100 px-1 py-0.5">AW:</code>{' '}
-                    (oder passendes Pattern für deine Antworten)
-                  </li>
-                  <li>
-                    <strong>Filter erstellen</strong> klicken →{' '}
-                    <strong>„Weiterleiten an"</strong> ankreuzen → die
-                    Auftragswerk-Inbound-Adresse hinzufügen + bestätigen
-                  </li>
-                </ol>
-                <p className="pt-1">
-                  Inbound-Adresse für die Weiterleitung:
-                </p>
-                <p className="font-mono text-[0.7rem] break-all bg-amber-100 rounded px-2 py-1">
-                  22410d58b0879712e00751421bbe7f29@inbound.postmarkapp.com
-                </p>
-                <p className="pt-1 italic text-amber-800">
-                  Bald nicht mehr nötig: wir bauen eine eigene Adresse pro Betrieb
-                  (`max@kunden.auftragswerk.app`-Stil). Dann fällt dieser Schritt weg.
-                </p>
-                <div className="pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={dismissAnleitung}
-                    className="gap-1.5 border-amber-300 bg-white hover:bg-amber-100 text-amber-900"
-                  >
-                    <HugeiconsIcon
-                      icon={CheckmarkCircle02Icon}
-                      size={14}
-                      strokeWidth={2}
-                    />
-                    Filter ist eingerichtet
-                  </Button>
-                </div>
-              </div>
-            )}
+            {/* Inbound-Setup wird in einer eigenen Card behandelt
+                (components/mail-empfang-card.tsx). Hier nur kurze Info dass
+                Gmail-OAuth nur den Outbound-Pfad abdeckt. */}
+            <div className="rounded-md border border-input bg-muted/30 p-3 text-xs text-foreground/80 space-y-1">
+              <p className="font-medium text-foreground">
+                Outbound läuft – Antworten gehen aus deinem Gmail raus
+              </p>
+              <p className="text-muted-foreground">
+                Für den Empfang von Kundenmails siehe die Karte „Mail-Empfang
+                einrichten" unten.
+              </p>
+            </div>
 
             <div>
               <Button

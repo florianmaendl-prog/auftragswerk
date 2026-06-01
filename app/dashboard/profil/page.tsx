@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase-server';
 import { Card } from '@/components/ui/card';
 import { ProfilForm } from './profil-form';
 import { GmailConnectionCard } from './gmail-connection-card';
+import { MailEmpfangCard } from './mail-empfang-card';
 
 export default async function ProfilPage() {
   const supabase = await createClient();
@@ -71,7 +72,7 @@ export default async function ProfilPage() {
         </p>
       </div>
 
-      <div className="mb-6">
+      <div className="mb-6 space-y-4">
         <GmailConnectionCard
           initial={
             gmailConn
@@ -82,8 +83,8 @@ export default async function ProfilPage() {
                 }
               : null
           }
-          inboundEmail={betrieb.inbound_email || null}
         />
+        <MailEmpfangCard inboundEmail={betrieb.inbound_email || null} />
       </div>
 
       <ProfilForm
