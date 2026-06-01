@@ -1,49 +1,162 @@
 # Auftragswerk – Backlog
 
-> **Stand: 29.5.2026 abends (Tag 15 – Mobile + Rechtstexte + Gmail-OAuth durch)**
+> **Stand: 1.6.2026 abends (Tag 16 – Welle D + E + F + G durch, an Max raus)**
 >
 > Säule 1 production-live, production-reif, brand-konsistent, mobile-tauglich,
-> Gmail-OAuth funktioniert (Outbound verifiziert). Drei strategische Wellen
-> aus dem Premium-Pivot-Plan abgearbeitet:
+> Gmail-OAuth funktioniert (Outbound verifiziert), Inbound auf eigener
+> Subdomain `kunden.auftragswerk.app`, Wow-Onboarding-Page, Self-Service-
+> Signup mit DB-Trigger, Marketing-Landing auf `/`, Custom-SMTP via Postmark
+> für transaktionale Mails. Max hat die URL an diesem Abend bekommen.
 >
-> - **Welle A (Mobile-Optimierung)** durch – Dashboard auf 380px-Screens
->   spielbar. Sidebar als sticky-Header mit 44×44-Hamburger, Inbox-Tabs
->   mit Scroll-Fade, Anfrage-Detail responsive (Header stack, Grids,
->   Attachments), Container-Padding mobile-friendly, Touch-Targets +44px.
->   Größter Brocken: **Kalender-Wochengrid Mobile-Variante** – auf <md
->   vertikale Tag-Liste (jeder Tag eine Section mit Stunden-Cards),
->   auf md+ klassisches 7-Spalten-Grid. Gemeinsamer getSlotData()-Helper.
+> **Sieben strategische Wellen aus dem Premium-Pivot-Plan durch:**
 >
-> - **Welle B (Rechtstexte)** durch – /datenschutz, /agb, /impressum als
->   Standard-Template mit prominentem "in juristischer Prüfung"-Disclaimer.
->   Footer-Komponente in Dashboard + Login eingehängt. Vorbereitet für
->   Gmail-OAuth-Consent-Screen (braucht beide URLs).
+> - **Welle A (Mobile)** – Dashboard auf 380px-Screens spielbar. Kalender-
+>   Wochengrid Zweispur (md+ Table, <md vertikale Tag-Liste). Touch ≥44px.
 >
-> - **Welle C (Gmail-OAuth)** durch – User hat eigene Gmail verbunden,
->   Smoke-Test zeigt: Mail wird aus echtem Gmail-Account versendet
->   (verifiziert über Empfänger-Mail-Header "Von: florian.maendl@gmail.com").
->   Migration ausgeführt, Token-Verschlüsselung läuft, Auto-Refresh greift.
->   **ABER:** zwei offene Premium-Probleme aus dem Live-Test → Welle E.
+> - **Welle B (Rechtstexte)** – /datenschutz, /agb, /impressum als
+>   Standard-Template mit "in juristischer Prüfung"-Disclaimer. Footer
+>   überall verlinkt.
 >
-> - **Welle D (Wow-Onboarding-Page)** als Krönung nach Welle C.
+> - **Welle C (Gmail-OAuth)** – `gmail.send` Scope, AES-256-GCM-Token-
+>   Verschlüsselung, Auto-Refresh. 3-stufige From-Wahl (Gmail → Custom
+>   Sender → Postmark-Fallback). Smoke-Test verifiziert: Mail aus echtem
+>   Gmail-Account.
 >
-> - **Welle E (NEU): Premium-Reply-To + Catch-All-Subdomain** vor Pilot.
->   Aus Live-Test: Reply-To-Hex-Adresse ist "scammy" für Endkunden, Inbound-
->   Forward-Setup braucht eine premiumere Lösung. Details unten.
+> - **Welle D (Wow-Onboarding)** – `/dashboard/willkommen` mit dynamischer
+>   "Hi {Vorname},"-Anrede, 3 Onboarding-Step-Cards (Gmail / Verfügbarkeit
+>   / Profil) mit Status-Detection, "Du bist startklar"-Banner wenn alleDone.
+>   First-Run-Detection in `/dashboard/page.tsx`.
 >
-> **Vor Tag 14:** Pre-Pilot-Härtung (Welle 1/1.5/2) – Idempotenz,
-> Versand-Atomarität, KI-Failures sichtbar, Edge-Proxy gehärtet, Security
-> (Test-Routes raus, Input-Limits, Security-Headers, KI-Kosten-Cap),
-> Brand-Foundation (Saira Condensed, Wortmarke, KategorieBadge, Hugeicons,
-> Empty-States, Toasts, Token-Hygiene). Details siehe Tag-14-Block.
+> - **Welle E (Reply-To-Premium)** – E.1 Quick-Fix: Reply-To-Hierarchie
+>   `inbound_email → sender_email → POSTMARK_REPLY_TO`. E.2 Catch-All-
+>   Subdomain `kunden.auftragswerk.app` mit MX-Routing zu Postmark.
+>   `lib/slug.ts` + Migration `20260601_inbound_email_subdomain.sql` (PL/pgSQL
+>   `name_zu_slug()` + Migrations-DO-Block + UNIQUE-Index). Pro Betrieb
+>   saubere Adresse `slug@kunden.auftragswerk.app`, kein scammy Hex mehr.
 >
-> **Premise:** Quality over Velocity. Foundation premium-reif. Welle C ist
-> der Pilot-Pivot, Welle D die Krönung – danach DSGVO-Compliance-Block
-> (siehe unten), dann Max live.
+> - **Welle F (Mail-Empfang-Card)** – Profil-Page zeigt Provider-spezifische
+>   Forward-Anleitungen (Google Workspace, IONOS, WordPress.com, Allgemein)
+>   im Akkordeon, dismissable mit localStorage. Endkunden schreiben weiter
+>   an reale Geschäftsadresse, Owner richtet einmalig Weiterleitung ein.
+>
+> - **Welle G (Self-Service-Signup + Marketing-Landing)** – `/registrieren`-
+>   Form mit DB-Trigger `handle_new_user` (Migration `20260601_signup_trigger.sql`)
+>   der automatisch betriebe (mit Subdomain-Slug) + profiles (Rolle 'inhaber')
+>   anlegt. Marketing-Landing auf `/` mit Hero + Problem + Lösung + 3-Schritte
+>   + Für-wen + CTA. Custom-SMTP via Postmark in Supabase Auth (Mails aus
+>   `info@auftragswerk.app`), Email-Confirmation aktiv, gebranded HTML-Template.
+>
+> **Premise:** Quality over Velocity. Foundation premium-reif. Max kann
+> jetzt selbst registrieren → Mail bestätigen → Wow-Onboarding → Gmail
+> verbinden → Verfügbarkeit → Forward einrichten → live. Compliance-Block
+> (Owner-Aufgabe ~3-4h) und echte Impressum-Anschrift sind die letzten
+> offenen Punkte vor "produktivem Pilot mit Endkunden-Mails-im-Realbetrieb".
 
 ---
 
 ## ✅ FERTIG
+
+### Tag 16 (1.6.2026): Welle D + E + F + G – Wow, Reply-To-Premium, Mail-Empfang, Self-Service
+
+#### Welle D – Wow-Onboarding-Page
+- ✅ **`/dashboard/willkommen`** (Server Component): Hero mit Wortmarke +
+  "Hi {Vorname}," (aus `betriebe.inhaber`, Split nach erstem Wort),
+  Subline „In drei kurzen Schritten ist alles bereit…", 0/3-Schritte-Pill.
+- ✅ **Drei OnboardingStep-Cards** mit Status-Detection (gmailDone via
+  `gmail_connections.status='aktiv'`, verfuegbarkeitDone via
+  `verfuegbarkeit_regel`-Count, profilDone via Was-wir-machen + Signatur):
+  01 Gmail verbinden / 02 Verfügbarkeit / 03 Profil ausfüllen. Status-Icon
+  + CTA-Button pro Karte.
+- ✅ **"Du bist startklar"-Banner** wenn alle drei done → "Zur Inbox"-CTA.
+- ✅ **First-Run-Detection** in `app/dashboard/page.tsx`: wenn
+  `anfragen=[]` UND `?tab` nicht gesetzt → Parallel-Query auf
+  `gmail_connections` + `verfuegbarkeit_regel` Counts. Wenn beide 0 →
+  `redirect('/dashboard/willkommen')`. Sonst Inbox.
+- ✅ **`components/brand/onboarding-step.tsx`** als wiederverwendbare Card.
+
+#### Welle E.1 – Reply-To Quick-Fix
+- ✅ **`app/api/versand/route.ts` + `versand/manuell/route.ts`** Reply-To-
+  Hierarchie:
+  ```ts
+  const replyToAddress = betrieb?.inbound_email
+    || (useCustomSender ? betrieb!.sender_email! : undefined)
+    || process.env.POSTMARK_REPLY_TO
+    || undefined;
+  ```
+- ✅ Damit kommt für Endkunden im Reply-To die saubere Subdomain-Adresse
+  (nach Welle E.2) statt der scammy Postmark-Hex.
+
+#### Welle E.2 – Catch-All-Subdomain `kunden.auftragswerk.app`
+- ✅ **DNS bei united-domains:** MX `kunden` → `inbound.postmarkapp.com`
+  Prio 10. DKIM-CNAME `20260601102721pm._domainkey.kunden` →
+  `pm.mtasvc.net`. Return-Path-CNAME für die Subdomain.
+- ✅ **Postmark Inbound-Domain:** `kunden.auftragswerk.app` als Inbound-
+  Domain registriert, Wildcard-Route auf Webhook-URL. DKIM verifiziert.
+- ✅ **`lib/slug.ts`**: `nameZuSlug()` (Umlaute ä→ae, Sonderzeichen→Bindestrich,
+  Stoppwörter gmbh/ag/kg/und/der raus, max 40 Zeichen),
+  `generiereEindeutigenSlug()` mit Conflict-Resolution (-2, -3 … max 99),
+  `slugZuInboundEmail()`, Const `KUNDEN_SUBDOMAIN`.
+- ✅ **Migration `20260601_inbound_email_subdomain.sql`**:
+  PL/pgSQL `name_zu_slug()` (mirror der TS-Logik), DO-Block iteriert alle
+  betriebe, setzt `inbound_email = slug@kunden.auftragswerk.app` mit
+  Conflict-Resolution. UNIQUE-Index `betriebe_inbound_email_uniq`.
+- ✅ **Smoke-Test:** Externe Mail an `eminded@kunden.auftragswerk.app` →
+  kommt im Edge-Proxy an → erscheint im Dashboard. DKIM-Header sauber,
+  kein Scammy-Hex mehr für Endkunden sichtbar.
+
+#### Welle F – Mail-Empfang-Card
+- ✅ **`app/dashboard/profil/mail-empfang-card.tsx`** mit drei Blöcken:
+  - Inbound-Adresse prominent zum Kopieren (Code-Box + Copy-Button)
+  - Amber-Hinweis "Damit Mails an deine Geschäftsadresse hier ankommen"
+    mit Schließen-X (dismissable via localStorage
+    `auftragswerk:mail-empfang-anleitung-dismissed`)
+  - Akkordeon mit 4 Provider-Anleitungen: Google Workspace, IONOS,
+    WordPress.com, Allgemein. Jede Anleitung Klick-für-Klick mit
+    realer Subdomain-Adresse als Forward-Ziel.
+- ✅ **Gmail-Connection-Card aufgeräumt**: alte Filter-Anleitung raus
+  (war E.1 Workaround, obsolet nach E.2). Nur noch verbunden/fehler/leer-
+  States + dezenter Hinweis "für Empfang siehe Karte unten".
+
+#### Welle G – Self-Service-Signup + Marketing-Landing + Custom-SMTP
+- ✅ **Migration `20260601_signup_trigger.sql`**: `handle_new_user()`-
+  Trigger auf `auth.users` AFTER INSERT. Liest `raw_user_meta_data`
+  (`betriebsname` / `inhaber` / `branche`), generiert eindeutigen Slug
+  (Conflict-Loop bis -99), legt `betriebe`-Zeile mit
+  `inbound_email = slug@kunden.auftragswerk.app` an, dann `profiles`-Zeile
+  mit Rolle `'inhaber'`. SECURITY DEFINER + search_path = public, auth.
+  Skip wenn `betriebsname` leer (Admin-Insert-Schutz).
+- ✅ **`/registrieren`** (Client-Page): Form mit Email/Passwort/
+  Betriebsname/Inhaber/Branche. Ruft `supabase.auth.signUp({ email, password,
+  options: { emailRedirectTo, data } })`. Bei Erfolg → "Fast geschafft"-
+  Screen mit "Mail an X geschickt". AGB+Datenschutz-Hinweis als Text.
+- ✅ **Login-Page** "Noch keinen Account? Jetzt anmelden"-Link.
+- ✅ **Marketing-Landing auf `/`** (Server Component, eingeloggte User
+  weiter zu `/dashboard`): Top-Bar mit Wortmarke + Anmelden-Link, Hero
+  (XXL-Headline "Anfragen kommen. **Antworten gehen raus.** Du arbeitest
+  weiter."), Problem-Section (3 ProblemCards), Lösung-Section (3
+  LoesungCards 01-03), So-funktionierts (3 SchrittRows), Für-Wen-
+  Section (Gewerk-Pills), CTA-Banner mit Rocket-Icon, Footer. Kein
+  Pricing (Pilot-Phase). Brand-DNA: Saira Condensed Headlines, Stahlblau
+  Akzente, Hugeicons.
+- ✅ **Custom-SMTP via Postmark** in Supabase Auth Settings:
+  Host `smtp.postmarkapp.com`:587, Username/Password = Postmark Server-
+  Token, Sender `info@auftragswerk.app` "Auftragswerk", Min interval 60s.
+  Default-Supabase-SMTP (2 Mails/h, schlechte Deliverability) abgelöst.
+- ✅ **Email-Confirmation aktiv** in Supabase Authentication →
+  Sign In / Providers → Email → "Confirm email" ON.
+- ✅ **Confirm-signup-Email-Template** brand-konform: weiße Card mit
+  Wortmarke-Header + Tagline, "Willkommen bei Auftragswerk"-Headline,
+  Stahlblau-Button "Email bestätigen" mit `{{ .ConfirmationURL }}`,
+  Plain-Fallback-Link, Spam-Hinweis, Footer mit Datenschutz/AGB/Impressum.
+- ✅ **Redirect-URLs in Supabase Auth Config:** `https://auftragswerk.app/**`,
+  `https://auftragswerk.app/auth/callback`, `https://auftragswerk.app/passwort-neu`,
+  `https://auftragswerk.vercel.app/**`, `http://localhost:3000/**`.
+- ✅ **Full E2E gestestet** (florian.maendl@gmail.com → existing,
+  florian.maendl@gmx.de → neu via Self-Service + Confirmation-Mail
+  in GMX-Posteingang in <30s + Klick → /dashboard/willkommen mit
+  "Hi Florian," + alle Onboarding-Cards funktional). Welle G grün.
+- ✅ **URL an Max raus** an diesem Abend (1.6.2026 ~20:30):
+  `https://auftragswerk.app` → Landing → "Account erstellen".
 
 ### Tag 15 (Abend): Welle C – Gmail-OAuth (29.5.2026)
 
@@ -369,62 +482,20 @@ Mobile-Audit (Explore-Agent) lieferte 20 konkrete Bruchstellen, Critical+Importa
 
 ---
 
-## 🚧 LAUFEND: Premium-Pivot-Plan (Plan-File: `~/.claude/plans/sooo-lies-backlog-md-delegated-moler.md`)
+## 🚧 LAUFEND: Max-Pilot-Test + Compliance-Block
 
-Vier-Wellen-Plan vom 29.5.2026. Zwei durch, zwei offen.
+**Stand 1.6.2026 abends:** Premium-Pivot-Plan komplett durch (Welle A-G).
+Max hat URL bekommen — wir warten auf sein Feedback. Parallel offen:
+Compliance-Owner-Aufgabe + ggf. Welle H (Custom Sender DKIM) als Premium-
+Option für Kunden ohne Gmail.
 
-### ✅ Welle A – Mobile-Optimierung (Tag 15, oben dokumentiert)
-### ✅ Welle B – Rechtstexte (Tag 15, oben dokumentiert)
-### ✅ Welle C – Gmail-OAuth (Tag 15 Abend, oben dokumentiert)
-  Outbound-Smoke-Test verifiziert. Zwei offene Premium-Issues → Welle E.
-
-### ⏳ Welle D – Wow-Onboarding-Page (2-3 Tage, NÄCHSTE WELLE nach Pause)
-Erste-Login-Detection: 0 Anfragen + 0 Regeln + 0 Termine → redirect zu
-`/dashboard/willkommen`. Hero mit Wortmarke + "Hi {inhaber}, deine
-Assistenz, die mitdenkt". Drei Schritte als Brand-Cards: 1) Gmail
-verbinden (1 Klick, mit grünem Check wenn done!), 2) Verfügbarkeit
-eintragen (Quick-Link Kalender), 3) Profil ausfüllen. Optional: 60s-Loom
-+ Spickzettel-PDF im Brand-Briefkopf-Stil aus dem Mockup.
-
-Backup-Branch vor Start: `backup-vor-wow-onboarding`
-
-### ⏳ Welle E – Premium-Reply-To + Catch-All-Subdomain (vor Pilot!)
-**Aus Welle-C-Live-Test entstanden.** Zwei Issues fixen damit Endkunden
-nichts Scammy sehen:
-
-**E.1 Reply-To-Logik intelligent machen** (Quick Fix, ~1h)
-- Wenn Gmail-OAuth aktiv → Reply-To = Gmail-Adresse des Betriebs
-  (`gmail_connections.google_email`). Kundenantwort landet direkt im
-  Gmail-Postfach des Inhabers.
-- Wenn kein Gmail, aber sender_verified → Reply-To = `sender_email`.
-- Sonst → Postmark-Hex-Fallback (heute, akzeptabel).
-- Anpassung in `app/api/versand/route.ts` + `versand/manuell/route.ts`
-  Zeilen mit `replyToAddress = betrieb?.inbound_email || ...`.
-- **Konsequenz:** Bei Gmail-OAuth-Setup muss der Owner einen Gmail-Filter
-  einrichten: Subjects mit "AW:" (oder ähnliches Pattern) →
-  auto-forward an Postmark-Hex. So landet die Antwort wieder in
-  Auftragswerk. Anleitung in Profil-Card erweitern.
-
-**E.2 Catch-All-Subdomain** `kunden.auftragswerk.app` (echte Premium-Lösung)
-- DNS: `MX kunden.auftragswerk.app → mx.postmark...` (Postmark-Anweisung
-  folgen, Domain in Postmark als Inbound-Domain registrieren)
-- Postmark: Wildcard-Inbound-Route auf eine Hex-Adresse
-- Jeder Betrieb bekommt bei Registrierung eine eigene saubere Adresse,
-  z.B. `max@kunden.auftragswerk.app` oder
-  `{slug}@kunden.auftragswerk.app` als `inbound_email`
-- Reply-To = `betrieb.inbound_email` (die saubere Subdomain-Adresse)
-- Endkunde sieht: schöne `kunden.auftragswerk.app`-Adresse,
-  KEIN Hex mehr.
-- Owner-Aufgaben:
-  - DNS-MX-Record bei united-domains anlegen
-  - Postmark Inbound-Domain konfigurieren
-  - Migration: betriebe.inbound_email auf Subdomain-Pattern setzen
-    (für bestehende Betriebe via UPDATE, für neue via Auto-Generierung)
-
-**Reihenfolge:** E.1 vor Welle D bauen (kleine Änderung, sofort sichtbar
-im Onboarding-Flow). E.2 nach Welle D + vor Max-Live als eigene kleine
-Welle. Backup-Branch: `backup-vor-reply-to-fix` bzw.
-`backup-vor-catchall-subdomain`.
+### ⏳ Welle H – Custom-Sender pro Betrieb (FUTURE, falls Kunden ohne Gmail)
+Aktuell läuft Versand 3-stufig: Gmail (OAuth) → Custom-Sender (Postmark
+Sender Signature) → Default-Fallback `info@auftragswerk.app`. Custom-
+Sender-Code (`lib/postmark-sender.ts`, `betriebe.sender_*`-Spalten) ist
+fertig, aber nicht hochgehängt. Bei einem zweiten Kunden ohne Gmail
+relevant: Sender Signature programmatisch anlegen + DKIM-DNS-Snippets
+in UI ausliefern. Niedrige Prio solange Gmail-Kunden den 90%-Fall decken.
 
 ---
 
@@ -449,33 +520,44 @@ Memory-Pointer: `~/.claude/projects/-Users-flomandl-Code-auftragswerk/memory/com
 
 ## 🚧 Max-Pilot Go-Live (Bauelemente Rapp GmbH)
 
-**Strategischer Pivot durch Welle C:** Wenn Gmail-OAuth durch ist, BRAUCHT
-Max keinen DNS-Setup mehr. Postmark Sender Signature + DKIM-CNAME bei
-WordPress.com werden zur **Plan-B-Option** für Kunden ohne Gmail.
+**Pivot durch Welle G:** Max muss nicht mehr manuell von Flo angelegt
+werden. Max bekommt URL `https://auftragswerk.app` → registriert sich
+selbst → Welle-D-Wow-Onboarding führt ihn durch Gmail + Verfügbarkeit +
+Profil → Welle-F-Card erklärt Weiterleitung von `info@bauelemente-rapp.com`
+auf seine Subdomain-Adresse. Postmark Sender Signature + DKIM bei
+WordPress.com sind komplett überflüssig.
 
-### ✅ Erledigt
+### ✅ Erledigt vor Tag 16
 - Supabase Auth-User für Max (`info@bauelemente-rapp.com`, Auto-Confirm)
 - `betriebe`-Zeile: Bauelemente Rapp GmbH, Maximilian Rapp, Metallbau
+  → durch Welle E.2 hat dieser Betrieb jetzt
+  `inbound_email = bauelemente-rapp@kunden.auftragswerk.app`
 - `profiles`-Zeile verknüpft, Login funktioniert (RLS end-to-end bewiesen)
 - Postmark Sender Signature für `info@bauelemente-rapp.com` angelegt
+  (jetzt als Plan-B-Fallback geparkt, nicht benötigt für Plan A)
+- ⚠️ Max-Pilot-Strategie umgestellt: er nutzt **Self-Service-Anmeldung**
+  (Welle G), nicht den alten manuell-angelegten Account. Sein neuer
+  Self-Service-Account wird beim ersten Login erkannt + setup-geführt.
 
-### ⏳ Plan A: nach Welle C live (Gmail-OAuth)
-- [ ] Max klickt "Mit Gmail verbinden" in Profil → Mail geht aus seinem
-  echten Gmail raus. **Kein DNS, kein DKIM, kein DMARC nötig.**
-- [ ] Inbound bleibt Postmark-Forward: Gmail-Weiterleitung info@... →
-  Postmark-Hex-Inbound. Das ist die einzige verbliebene Max-Aufgabe.
+### ⏳ Tag 16+ – Plan A: Self-Service über Welle G
+- [x] **URL an Max raus** (1.6.2026): `https://auftragswerk.app`
+- [ ] **Max registriert sich** über `/registrieren` (Email + Passwort +
+  Betriebsname + Inhaber + Branche)
+- [ ] **Confirmation-Mail** kommt aus `info@auftragswerk.app` (Custom-SMTP
+  via Postmark, brand-konformes HTML-Template)
+- [ ] **Wow-Onboarding** zeigt 3 Schritte: Gmail / Verfügbarkeit / Profil
+- [ ] **Mail-Empfang-Card im Profil**: Max sieht seine Inbound-Adresse
+  `<slug>@kunden.auftragswerk.app` + WordPress.com-Forward-Anleitung
+- [ ] **Forward in WordPress.com einrichten** (Max-Aufgabe)
+- [ ] **Smoke-Test A** (Externe Mail an info@bauelemente-rapp.com →
+  Forward → Auftragswerk-Dashboard → KI-Entwurf)
+- [ ] **Smoke-Test B** (Freigabe → Send aus Max' Gmail → Empfänger sieht
+  Mail aus echtem Gmail-Account, NICHT info@auftragswerk.app)
+- [ ] Pilot scharfschalten – Max nutzt es im Echtbetrieb
 
-### ⏸ Plan B: nach Postmark-Sender-Setup (falls Max Gmail nicht will)
-- [ ] Bestätigungsmail von Postmark im Gmail klicken
-- [ ] DKIM-TXT + Return-Path-CNAME bei WordPress.com DNS eintragen
-- [ ] DMARC für `bauelemente-rapp.com` setzen
-- [ ] Gmail-Weiterleitung info@... → Postmark-Hex-Inbound
-- [ ] `UPDATE betriebe SET sender_verified=true, sender_email=...`
-
-### ⏳ Dann (Flo, nach Plan A oder B)
-- [ ] **Smoke-Test A** (Inbound) + **Smoke-Test B** (Outbound + Threading)
-- [ ] **Spickzettel/Onboarding** über Welle-D-Page abgedeckt
-- [ ] Pilot scharfschalten – Max gibt `info@bauelemente-rapp.com` weiter
+### ⏸ Plan B (geparkt) – Custom Sender mit DKIM
+Nur relevant wenn Max sagt "Gmail will ich nicht verbinden". Aktuell
+nicht zu erwarten, da Gmail der einfachste Weg ist.
 
 ---
 
@@ -492,15 +574,24 @@ WordPress.com werden zur **Plan-B-Option** für Kunden ohne Gmail.
 
 ---
 
-## 📋 PHASE 2: Self-Service-Onboarding (NACH Pilot)
+## 📋 PHASE 2: Skalierung (NACH Max-Pilot-Feedback)
 
-> Bauen, wenn Max 2-4 Wochen produktiv genutzt + Feedback positiv ist.
+> Self-Service-Signup ist mit Welle G **schon live**. Was hier noch fehlt
+> ist Admin-Tooling und das Sender-Onboarding für Kunden ohne Gmail.
 
-- [ ] Email-Verifizierung (Doppel-Opt-In) – Passwort-Login + Reset stehen schon
-- [ ] Onboarding-Wizard mit Sender-Signature-Aufsetzung
-      (lib/postmark-sender.ts ist fertig dafür)
-- [ ] Provider-spezifische Forwarding-Anleitung (Gmail/M365/IONOS/Strato)
-- [ ] Admin-Backoffice (User-Übersicht + Kill-Switch + Billing)
+- [x] **Email-Verifizierung (Doppel-Opt-In)** – Custom-SMTP via Postmark,
+      Email-Confirmation aktiv, brand-konformes HTML-Template (Welle G)
+- [x] **Self-Service-Signup** – `/registrieren` + DB-Trigger
+      `handle_new_user` legt betriebe + profiles automatisch an (Welle G)
+- [x] **Marketing-Landing** auf `/` – Hero + Problem + Lösung + 3 Schritte
+      + CTA (Welle G)
+- [x] **Provider-spezifische Forwarding-Anleitung** – im Profil als
+      Mail-Empfang-Card mit Akkordeon (Welle F)
+- [ ] **Onboarding-Wizard mit Sender-Signature-Aufsetzung** für Kunden
+      ohne Gmail (lib/postmark-sender.ts ist fertig, UI fehlt = Welle H)
+- [ ] **Admin-Backoffice** (User-Übersicht + Kill-Switch + Billing)
+- [ ] **Echte Impressum-Anschrift** (`/impressum` hat noch [Klammern]-
+      Platzhalter — vor erstem zahlenden Kunden anpassen)
 
 ---
 
@@ -616,14 +707,18 @@ Geplante Tabellen: `angebot_bausteine`, `material_preise`, `angebote` +
 7. ✅ **Modul 7 – Edge-Proxy für Foto-Anhänge + Bugfixes + Kalender klickbar** (Tag 13)
 8. ✅ **Pre-Pilot-Härtungssprint Welle 1 + 1.5 + Brand-Foundation Welle 2 komplett** (Tag 14)
 9. ✅ **Mobile-Optimierung Welle A + Rechtstexte Welle B** (Tag 15)
-10. ✅ **Welle C: Gmail-OAuth** (Outbound verifiziert, Reply-To-Issue offen)
-11. ⏳ **Welle E.1: Reply-To-Quick-Fix** (~1h, vor Welle D)
-12. ⏸ **Welle D: Wow-Onboarding-Page** (`/dashboard/willkommen`, 2-3 Tage)
-13. ⏸ **Welle E.2: Catch-All-Subdomain** `kunden.auftragswerk.app` vor Max-Live
-14. ⏸ **Compliance-Block** (Owner-Aufgabe, ~3-4h): e-recht24 + DPAs + BVDW-AVV
-15. ⏸ Smoke-Tests → Max-Pilot scharfschalten (Plan A via Gmail-OAuth)
-16. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
-17. ⏸ **Modul 8 – Google-Calendar-OAuth-Sync** (falls Max manuelles Pflegen nervt)
-18. ⏸ Wenn validiert: Phase 2 (Self-Service-Onboarding + Admin-Backend)
-19. ⏸ 2. Pilot: Elektriker-Kumpel
-20. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
+10. ✅ **Welle C: Gmail-OAuth** – Outbound aus echtem Gmail verifiziert
+11. ✅ **Welle D: Wow-Onboarding-Page** `/dashboard/willkommen` (Tag 16)
+12. ✅ **Welle E.1+E.2: Reply-To-Hierarchie + Catch-All-Subdomain**
+    `kunden.auftragswerk.app` (Tag 16)
+13. ✅ **Welle F: Mail-Empfang-Card mit Provider-Anleitungen** (Tag 16)
+14. ✅ **Welle G: Self-Service-Signup + Marketing-Landing + Custom-SMTP**
+    via Postmark (Tag 16) – **URL an Max raus** ✓
+15. ⏳ Max registriert sich + meldet sich → Smoke-Tests im Real-Betrieb
+16. ⏸ **Compliance-Block** (Owner-Aufgabe, ~3-4h): e-recht24 + DPAs +
+    BVDW-AVV + echte Impressum-Anschrift
+17. ⏸ Max 2-4 Wochen nutzen lassen + Feedback sammeln
+18. ⏸ **Modul 8 – Google-Calendar-OAuth-Sync** (falls Max manuelles Pflegen nervt)
+19. ⏸ **Welle H – Custom-Sender-Wizard mit DKIM** (falls Kunde ohne Gmail)
+20. ⏸ 2. Pilot: Elektriker-Kumpel
+21. ⏸ Säule 2 (Angebote) je nach Max-Feedback reaktivieren
