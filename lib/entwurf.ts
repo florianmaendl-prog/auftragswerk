@@ -313,6 +313,7 @@ export async function generiereEntwurf(
       analyse_id: klassifikation.id,
       betreff_vorschlag: parsed.betreff_vorschlag,
       body_text: fullBody,
+      text_original: fullBody,
       body_text_ohne_signatur: cleanedBody,
       interne_notiz: parsed.interne_notiz || null,
       status: 'wartet_auf_freigabe',

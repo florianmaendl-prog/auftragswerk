@@ -274,6 +274,12 @@ export default function EntwurfEditor({
             </div>
           )}
         </div>
+
+        {!istVersendet && (
+          <p className="text-[11px] text-muted-foreground text-right -mt-1">
+            Was du änderst, hilft beim nächsten Mal.
+          </p>
+        )}
       </CardContent>
     </Card>
   );

@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     // 3. Entwurf holen (RLS prüft Zugriff)
     const { data: entwurf, error: entwurfError } = await supabase
       .from('entwuerfe')
-      .select('id, anfrage_id, betrieb_id, betreff_vorschlag, body_text, status')
+      .select('id, anfrage_id, betrieb_id, betreff_vorschlag, body_text, text_original, status')
       .eq('id', entwurfId)
       .single();
 
@@ -346,12 +346,21 @@ export async function POST(req: NextRequest) {
     // 12. Entwurf-Status updaten → 'versendet' (löst den 'in_versand'-Lock).
     //     Mail ist schon raus, also bei Fehler nur loggen, NICHT 500 zurückgeben –
     //     sonst klickt Max nochmal und Kunde kriegt 2 Mails.
+    //
+    //     was_edited: Owner-Edit-Tracking (STRATEGIE.md A1 "Lernen aus Edits").
+    //     true wenn der Owner den Body vor dem Senden geändert hat. text_original
+    //     wurde beim Insert in lib/entwurf.ts gesetzt und ist unverändert.
+    const wasEdited =
+      entwurf.text_original != null &&
+      entwurf.text_original !== entwurf.body_text;
+
     const { error: entwurfUpdateError } = await supabaseAdmin
       .from('entwuerfe')
       .update({
         status: 'versendet',
         postmark_message_id: sendResult.postmarkMessageId,
         versendet_am: versendetAm,
+        was_edited: wasEdited,
         updated_at: versendetAm,
       })
       .eq('id', entwurf.id);

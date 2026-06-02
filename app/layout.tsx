@@ -23,7 +23,8 @@ const sairaCondensed = Saira_Condensed({
 
 export const metadata: Metadata = {
   title: "Auftragswerk – Assistenz, die mitdenkt.",
-  description: "Die AI-Handwerker-Sekretärin – designt vom Handwerksmeister für den Handwerksmeister.",
+  description:
+    "Auftragswerk liest deine Kundenanfragen, schreibt Antwortentwürfe in deinem Ton und schlägt freie Termine vor. Du gibst nur noch frei – versendet wird aus deinem eigenen Postfach.",
 };
 
 export default function RootLayout({

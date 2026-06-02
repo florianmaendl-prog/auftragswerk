@@ -36,13 +36,14 @@ export default async function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Top-Bar: nur Wortmarke + Anmelden-Link */}
+      {/* Top-Bar: Wortmarke + dezenter Outline-Button für Login (NICHT voll-blau,
+          damit Hero-CTA "Account erstellen" die Hierarchie behält) */}
       <header className="border-b">
         <div className="container mx-auto max-w-6xl px-4 sm:px-6 py-4 flex items-center justify-between">
           <Wortmarke size="sm" />
           <Link
             href="/login"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex items-center justify-center min-h-11 px-4 sm:px-5 py-2 rounded-md border-[1.5px] border-primary text-primary text-sm font-semibold transition-colors hover:bg-primary hover:text-primary-foreground"
           >
             Anmelden
           </Link>
@@ -67,8 +68,6 @@ export default async function Home() {
             beantworten. Auftragswerk liest jede Kundenanfrage, schreibt
             dir einen Antwortentwurf in deinem Ton und schlägt gleich
             freie Termine vor. Du liest kurz drüber, klickst frei – fertig.
-            Versendet wird aus deinem normalen Mail-Postfach, deine Kunden
-            merken keinen Unterschied.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
             <Button asChild size="lg" className="w-full sm:w-auto gap-2">
@@ -167,6 +166,24 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* TRUST-BLOCK – das stärkste Argument als eigene Section
+          (statt versteckter Halbsatz im Hero) */}
+      <section className="border-b bg-primary/[0.04]">
+        <div className="container mx-auto max-w-3xl px-4 sm:px-6 py-16 sm:py-20 text-center">
+          <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground font-medium mb-4">
+            Unsichtbar im Hintergrund
+          </p>
+          <h2 className="font-heading text-3xl sm:text-5xl font-bold uppercase tracking-wide leading-tight mb-6">
+            Deine Kunden merken nichts davon.
+          </h2>
+          <p className="text-base sm:text-lg text-foreground/80 leading-relaxed">
+            Die Antwort geht aus deinem echten Postfach raus – dein Name,
+            deine Adresse, dein Ton. Auftragswerk bleibt unsichtbar. Du
+            wirkst einfach schneller.
+          </p>
+        </div>
+      </section>
+
       {/* SO FUNKTIONIERTS */}
       <section className="border-b">
         <div className="container mx-auto max-w-5xl px-4 sm:px-6 py-16 sm:py-20">
@@ -175,11 +192,11 @@ export default async function Home() {
               Onboarding
             </p>
             <h2 className="font-heading text-2xl sm:text-4xl font-bold uppercase tracking-wide mb-4">
-              In 15 Minuten startklar
+              In einer Mittagspause eingerichtet
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Drei Schritte, kein DKIM-Gefrickel, kein DNS-Pain. Du musst nur
-              einmal klicken und kurz pflegen, was die KI wissen soll.
+              Drei Schritte, kein Technik-Kram. Du musst nur einmal klicken
+              und kurz pflegen, was die KI über deinen Betrieb wissen soll.
             </p>
           </div>
 
@@ -191,13 +208,13 @@ export default async function Home() {
             />
             <SchrittRow
               nummer="2"
-              titel="Gmail verbinden + Verfügbarkeit eintragen"
-              text="Ein Klick fürs Gmail (Mails gehen aus deinem echten Konto raus). Wann hast du Zeit für Aufmaßtermine? Mo–Fr 8–12 reicht."
+              titel="Postfach verbinden + Verfügbarkeit eintragen"
+              text="Einen Klick fürs Mail-Konto verknüpfen (deine Antworten gehen weiterhin aus deinem normalen Postfach raus). Dann kurz: wann hast du Zeit für Aufmaßtermine? Mo–Fr 8–12 reicht."
             />
             <SchrittRow
               nummer="3"
               titel="Weiterleitung einrichten"
-              text="In deinem normalen Mail-Provider (IONOS, Google Workspace, …) eine Weiterleitung einrichten. Anleitung gibt's im Tool."
+              text="Einmalig bei deinem Mail-Anbieter (IONOS, Google Workspace, WordPress …) eine Weiterleitung einrichten. Wir zeigen dir Klick für Klick wie – dauert zwei Minuten."
             />
           </ol>
         </div>
