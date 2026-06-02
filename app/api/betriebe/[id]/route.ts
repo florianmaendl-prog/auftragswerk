@@ -13,6 +13,7 @@ const ERLAUBTE_FELDER = [
   'wichtige_kunden',
   'signatur',
   'ton_beispiele',
+  'vermeiden',
 ] as const;
 
 type ErlaubtesFeld = (typeof ERLAUBTE_FELDER)[number];
@@ -34,7 +35,7 @@ export async function GET(
   const { data, error } = await supabase
     .from('betriebe')
     .select(
-      'id, name, inhaber, branche, inbound_email, region, mindestauftragswert, was_wir_machen, was_wir_nicht_machen, wichtige_kunden, signatur, ton_beispiele'
+      'id, name, inhaber, branche, inbound_email, region, mindestauftragswert, was_wir_machen, was_wir_nicht_machen, wichtige_kunden, signatur, ton_beispiele, vermeiden'
     )
     .eq('id', id)
     .single();

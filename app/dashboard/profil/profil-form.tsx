@@ -22,6 +22,7 @@ type ProfilData = {
   wichtige_kunden: string[];
   signatur: string;
   ton_beispiele: string[];
+  vermeiden: string;
 };
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -244,6 +245,36 @@ export function ProfilForm({
             items={data.ton_beispiele}
             onChange={(items) => setData({ ...data, ton_beispiele: items })}
           />
+        </CardContent>
+      </Card>
+
+      {/* Vermeiden – negatives Pendant zu Stilbeispielen */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Was die KI vermeiden soll</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Sag der KI klar was du <em>nicht</em> in deinen Antworten sehen
+            willst. Genauso wichtig wie Stilbeispiele – oft sogar wirksamer.
+          </p>
+          <Textarea
+            id="vermeiden"
+            value={data.vermeiden}
+            onChange={(e) => setData({ ...data, vermeiden: e.target.value })}
+            placeholder={`Zum Beispiel:
+• Keine Gedankenstriche (–) im Mitteltext.
+• Sag „gern" statt „gerne".
+• Nicht zu förmlich – ich duze viele Kunden.
+• Kein „Es freut mich, von Ihnen zu hören".
+• Keine englischen Begriffe wie „Service".`}
+            rows={6}
+            maxLength={2000}
+            className="font-sans text-sm leading-relaxed"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {data.vermeiden.length}/2000 Zeichen
+          </p>
         </CardContent>
       </Card>
 

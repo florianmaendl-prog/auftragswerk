@@ -36,6 +36,7 @@ type Betrieb = {
   region: string | null;
   mindestauftragswert: number | null;
   ton_beispiele: string[] | null;
+  vermeiden: string | null;
   signatur: string | null;
 };
 
@@ -96,7 +97,17 @@ STIL-BEISPIELE (so antwortet dieser Betrieb typischerweise – Anrede, Begrüßu
 
 ${tonBeispiele || '(Keine Beispiele vorhanden – nutze einen freundlichen, professionellen Standard-Stil mit Sie-Anrede.)'}
 
-VERHALTEN JE NACH SITUATION:
+${
+  betrieb.vermeiden && betrieb.vermeiden.trim()
+    ? `WAS DU VERMEIDEN MUSST (harte Constraints vom Inhaber – höher gewichtet als Stilbeispiele):
+
+${betrieb.vermeiden.trim()}
+
+Wenn ein Stilbeispiel oben einer Vermeiden-Regel widerspricht: gilt die Vermeiden-Regel.
+
+`
+    : ''
+}VERHALTEN JE NACH SITUATION:
 
 **Wenn dies ein REPLY im laufenden Gespräch ist (du siehst im User-Prompt den KONVERSATIONS-VERLAUF):**
 - Lies die KOMPLETTE Konversation chronologisch durch.
