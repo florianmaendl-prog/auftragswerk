@@ -3,6 +3,10 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase-server';
 import { Wortmarke } from '@/components/brand/wortmarke';
 import { OnboardingStep } from '@/components/brand/onboarding-step';
+import {
+  FunktionsTour,
+  FunktionsTourLink,
+} from '@/components/brand/funktions-tour';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { HugeiconsIcon } from '@hugeicons/react';
@@ -98,6 +102,11 @@ export default async function WillkommenPage() {
 
   return (
     <div className="container mx-auto py-8 sm:py-12 px-4 sm:px-6 max-w-4xl">
+      {/* Funktions-Tour: beim ersten Besuch automatisch, danach via Link unten.
+          localStorage-Flag verhindert Re-Show, kann über den Link wieder
+          geöffnet werden. */}
+      <FunktionsTour autoOpen />
+
       {/* HERO */}
       <div className="mb-8 sm:mb-10 text-center">
         <Wortmarke size="lg" withTagline className="items-center mb-6 mx-auto" />
@@ -200,6 +209,11 @@ export default async function WillkommenPage() {
           </Link>
         </div>
       )}
+
+      {/* Tour-Wiederholen-Link (dezent, unten) */}
+      <div className="mt-10 text-center">
+        <FunktionsTourLink />
+      </div>
     </div>
   );
 }
