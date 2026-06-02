@@ -67,7 +67,7 @@ export default async function Home() {
             Du musst nicht mehr abends am Laptop sitzen, um Mails zu
             beantworten. Auftragswerk liest jede Kundenanfrage, schreibt
             dir einen Antwortentwurf in deinem Ton und schlägt gleich
-            freie Termine vor. Du liest kurz drüber, klickst frei – fertig.
+            freie Termine vor. Du liest kurz drüber, klickst auf Senden – fertig.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
             <Button asChild size="lg" className="w-full sm:w-auto gap-2">
@@ -154,7 +154,7 @@ export default async function Home() {
               icon={InboxIcon}
               schritt="02"
               titel="Entwurf ist fertig"
-              text="In deinem Ton, mit deinen Standard-Formulierungen. Du gibst frei – oder änderst zwei Sätze."
+              text="In deinem Ton, mit deinen Standard-Formulierungen. Du klickst auf Senden – oder änderst noch zwei Sätze."
             />
             <LoesungCard
               icon={Calendar03Icon}

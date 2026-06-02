@@ -75,7 +75,7 @@ const TABS: TabConfig[] = [
     id: 'freigabe',
     label: 'Freigabe',
     statuses: ['entwurf_bereit'],
-    description: 'KI-Entwurf bereit – du gibst frei oder passt an',
+    description: 'KI-Entwurf bereit – du sendest oder passt an',
     group: 'zu_tun',
   },
   {
