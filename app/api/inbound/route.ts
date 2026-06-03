@@ -71,7 +71,18 @@ export async function POST(req: NextRequest) {
     const betreff = payload.Subject || '(kein Betreff)';
     const bodyText = payload.TextBody || '';
     const bodyHtml = payload.HtmlBody || '';
-    const toEmail = payload.ToFull?.[0]?.Email || payload.To || '';
+
+    // CRITICAL: bei Forward-Mails (Owner forwarded info@firma.de →
+    // <slug>@kunden.auftragswerk.app) setzt Postmark `To` auf den
+    // ORIGINAL-Empfänger der Mail (info@firma.de), nicht auf die
+    // Forward-Adresse. Wir brauchen aber die Forward-Adresse damit der
+    // Betriebs-Lookup matcht. Postmark stellt das in `OriginalRecipient`
+    // bereit. Reihenfolge: OriginalRecipient > ToFull > To.
+    const toEmail =
+      payload.OriginalRecipient ||
+      payload.ToFull?.[0]?.Email ||
+      payload.To ||
+      '';
 
     // Mail-Header für Threading extrahieren
     const headers = Array.isArray(payload.Headers) ? payload.Headers : [];

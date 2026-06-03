@@ -105,8 +105,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  // CRITICAL: bei Forward-Mails (Owner forwarded info@firma.de →
+  // <slug>@kunden.auftragswerk.app) setzt Postmark `To` auf den ORIGINAL-
+  // Empfänger der Mail (info@firma.de). Forward-Adresse liegt in
+  // `OriginalRecipient`. Muss priorisiert werden, sonst greift der
+  // Betriebs-Lookup für inbound_email nicht (siehe gleicher Fix in
+  // app/api/inbound/route.ts).
   const toEmail: string =
-    payload.ToFull?.[0]?.Email || payload.To || '';
+    payload.OriginalRecipient ||
+    payload.ToFull?.[0]?.Email ||
+    payload.To ||
+    '';
   let betriebId: string | null = null;
   if (toEmail) {
     const { data: betrieb } = await supabase
