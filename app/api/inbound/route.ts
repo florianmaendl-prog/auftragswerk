@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
     const { data: betrieb } = await supabaseAdmin
       .from('betriebe')
       .select(
-        'id, name, inhaber, branche, was_wir_machen, was_wir_nicht_machen, region, mindestauftragswert, ton_beispiele, vermeiden, signatur, inbound_email'
+        'id, name, inhaber, branche, was_wir_machen, was_wir_nicht_machen, region, mindestauftragswert, ton_beispiele, vermeiden, signatur, inbound_email, gebiete'
       )
       .eq('inbound_email', toEmail)
       .single();

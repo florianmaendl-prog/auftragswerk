@@ -37,7 +37,7 @@ export default async function ProfilPage() {
     supabase
       .from('betriebe')
       .select(
-        'id, name, inhaber, branche, inbound_email, region, mindestauftragswert, was_wir_machen, was_wir_nicht_machen, wichtige_kunden, signatur, ton_beispiele, vermeiden'
+        'id, name, inhaber, branche, inbound_email, region, mindestauftragswert, was_wir_machen, was_wir_nicht_machen, wichtige_kunden, signatur, ton_beispiele, vermeiden, gebiete'
       )
       .eq('id', profile.betrieb_id)
       .single(),
@@ -102,6 +102,7 @@ export default async function ProfilPage() {
           signatur: betrieb.signatur || '',
           ton_beispiele: betrieb.ton_beispiele || [],
           vermeiden: betrieb.vermeiden || '',
+          gebiete: Array.isArray(betrieb.gebiete) ? betrieb.gebiete : [],
         }}
       />
     </div>

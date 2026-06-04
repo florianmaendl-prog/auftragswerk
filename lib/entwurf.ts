@@ -26,6 +26,12 @@ type Klassifikation = {
   empfohlene_aktion: string | null;
 };
 
+type Gebiet = {
+  plz_muster: string;
+  label: string;
+  mindestauftragswert: number | null;
+};
+
 type Betrieb = {
   id: string;
   name: string;
@@ -38,6 +44,7 @@ type Betrieb = {
   ton_beispiele: string[] | null;
   vermeiden: string | null;
   signatur: string | null;
+  gebiete: Gebiet[] | null;
 };
 
 /**
@@ -91,7 +98,32 @@ ${(betrieb.was_wir_machen || []).map((x) => `- ${x}`).join('\n') || '(nicht ange
 WAS DER BETRIEB NICHT MACHT:
 ${(betrieb.was_wir_nicht_machen || []).map((x) => `- ${x}`).join('\n') || '(nicht angegeben)'}
 
-${betrieb.mindestauftragswert ? `MINDESTAUFTRAGSWERT: ${betrieb.mindestauftragswert}€\n` : ''}
+${
+  betrieb.gebiete && betrieb.gebiete.length > 0
+    ? `EINZUGSGEBIET + GEBIETS-ABHÄNGIGER MINDESTAUFTRAGSWERT:
+Diese Tabelle definiert wo der Betrieb arbeitet und welcher Mindestwert pro Region gilt. Reihenfolge entscheidet – das erste Match gewinnt. "*" ist die Wildcard für "alles andere".
+
+${betrieb.gebiete
+  .map(
+    (g, i) =>
+      `${i + 1}. PLZ ${g.plz_muster}${g.label ? ` (${g.label})` : ''} → ab ${
+        g.mindestauftragswert ?? 0
+      }€`
+  )
+  .join('\n')}
+
+Anwendung:
+- Wenn der Kunde eine Adresse/Stadt/PLZ in der Anfrage erwähnt, ordne sie einem dieser Gebiete zu (du kennst PLZ-Bereiche und Städte Deutschlands aus deinem Training).
+- Wenn die Adresse außerhalb aller Gebiete liegt: freundlich darauf hinweisen, dass der Betrieb dort normalerweise nicht arbeitet – nicht aggressiv ablehnen, sondern transparent.
+- Wenn die Adresse zu einem Gebiet passt aber der grobe Auftragswert klar unter dem Mindestwert für dieses Gebiet liegt: höflich erwähnen (z.B. "Bitte beachten Sie, dass für Aufträge in Ihrer Region unser Mindestauftragsvolumen bei X€ liegt").
+- Wenn keine Adresse erkennbar ist: einfach normal antworten und ggf. nach der Adresse fragen – nicht spekulieren.
+- Mache niemals harte Aussagen wie "wir kommen nicht zu Ihnen" – das ist Owner-Entscheidung. Schreibe diplomatisch.
+
+`
+    : betrieb.mindestauftragswert
+    ? `MINDESTAUFTRAGSWERT: ${betrieb.mindestauftragswert}€\n`
+    : ''
+}
 
 STIL-BEISPIELE (so antwortet dieser Betrieb typischerweise – Anrede, Begrüßung, Länge übernehmen. ABER: die Grußformel und den Namen am Ende NICHT übernehmen, das macht das System):
 

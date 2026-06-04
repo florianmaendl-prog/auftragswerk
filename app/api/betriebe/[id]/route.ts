@@ -14,6 +14,7 @@ const ERLAUBTE_FELDER = [
   'signatur',
   'ton_beispiele',
   'vermeiden',
+  'gebiete',
 ] as const;
 
 type ErlaubtesFeld = (typeof ERLAUBTE_FELDER)[number];
@@ -35,7 +36,7 @@ export async function GET(
   const { data, error } = await supabase
     .from('betriebe')
     .select(
-      'id, name, inhaber, branche, inbound_email, region, mindestauftragswert, was_wir_machen, was_wir_nicht_machen, wichtige_kunden, signatur, ton_beispiele, vermeiden'
+      'id, name, inhaber, branche, inbound_email, region, mindestauftragswert, was_wir_machen, was_wir_nicht_machen, wichtige_kunden, signatur, ton_beispiele, vermeiden, gebiete'
     )
     .eq('id', id)
     .single();
@@ -110,6 +111,36 @@ export async function PATCH(
         }
         update[feld] = num;
       }
+      continue;
+    }
+
+    // Gebiete-Array (jsonb): [{ plz_muster, label, mindestauftragswert }]
+    if (feld === 'gebiete') {
+      if (!Array.isArray(wert)) {
+        return NextResponse.json(
+          { error: 'gebiete muss ein Array sein' },
+          { status: 400 }
+        );
+      }
+      const cleaned = (wert as unknown[])
+        .filter((g): g is Record<string, unknown> => typeof g === 'object' && g !== null)
+        .map((g) => ({
+          plz_muster:
+            typeof g.plz_muster === 'string' ? g.plz_muster.trim() : '',
+          label: typeof g.label === 'string' ? g.label.trim() : '',
+          mindestauftragswert:
+            g.mindestauftragswert == null || g.mindestauftragswert === ''
+              ? null
+              : Number(g.mindestauftragswert),
+        }))
+        .filter(
+          (g) =>
+            g.plz_muster.length > 0 &&
+            (g.mindestauftragswert === null ||
+              (!Number.isNaN(g.mindestauftragswert) &&
+                g.mindestauftragswert >= 0))
+        );
+      update[feld] = cleaned;
       continue;
     }
 

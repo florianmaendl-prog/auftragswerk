@@ -10,6 +10,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
+export type Gebiet = {
+  plz_muster: string;
+  label: string;
+  mindestauftragswert: number | null;
+};
+
 type ProfilData = {
   name: string;
   inhaber: string;
@@ -23,6 +29,7 @@ type ProfilData = {
   signatur: string;
   ton_beispiele: string[];
   vermeiden: string;
+  gebiete: Gebiet[];
 };
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -153,7 +160,9 @@ export function ProfilForm({
           </div>
 
           <div>
-            <Label htmlFor="mindestauftragswert">Mindestauftragswert (€)</Label>
+            <Label htmlFor="mindestauftragswert">
+              Allgemeiner Mindestauftragswert (€)
+            </Label>
             <Input
               id="mindestauftragswert"
               type="number"
@@ -171,11 +180,18 @@ export function ProfilForm({
               className="mt-1.5"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              KI markiert Anfragen unter diesem Wert als „unter Mindestauftrag".
+              Fallback wenn unten keine Einzugsgebiete gepflegt sind. Wenn
+              Einzugsgebiete da sind, gilt der Mindestwert pro Gebiet.
             </p>
           </div>
         </CardContent>
       </Card>
+
+      {/* Einzugsgebiete – PLZ-Muster + Mindestauftragswert pro Gebiet */}
+      <GebieteEditor
+        items={data.gebiete}
+        onChange={(items) => setData({ ...data, gebiete: items })}
+      />
 
       {/* Was wir machen */}
       <ListEditor
@@ -494,5 +510,159 @@ function TonbeispieleEditor({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * GebieteEditor: Tabellen-artiger Editor für betriebe.gebiete.
+ * Jede Zeile = ein PLZ-Tier mit Muster, Label, Mindestauftragswert.
+ *
+ * Pattern-Beispiele:
+ *   "85*"   → alle PLZ die mit 85 beginnen (Hauptgebiet)
+ *   "80*"   → München-Stadt
+ *   "85737" → genau diese PLZ
+ *   "*"     → Wildcard-Fallback (immer am Ende)
+ *
+ * Reihenfolge zählt: erste Übereinstimmung gewinnt → spezifischste oben,
+ * "*" unten. Die KI verwendet die Liste im Entwurf-Prompt.
+ */
+function GebieteEditor({
+  items,
+  onChange,
+}: {
+  items: Gebiet[];
+  onChange: (items: Gebiet[]) => void;
+}) {
+  function addRow() {
+    onChange([
+      ...items,
+      { plz_muster: '', label: '', mindestauftragswert: null },
+    ]);
+  }
+
+  function removeRow(idx: number) {
+    onChange(items.filter((_, i) => i !== idx));
+  }
+
+  function updateRow(idx: number, patch: Partial<Gebiet>) {
+    onChange(items.map((g, i) => (i === idx ? { ...g, ...patch } : g)));
+  }
+
+  function moveUp(idx: number) {
+    if (idx === 0) return;
+    const next = [...items];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    onChange(next);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Einzugsgebiet & Mindestaufträge</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Definiere wo du arbeitest und ab welchem Auftragswert es sich
+            lohnt. <strong>Erstes Match gewinnt</strong> – also
+            spezifischste PLZ-Bereiche oben, „*" als Fallback unten.
+          </p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Beispiele: <code className="bg-muted px-1 rounded">85*</code> = alle
+            85xxx, <code className="bg-muted px-1 rounded">85737</code> = nur
+            diese PLZ, <code className="bg-muted px-1 rounded">*</code> = alles
+            übrige (Fallback).
+          </p>
+        </div>
+
+        {items.length === 0 && (
+          <p className="text-sm text-muted-foreground italic">
+            Noch keine Einzugsgebiete definiert. Standard:
+            „Allgemeiner Mindestauftragswert" oben gilt für alle Anfragen.
+          </p>
+        )}
+
+        {items.length > 0 && (
+          <div className="space-y-2">
+            {/* Header-Zeile */}
+            <div className="grid grid-cols-[80px_1fr_110px_64px] gap-2 px-1 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+              <span>PLZ-Muster</span>
+              <span>Label</span>
+              <span>Min. Wert (€)</span>
+              <span></span>
+            </div>
+
+            {items.map((g, idx) => (
+              <div
+                key={idx}
+                className="grid grid-cols-[80px_1fr_110px_64px] gap-2 items-center"
+              >
+                <Input
+                  value={g.plz_muster}
+                  onChange={(e) =>
+                    updateRow(idx, { plz_muster: e.target.value })
+                  }
+                  placeholder="85*"
+                  maxLength={20}
+                  className="font-mono text-sm"
+                />
+                <Input
+                  value={g.label}
+                  onChange={(e) => updateRow(idx, { label: e.target.value })}
+                  placeholder="Hauptgebiet"
+                  maxLength={80}
+                  className="text-sm"
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={g.mindestauftragswert ?? ''}
+                  onChange={(e) =>
+                    updateRow(idx, {
+                      mindestauftragswert:
+                        e.target.value === '' ? null : Number(e.target.value),
+                    })
+                  }
+                  placeholder="100"
+                  className="text-sm"
+                />
+                <div className="flex items-center gap-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => moveUp(idx)}
+                    disabled={idx === 0}
+                    title="Nach oben"
+                    aria-label="Nach oben verschieben"
+                    className="h-8 w-7 p-0 text-muted-foreground hover:text-foreground"
+                  >
+                    ↑
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeRow(idx)}
+                    title="Entfernen"
+                    aria-label="Gebiet entfernen"
+                    className="h-8 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    ×
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end pt-1">
+          <Button variant="outline" size="sm" onClick={addRow}>
+            + Gebiet hinzufügen
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
