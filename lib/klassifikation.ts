@@ -48,6 +48,13 @@ export interface KlassifikationResult {
   materialbedarf_erkannt: boolean;
   empfohlene_aktion: string;
   extrahierter_termin: ExtrahierterTermin | null;
+  /**
+   * Eskalations-Signale erkannt? (Beschwerde, Anwalt, Mängelrüge,
+   * Klage-Andeutung, Drohung). Wenn true → Pipeline skipped Auto-Entwurf,
+   * Status manuell_pruefen mit Hinweis. STRATEGIE.md TEIL A1 Punkt 6.
+   */
+  eskalation_erkannt: boolean;
+  eskalation_grund: string | null;
 }
 
 /**
@@ -111,6 +118,26 @@ EXTRAKTION:
       notiz: "<sehr kurzer Hinweis was der Termin ist>" | null }
   Wenn unklar/kein Termin/zu vage: null.
 
+ESKALATIONS-ERKENNUNG (haftungs- + reputations-kritisch):
+Setze eskalation_erkannt=true wenn IRGENDEINES dieser Signale auftaucht:
+- Anwalt erwähnt ("mein Anwalt", "RA Müller", "Rechtsanwalt", "Kanzlei")
+- Mängelrüge mit Fristsetzung ("setze Ihnen eine Frist bis", "ich rüge hiermit")
+- Klage-Andeutung ("werde ich Klage einreichen", "vor Gericht")
+- Stark aggressiver Ton ("Ihre Unverschämtheit", "Frechheit", "Skandal", "Betrug")
+- Drohung mit öffentlicher Beschwerde ("Google-Bewertung", "Innung informieren", "Presse")
+- Hartnäckige Reklamation nach mehreren Mahnungen / Wiederholungs-Forderung mit Druck
+- Schadensersatz-Forderung mit konkretem Betrag
+
+eskalation_grund: 1 kurzer Satz mit dem konkreten Signal (z.B. "Kunde droht
+mit Anwalt", "Mängelrüge mit Fristsetzung 14 Tage", "Aggressive Beschwerde
+über Termin-Verschiebung").
+
+In Zweifel LIEBER ESKALATION ERKENNEN. Lieber einmal zu vorsichtig flaggen
+als einmal einen lockeren Entwurf gegen wütenden Kunden rausschicken.
+
+WICHTIG: Normaler Unmut/Frust ist KEINE Eskalation. Erst wenn Druck,
+Anwalt, Fristen, Drohungen ins Spiel kommen.
+
 OUTPUT-FORMAT:
 Antworte AUSSCHLIESSLICH mit gültigem JSON, keine Erklärungen, keine Markdown-Blöcke. Format:
 
@@ -131,7 +158,9 @@ Antworte AUSSCHLIESSLICH mit gültigem JSON, keine Erklärungen, keine Markdown-
   "fehlende_infos": ["..."],
   "materialbedarf_erkannt": false,
   "empfohlene_aktion": "Was sollte der Meister als nächstes tun (kurzer Satz)",
-  "extrahierter_termin": { "datum_iso": "2026-05-26T10:00:00", "ort": "...", "notiz": "..." } | null
+  "extrahierter_termin": { "datum_iso": "2026-05-26T10:00:00", "ort": "...", "notiz": "..." } | null,
+  "eskalation_erkannt": false,
+  "eskalation_grund": null
 }
 
 WICHTIG:
@@ -227,6 +256,10 @@ ${mailText}`;
     materialbedarf_erkannt: klassifikation.materialbedarf_erkannt,
     empfohlene_aktion: klassifikation.empfohlene_aktion,
     extrahierter_termin: klassifikation.extrahierter_termin ?? null,
+    // Defensiv: bei alten Klassifikationen kann Haiku die Felder noch nicht
+    // ausgeben → Default auf false. Migration setzt DEFAULT false ohnehin.
+    eskalation_erkannt: klassifikation.eskalation_erkannt ?? false,
+    eskalation_grund: klassifikation.eskalation_grund ?? null,
   });
 
   if (dbError) {

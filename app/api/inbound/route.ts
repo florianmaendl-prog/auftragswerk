@@ -510,6 +510,40 @@ export async function POST(req: NextRequest) {
       | 'aussortiert' = 'nicht_relevant';
 
     if (klass?.kategorie === 'kundenanfrage') {
+      // Eskalations-Check VOR Entwurfsgenerierung – Iron Rule 3 ("Entwurf für
+      // ALLE") wird hier bewusst durchbrochen. Bei Anwalt/Mängelrüge/Drohung
+      // schreibt die KI keinen lockeren Entwurf, sondern flaggt für manuelle
+      // Antwort. STRATEGIE.md TEIL A1 Punkt 6.
+      if (klass.eskalation_erkannt) {
+        console.warn(
+          `🚨 Eskalation erkannt (${klass.eskalation_grund || 'kein Grund angegeben'}) – kein Auto-Entwurf, manuell_pruefen`
+        );
+        await supabaseAdmin.from('processing_errors').insert({
+          betrieb_id: betrieb.id,
+          anfrage_id: anfrageId,
+          schritt: 'eskalation',
+          fehler_text: `Eskalation flag: ${klass.eskalation_grund || 'kein Grund'}`,
+          fehler_details: {
+            kategorie: klass.kategorie,
+            eskalation_grund: klass.eskalation_grund,
+          },
+        });
+        entwurfStatus = 'manuell_pruefen';
+        neuerStatus = 'manuell_pruefen';
+        await supabaseAdmin
+          .from('anfragen')
+          .update({ status: 'manuell_pruefen' })
+          .eq('id', anfrageId);
+
+        return NextResponse.json({
+          success: true,
+          anfrage_id: anfrageId,
+          ist_reply: istReply,
+          eskalation: true,
+          eskalation_grund: klass.eskalation_grund,
+        });
+      }
+
       // IMMER Entwurf bauen für Kundenanfragen – egal ob passt, unklar, passt_nicht
       const { data: klassifikation, error: klassifikationError } = await supabaseAdmin
         .from('analysen')
