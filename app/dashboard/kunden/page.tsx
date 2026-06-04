@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase-server';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/brand/empty-state';
 import { UserGroupIcon } from '@hugeicons/core-free-icons';
+import { KundeSperrenButton } from './kunde-sperren-button';
 
 type AnalyseRow = {
   kategorie: string | null;
@@ -46,17 +47,23 @@ function timeAgo(date: string): string {
 export default async function KundenPage() {
   const supabase = await createClient();
 
-  // Alle Anfragen + ihre Analysen holen. RLS filtert auf den eigenen Betrieb.
-  // Aggregation in JS (für eine Pilot-Größe < 10k Anfragen unproblematisch).
-  const { data } = await supabase
-    .from('anfragen')
-    .select(
-      `id, von_email, von_name, created_at, status,
-       analysen (kategorie, extrahierter_name, extrahierte_firma, gewerk_match, kunde_typ)`
-    )
-    .is('geloescht_am', null)
-    .order('created_at', { ascending: false })
-    .limit(2000);
+  // Anfragen + Sperrliste parallel holen (RLS scoped auf eigenen Betrieb)
+  const [{ data }, { data: gesperrt }] = await Promise.all([
+    supabase
+      .from('anfragen')
+      .select(
+        `id, von_email, von_name, created_at, status,
+         analysen (kategorie, extrahierter_name, extrahierte_firma, gewerk_match, kunde_typ)`
+      )
+      .is('geloescht_am', null)
+      .order('created_at', { ascending: false })
+      .limit(2000),
+    supabase.from('gesperrte_sender').select('email'),
+  ]);
+
+  const blockedEmails = new Set(
+    (gesperrt ?? []).map((g) => (g.email as string).toLowerCase())
+  );
 
   const rows = (data as AnfrageRow[]) || [];
 
@@ -65,6 +72,9 @@ export default async function KundenPage() {
   // in die Anzahl noch in die Stammdaten (Name/Firma) ein.
   const kundenMap = new Map<string, KundeAggregat>();
   for (const a of rows) {
+    // Gesperrte Sender raus, auch wenn sie historisch als Kunde klassifiziert wurden
+    if (blockedEmails.has(a.von_email.toLowerCase())) continue;
+
     const kundenAnalyse = (a.analysen || []).find(
       (an) => an.kategorie === 'kundenanfrage'
     );
@@ -110,40 +120,44 @@ export default async function KundenPage() {
       ) : (
         <div className="space-y-2">
           {kunden.map((k) => (
-            <Link
-              key={k.email}
-              href={`/dashboard/kunden/${encodeURIComponent(k.email)}`}
-              className="block"
-            >
-              <Card className="hover:bg-accent/40 transition-colors">
-                <CardContent className="py-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate">{k.name || k.email}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {k.firma && <span>{k.firma} · </span>}
-                        {k.email}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      {k.kunde_typ && (
-                        <span className="text-xs rounded-full border px-2 py-0.5 bg-muted text-muted-foreground">
-                          {k.kunde_typ}
-                        </span>
-                      )}
-                      <div className="text-right">
-                        <p className="text-sm font-medium">
-                          {k.anzahl} {k.anzahl === 1 ? 'Anfrage' : 'Anfragen'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {timeAgo(k.letzter_kontakt)}
+            <div key={k.email} className="relative group">
+              <Link
+                href={`/dashboard/kunden/${encodeURIComponent(k.email)}`}
+                className="block"
+              >
+                <Card className="hover:bg-accent/40 transition-colors pr-12">
+                  <CardContent className="py-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{k.name || k.email}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {k.firma && <span>{k.firma} · </span>}
+                          {k.email}
                         </p>
                       </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        {k.kunde_typ && (
+                          <span className="text-xs rounded-full border px-2 py-0.5 bg-muted text-muted-foreground">
+                            {k.kunde_typ}
+                          </span>
+                        )}
+                        <div className="text-right">
+                          <p className="text-sm font-medium">
+                            {k.anzahl} {k.anzahl === 1 ? 'Anfrage' : 'Anfragen'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {timeAgo(k.letzter_kontakt)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+                  </CardContent>
+                </Card>
+              </Link>
+              <div className="absolute top-1/2 right-2 -translate-y-1/2">
+                <KundeSperrenButton email={k.email} />
+              </div>
+            </div>
           ))}
         </div>
       )}

@@ -197,13 +197,32 @@ export async function POST(req: NextRequest) {
     let anfrageId: string;
     let istReply = false;
 
+    // Pre-Check: ist der Sender gesperrt? Wenn ja → direkt als
+    // aussortiert anlegen, kein KI-Call (spart Anthropic-Kosten). Lookup
+    // case-insensitive damit MAX@FIRMA.COM und max@firma.com identisch sind.
+    const { data: gesperrt } = await supabaseAdmin
+      .from('gesperrte_sender')
+      .select('id')
+      .eq('betrieb_id', betrieb.id)
+      .ilike('email', vonEmail)
+      .maybeSingle();
+    const senderGesperrt = !!gesperrt;
+    if (senderGesperrt) {
+      console.log(`🚫 Sender gesperrt: ${vonEmail} – aussortieren ohne KI-Call`);
+    }
+
     if (existierendeAnfrageId) {
       anfrageId = existierendeAnfrageId;
       istReply = true;
 
+      // Bei Reply von gesperrtem Sender bleibt die Anfrage aussortiert –
+      // der Owner hat die explizit weggemacht, das soll auch beim Re-Reply
+      // greifen.
       await supabaseAdmin
         .from('anfragen')
-        .update({ status: 'reply_eingegangen' })
+        .update({
+          status: senderGesperrt ? 'aussortiert' : 'reply_eingegangen',
+        })
         .eq('id', anfrageId);
 
       console.log(`↩ Reply wird an Anfrage ${anfrageId} angehängt`);
@@ -220,7 +239,7 @@ export async function POST(req: NextRequest) {
           body_text_clean: bodyTextClean,
           body_html: bodyHtml,
           raw_payload: cleanerMeta ? { ...payload, _cleaner_meta: cleanerMeta } : payload,
-          status: 'neu',
+          status: senderGesperrt ? 'aussortiert' : 'neu',
         })
         .select()
         .single();
@@ -415,6 +434,18 @@ export async function POST(req: NextRequest) {
           body_text: anfrageFuerKlass.body_text,
           body_text_clean: anfrageFuerKlass.body_text_clean,
         };
+
+    // Gesperrter Sender: keine Klassifikation, kein Entwurf – Anfrage ist
+    // schon als 'aussortiert' angelegt, wir sind fertig.
+    if (senderGesperrt) {
+      console.log(`🚫 Skip KI für gesperrten Sender ${vonEmail}`);
+      return NextResponse.json({
+        success: true,
+        anfrage_id: anfrageId,
+        ist_reply: istReply,
+        gesperrt: true,
+      });
+    }
 
     const klassRes = await klassifiziereAnfrage(klassInput, betrieb);
 

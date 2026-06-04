@@ -1,0 +1,239 @@
+# Auftragswerk – Ideen-Eisschrank
+
+> **Zweck:** Ideen die wir bewusst NICHT jetzt bauen — aber auch nicht
+> verlieren wollen. Alles hier wartet auf Validierung durch echte Nutzer
+> (Max-Pilot + Pilot #2) bevor es priorisiert wird.
+>
+> **Leitsatz aus STRATEGIE.md:** *Scale isn't about doing more. It's
+> about removing everything that isn't worth doing — then doing as much
+> as you can of what's left.*
+>
+> Reihenfolge gilt: erst Säule 1 (Mail) wirklich perfekt → dann nächste
+> Säule. **Nichts aus dieser Datei** kommt vor abgeschlossenem
+> Max-Pilot-Feedback (4-8 Wochen Realbetrieb).
+
+---
+
+## Säule 4 (NEU) — KI-Marketing-Studio für Handwerker
+
+**Trigger der Idee:** Max-Feedback Tag 18. Handwerkskammer schickte ein
+Erklärvideo, das laut Kammer **10.000 €** kosten würde. Realer Pain, real
+großer Markt, KI-Video-Generation ist 2026 produktionsreif.
+
+### Konzept
+
+Owner-Workflow:
+1. Owner lädt Story-Skelett hoch (text) oder beschreibt sein Gewerk
+2. KI baut Storyboard (Szenen mit Text)
+3. Bilder werden generiert (Sora/Veo/Midjourney) oder Owner lädt eigene
+   Baustellen-Fotos hoch
+4. Bilder → Video via Image-to-Video-Model
+5. Voice via ElevenLabs (deutsche Stimme, Handwerker-Charakter)
+6. Auto-Cut via ffmpeg
+7. Owner kriegt fertiges 60-90s Erklärvideo
+
+### Tech-Stack 2026
+
+| Schritt | Tool | Kosten/Video |
+|---|---|---|
+| Story | Claude/GPT | <0.10 € |
+| Bild-Gen | Sora 2 / Veo 3 / Midjourney | 0.50–2 € |
+| Image→Video | Veo 3 / Kling 2.5 | 1–5 € |
+| Voice | ElevenLabs | 0.30–1 € |
+| Cut | ffmpeg (selbst) | 0 € |
+| **Total Input** | | **~3–8 €** |
+| **Verkaufspreis** | | **~500–2000 €** |
+
+### Markt-These
+
+- Handwerkskammer-Preise (10k€) sind absurd
+- Agenturen wollen Handwerker eh nicht (zu kleine Budgets)
+- Handwerker mögen keine Agenturen (Vertrauen, "fremde Menschen")
+- Self-Service mit Premium-Output = Bedarfslücke
+
+### Pushback (warum NICHT jetzt)
+
+1. **Auftragswerk-Mail ist NICHT fertig.** Max nutzt es seit Tag 18 real.
+   Erst Säule 1 validieren.
+2. **Zweites Produkt parallel = beide werden mittelmäßig.** Klassischer
+   Startup-Fehler.
+3. **Branding-Verwässerung.** "Auftragswerk" = Auftragsbearbeitung,
+   nicht Video. Wenn man sowas baut → eigene Brand (z.B.
+   `handwerkstudio.ai`).
+4. **Anderer Tech-Stack** als Mail-Tool. Wenig Synergie.
+5. **Validierungs-Pflicht:** vor Bau mit 5+ Handwerkern reden ob sie
+   für sowas Geld ausgeben würden + wieviel.
+
+### Trigger zum Bau
+
+- Säule 1 (Mail) läuft bei ≥3 Pilots produktiv und bringt Geld
+- ≥5 Handwerker sagen in Interviews "ja, ich würde sowas kaufen"
+- Max nutzt Mail-Tool 4+ Wochen ohne Abbruch
+- Brand-Strategie entschieden (eigene Domain vs. Sub-Brand)
+
+### Wenn-dann-Architektur
+
+- Eigene Codebase (NICHT in Auftragswerk-Repo)
+- Eigene Brand + Domain
+- Aber: Cross-Selling möglich (Auftragswerk-User → Marketing-Studio-Upsell)
+- Pricing-Modell vermutlich: pro Video (250–500€) ODER Monats-Pakete
+
+---
+
+## Säule 2 — Angebots-Editor (war geparkt, bleibt geparkt)
+
+Schon dokumentiert in STRATEGIE.md TEIL D + VISION.md. Hier nur kurz zur
+Vollständigkeit:
+
+- Migration liegt im Repo: `supabase/migrations/20260522_saeule2_angebote.sql`
+- Human-in-the-loop: KI schlägt Positionen, Owner setzt jeden Preis
+- ⚠️ **Scope-Falle:** nicht zum ERP werden (GoBD, E-Rechnung-Pflicht)
+- Trigger: Max-Pilot zeigt dass Angebote der größte Pain sind
+
+## Säule 3 — Material-Recherche
+
+Konzept in VISION.md ("Perplexity für Handwerker"). Erst nach Säule 1+2.
+
+---
+
+## Max-Pilot-Feedback (Tag 17–18) — was geparkt ist
+
+Hier alle Items aus Max' Feedback die NICHT in die nächsten 1-2 Sprints
+gehen (alles andere wurde gleich gebaut):
+
+### Region = PLZ + Umkreis + gebiets-abhängiger Auftragswert
+**Pain ist real**, eines der besten Max-Feedback-Items. Handwerker
+fahren nicht 60km für 800 €.
+
+- **V1 (1-2 Tage Bauzeit):** PLZ-Prefix-Tier-Liste im Profil.
+  Beispiel: `80*-85*` = Hauptgebiet, ab 100€; `86*-87*` = nur ab 5000€;
+  `90*+` = nicht. KI-Prompt nutzt die Tiers für „passt geografisch + wert".
+- **V2 (separate Welle):** Echte Geocoding-API (Nominatim gratis,
+  alternativ ca. 5€/Monat) — Anfrage-Adresse → Koordinaten → Distanz
+  zum Owner-Standort. Tier basierend auf km statt PLZ-Prefix.
+- **V3 (Premium, eventuell nie):** Karten-Editor mit Drag-Punkt +
+  Radius-Slider, visuelle Tier-Definition.
+
+**Trigger zum Bau:** mindestens 1 Pilot sagt „die KI hat mir einen
+Termin in [Stadt 50km weg] vorgeschlagen für 500€-Job" → V1 sofort
+bauen.
+
+### Signatur — Rich-Text + Logo
+- Heute: Plain-Text-Textarea
+- Wunsch: Fett/Größe/Spalten/Logo-Upload mit CID-Embedding
+- ~1-2 Tage Bauzeit (TipTap-Editor + HTML-Send-Pfad in lib/postmark/gmail
+  + Storage-Upload für Logo + CID-Embed)
+- HTML-Signaturen brechen oft (Mobile-Clients, Reply-Threads)
+- **Trigger:** mindestens 2 Pilots sagen „muss professioneller aussehen"
+
+### Custom-Ordner / Custom-Tags
+- Owner-definierte Tags: „Kammer", „Lieferanten", „Persönlich-wichtig"
+- Plus Sender-zu-Tag-Regeln: „Absender X → Tag Y"
+- ~1 Tag Bauzeit für V1 (Tags-Tabelle + UI + Regel-Engine)
+- **Trigger:** mindestens 2 Pilots sagen „Kategorien reichen nicht"
+- **Naming für später:** „Aufheben" / „Merkliste" — kurz, klar, kein
+  Marketing-Sprech
+- **NICHT bauen:** Gmail-Style Folder-Drag&Drop (overkill)
+
+### Kammer/Verband als eigener Tab
+- Heute: landet in „Info"
+- Quick-Win wenn echter Pain: KI-Klassifikation `innung_behoerde` als
+  eigenen Tab „Kammer/Verband" rausziehen statt in Info bündeln (~30 Min)
+- **Trigger:** wenn Max sagt „Info ist gemischt", konkretes Feedback
+
+### Baustein-Pricing (Mail = Grund + Kalender/Angebote zubuchen)
+- Strategisches Pricing-Modell statt Tiers
+- Vorteil: günstiger Einstieg, Up-Sell pro Modul
+- **Trigger:** nach 3-5 Pilots, wenn Pricing-Phase ansteht
+- **Konkurrenz:** klassische SaaS-Tiers (49€/99€/199€) sind einfacher
+  zu kommunizieren
+
+### Kalender als „optional" framen (Max sagt: nutzt nicht jeder)
+- **Florian-Entscheidung Tag 18:** Kalender bleibt Pflicht-Feature.
+  Max ist 1 Datenpunkt, nicht der Markt. Feature ist geil.
+- Re-Evaluieren wenn ≥3 von 5 Pilots sagen „pflege ich nicht"
+
+### Auto-Refresh bei neuer Anfrage
+- Heute: manueller Refresh-Button (Tag 18 gebaut)
+- Auto-Refresh würde Polling-Last + Komplexität bringen
+- **Trigger:** wenn ≥2 Pilots sagen „nervt manuell"
+- Alternative: WebSockets / Supabase Realtime → eleganter aber Aufwand
+
+---
+
+## Sonstige Ideen (aus früheren Brainstormings)
+
+### Diktat / Speech-to-Text → fertige Mail
+- Mehrwert: „Sprache → fertige Mail" (gebrabbeltes → saubere Antwort
+  im Ton via Whisper + Entwurf-Prompt)
+- Aber: Handy-Tastatur-Diktat geht heute schon ohne uns
+- **Trigger:** mindestens 2 Pilots sagen explizit „will diktieren"
+
+### WhatsApp-Channel
+- Real im Handwerk (Privatkunden schicken Fotos per WA)
+- Aber: Business API = Meta-Approval + BSP + Template-Freigaben =
+  Wochen, laufende Kosten
+- **Sprengt Kern-Annahme** „Antwort aus Owners echtem Postfach" —
+  bei WA ist Absender eine Nummer (wessen?)
+- **Trigger:** Pilot #2 (Elektriker) fragt explizit oder mehrere Pilots
+  sagen "WhatsApp ist mein Hauptkanal"
+
+### Outlook / Microsoft Graph OAuth
+- Schon in STRATEGIE.md TEIL B1 als Pflicht für Innung dokumentiert
+- Architektur jetzt schon vorbereitet (`gmail_connections` mental als
+  `email_connections` mit `provider`-Spalte)
+- **Trigger:** Pilot #2 nutzt Outlook
+
+### OAuth-Lesen statt Forward (= Forward-Schritt abschaffen)
+- Schon in STRATEGIE.md TEIL E als „Strategische Entscheidung 1"
+  dokumentiert
+- Vorteil: dramatisch besseres Onboarding für Gmail/Outlook (kein
+  DNS/MX/Forward)
+- Nachteil: CASA-Audit-Pflicht (5–8 k€/Jahr) für `gmail.readonly`
+- **Trigger:** wenn ≥3 von 5 Pilots am Forward scheitern
+
+### „Entwurf fertig"-Mail-Ping an Owner
+- Schon in STRATEGIE.md TEIL A3 dokumentiert
+- Simpel: Postmark-Mail mit „Entwurf für Kunde X liegt bereit → [Link]"
+- **Trigger:** Max sagt „vergesse ständig reinzuschauen"
+
+### Lieferantenverzeichnis / Material-Bestellung
+- Konzept in VISION.md (Säule 3)
+- Owner speichert Lieferanten (Kontakt, Kundennummer, Lieferzeit) →
+  KI vorentwirft Bestell-Mail bei Materialbedarf
+- **Niedrigste Prio** — die meisten bestellen via Lieferanten-Portal/
+  Telefon, keine echte Lücke
+
+### Google-Calendar-OAuth-Sync (Modul 8)
+- Auto-Availability statt manueller Regel-Pflege
+- Auto-Event-Erstellung bei Termin-Bestätigung
+- Bidirektionaler Sync
+- **Trigger:** Max sagt „Verfügbarkeit pflegen ist nervig"
+
+---
+
+## Was NICHT in den Eisschrank gehört
+
+Diese Sachen sind GESTRICHEN (siehe STRATEGIE.md TEIL D), nicht
+geparkt — kein Re-Visit:
+
+- Schatten-/Beobachten-Modus
+- Sende-Cap pro Stunde
+- Kill-Switch
+- Telefon-Feature
+- Bild-Logo (Wortmarke reicht)
+- Push-Infrastruktur (Web-Push/Service-Worker)
+- Reklamations-Counter im ROI-Block
+- Test-Anfragen-Onboarding
+- Einzelfall-Hacks (BCC speziell an einen Owner, etc.)
+- Gmail-Style Folder-Drag&Drop
+
+---
+
+## Wenn diese Datei wieder relevant wird
+
+Vor jedem Sprint-Plan: kurzen Check ob ein „Trigger" hier oben jetzt
+erfüllt ist. Wenn ja → das Item aus dem Eisschrank in STRATEGIE.md
+TEIL A/B übernehmen und priorisieren.
+
+Wenn alles still bleibt → nicht hochziehen. Disziplin.

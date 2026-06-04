@@ -311,38 +311,47 @@ export function ProfilForm({
 
 /* ─────────────── Sub-Components ─────────────── */
 
+/**
+ * Eine simple Textarea statt Liste-mit-Add-Buttons. Owner schreibt
+ * frei rein (Komma, Semikolon oder Zeilenumbrüche egal) – beim Save
+ * wird automatisch in items[] gesplittet. Lehre aus Max-Pilot Tag 18:
+ * Handwerker lesen kein UI, Klick+Add+Eingabe pro Item ist zu viel
+ * Reibung. Eine Textarea ist genau Friction-frei.
+ */
 function ListEditor({
   title,
   description,
   items,
   onChange,
   placeholder,
-  addLabel,
-  emptyText,
+  emptyText: _emptyText,
 }: {
   title: string;
   description: string;
   items: string[];
   onChange: (items: string[]) => void;
   placeholder: string;
-  addLabel: string;
-  emptyText: string;
+  // addLabel/emptyText sind in der neuen Textarea-UX nicht mehr nötig –
+  // bleiben in der Signatur als optional für Backward-Kompatibilität.
+  addLabel?: string;
+  emptyText?: string;
 }) {
-  const [draft, setDraft] = useState('');
+  // Lokaler Textarea-State, damit der User Zeilen mitten in der Eingabe
+  // haben kann ohne dass jeder Tastenanschlag das Items-Array umbaut.
+  // Synchronisiert mit items[] beim Blur (oder Save via Parent).
+  const [draft, setDraft] = useState(items.join('\n'));
 
-  function add() {
-    const v = draft.trim();
-    if (!v) return;
-    onChange([...items, v]);
-    setDraft('');
+  function parseDraft(raw: string): string[] {
+    // Split bei Zeilenumbruch, Komma oder Semikolon – jedem Item trimmen.
+    return raw
+      .split(/[\n,;]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
   }
 
-  function remove(idx: number) {
-    onChange(items.filter((_, i) => i !== idx));
-  }
-
-  function update(idx: number, value: string) {
-    onChange(items.map((it, i) => (i === idx ? value : it)));
+  function commit(raw: string) {
+    setDraft(raw);
+    onChange(parseDraft(raw));
   }
 
   return (
@@ -350,52 +359,21 @@ function ListEditor({
       <CardHeader>
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-2">
         <p className="text-xs text-muted-foreground">{description}</p>
-
-        {items.length === 0 && (
-          <p className="text-sm text-muted-foreground italic">{emptyText}</p>
-        )}
-
-        <div className="space-y-2">
-          {items.map((item, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <Input
-                value={item}
-                onChange={(e) => update(idx, e.target.value)}
-                className="flex-1"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => remove(idx)}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                aria-label="Entfernen"
-              >
-                ×
-              </Button>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 pt-1">
-          <Input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                add();
-              }
-            }}
-            placeholder={placeholder}
-            maxLength={500}
-            className="flex-1"
-          />
-          <Button variant="outline" size="sm" onClick={add} disabled={!draft.trim()}>
-            {addLabel}
-          </Button>
-        </div>
+        <Textarea
+          value={draft}
+          onChange={(e) => commit(e.target.value)}
+          placeholder={placeholder}
+          rows={Math.min(Math.max(items.length + 1, 3), 8)}
+          maxLength={3000}
+          className="font-sans text-sm leading-relaxed"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          {items.length === 0
+            ? 'Eine Zeile pro Eintrag, oder durch Komma trennen.'
+            : `${items.length} ${items.length === 1 ? 'Eintrag' : 'Einträge'} – eine Zeile pro Eintrag, oder durch Komma trennen.`}
+        </p>
       </CardContent>
     </Card>
   );

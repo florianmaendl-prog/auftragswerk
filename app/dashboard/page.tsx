@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase-server';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { AnfrageQuickMenu } from './anfrage-quick-menu';
+import { InboxRefreshButton } from './inbox-refresh-button';
 import { KategorieBadge } from '@/components/brand/kategorie-badge';
 import { EmptyState } from '@/components/brand/empty-state';
 import { InboxIcon } from '@hugeicons/core-free-icons';
@@ -35,92 +36,62 @@ type TabId =
   | 'erledigt'
   | 'aussortiert';
 
-type GroupId = 'zu_tun' | 'verfolgen' | 'archiv';
-
 type TabConfig = {
   id: TabId;
   label: string;
   statuses: string[];
   description: string;
-  group: GroupId;
 };
 
-type GroupConfig = {
-  id: GroupId;
-  label: string;
-  description: string;
-};
-
-const GROUPS: GroupConfig[] = [
-  {
-    id: 'zu_tun',
-    label: 'Zu tun',
-    description: 'Hier brauchst du Action',
-  },
-  {
-    id: 'verfolgen',
-    label: 'Verfolgen',
-    description: 'Läuft – im Auge behalten',
-  },
-  {
-    id: 'archiv',
-    label: 'Archiv',
-    description: 'Abgeschlossen',
-  },
-];
-
+/**
+ * Flache Tab-Struktur (seit User-Feedback Tag 18): Gruppen-Labels
+ * ("Zu tun" / "Verfolgen" / "Archiv") sind raus – Owner versteht
+ * "Verfolgen" nicht und "Info" gehört nicht intuitiv dort rein.
+ * Alle Tabs gleichberechtigt nebeneinander, "Info" prominent als
+ * Top-Level-Tab für Rechnungen/Bestellungen/Innung/Anwalt.
+ */
 const TABS: TabConfig[] = [
-  // ZU TUN-Bereich
   {
     id: 'freigabe',
     label: 'Freigabe',
     statuses: ['entwurf_bereit'],
     description: 'KI-Entwurf bereit – du sendest oder passt an',
-    group: 'zu_tun',
   },
   {
     id: 'manuell',
     label: 'Manuell prüfen',
     statuses: ['manuell_pruefen', 'neu'],
     description: 'KI unsicher oder Klassifikation fehlgeschlagen – du musst selbst entscheiden',
-    group: 'zu_tun',
   },
   {
     id: 'gespraech',
     label: 'Kunde geantwortet',
     statuses: ['reply_eingegangen'],
     description: 'Reaktion auf deine versendete Mail – hier liegt Geld',
-    group: 'zu_tun',
   },
-  // VERFOLGEN-Bereich
   {
     id: 'versendet',
     label: 'Versendet',
     statuses: ['versendet'],
     description: 'Mail raus – warten auf Kunden-Antwort',
-    group: 'verfolgen',
   },
   {
     id: 'info',
     label: 'Info',
     statuses: ['info'],
-    description: 'Rechnungen, Bestellungen, Innung, Behörden – nur zur Kenntnis',
-    group: 'verfolgen',
+    description: 'Rechnungen, Bestellungen, Innung, Anwalt – nur zur Kenntnis',
   },
-  // ARCHIV-Bereich
   {
     id: 'erledigt',
     label: 'Erledigt',
     statuses: ['erledigt'],
     description: 'Abgeschlossen, archiviert',
-    group: 'archiv',
   },
   {
     id: 'aussortiert',
     label: 'Aussortiert',
     statuses: ['aussortiert'],
     description: 'Werbung, Spam',
-    group: 'archiv',
   },
 ];
 
@@ -213,7 +184,6 @@ export default async function InboxPage({
   const params = await searchParams;
   const activeTabId = (TABS.find((t) => t.id === params.tab)?.id ?? 'freigabe') as TabId;
   const activeTab = TABS.find((t) => t.id === activeTabId)!;
-  const activeGroupId = activeTab.group;
 
   const supabase = await createClient();
 
@@ -277,30 +247,20 @@ export default async function InboxPage({
     {} as Record<TabId, number>
   );
 
-  // Counts pro Gruppe
-  const groupCounts: Record<GroupId, number> = GROUPS.reduce(
-    (acc, group) => {
-      acc[group.id] = TABS.filter((t) => t.group === group.id).reduce(
-        (sum, t) => sum + counts[t.id],
-        0
-      );
-      return acc;
-    },
-    {} as Record<GroupId, number>
-  );
-
   const filtered = items.filter((a) => activeTab.statuses.includes(a.status));
-  const subTabs = TABS.filter((t) => t.group === activeGroupId);
 
   return (
     <div className="container mx-auto py-6 sm:py-8 px-4 sm:px-6 max-w-5xl">
-      <div className="mb-4">
-        <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1">
-          Inbox
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          {items.length} {items.length === 1 ? 'Anfrage' : 'Anfragen'} insgesamt
-        </p>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1">
+            Inbox
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            {items.length} {items.length === 1 ? 'Anfrage' : 'Anfragen'} insgesamt
+          </p>
+        </div>
+        <InboxRefreshButton />
       </div>
 
       {/* MINI-STATS-BAR */}
@@ -347,47 +307,13 @@ export default async function InboxPage({
         </div>
       </div>
 
-      {/* HAUPTREIHE: Gruppen – mit Fade-Edge auf Mobile als Scroll-Hint */}
-      <div className="mb-3 -mx-2 px-2 overflow-x-auto [mask-image:linear-gradient(to_right,transparent,black_1rem,black_calc(100%-1rem),transparent)] sm:[mask-image:none]">
-        <div className="flex gap-1 border-b border-border min-w-max">
-          {GROUPS.map((group) => {
-            const isActive = group.id === activeGroupId;
-            const groupCount = groupCounts[group.id];
-            const firstTabOfGroup = TABS.find((t) => t.group === group.id)!;
-            return (
-              <Link
-                key={group.id}
-                href={`/dashboard?tab=${firstTabOfGroup.id}`}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors whitespace-nowrap',
-                  isActive
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-                )}
-              >
-                <span>{group.label}</span>
-                {groupCount > 0 && (
-                  <span
-                    className={cn(
-                      'inline-flex items-center justify-center rounded-full text-xs font-medium px-1.5 min-w-[1.25rem] h-5',
-                      isActive
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
-                    )}
-                  >
-                    {groupCount}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* SUB-TABS */}
+      {/* FLACHE TAB-LEISTE – alle 7 Tabs gleichberechtigt, "Info" prominent
+          als Top-Level (war vorher unter "Verfolgen" versteckt). Aktiver Tab
+          mit border-bottom in primary, ansonsten dezent. Fade-Edge auf
+          Mobile als Scroll-Hint. */}
       <div className="mb-4 -mx-2 px-2 overflow-x-auto [mask-image:linear-gradient(to_right,transparent,black_1rem,black_calc(100%-1rem),transparent)] sm:[mask-image:none]">
-        <div className="flex gap-1 min-w-max">
-          {subTabs.map((tab) => {
+        <div className="flex gap-1 border-b border-border min-w-max">
+          {TABS.map((tab) => {
             const count = counts[tab.id];
             const isActive = tab.id === activeTabId;
             return (
@@ -395,10 +321,10 @@ export default async function InboxPage({
                 key={tab.id}
                 href={`/dashboard?tab=${tab.id}`}
                 className={cn(
-                  'flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors whitespace-nowrap',
+                  'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
                   isActive
-                    ? 'bg-muted text-foreground font-medium'
-                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                    ? 'border-primary text-primary font-semibold'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                 )}
               >
                 <span>{tab.label}</span>
@@ -408,7 +334,7 @@ export default async function InboxPage({
                       'inline-flex items-center justify-center rounded-full text-xs font-medium px-1.5 min-w-[1.25rem] h-5',
                       isActive
                         ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted-foreground/10 text-muted-foreground'
+                        : 'bg-muted text-muted-foreground'
                     )}
                   >
                     {count}
