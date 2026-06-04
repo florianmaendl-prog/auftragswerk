@@ -161,6 +161,83 @@ bauen.
 
 ---
 
+## Max-Brainstorming Tag 18 (Flugzeug-Session, mit Bierchen 🍻)
+
+Max + Florian sind nach Pilot-Tag-1 ins Träumen geraten. **Pattern-Erkennung:** Pilot fühlt sich richtig an → Big-Picture-Modus. Trigger fürs Eis-Schmelzen: erstmal Tag 19+ produktive Nutzung mit konkreter Story-Validierung. NICHTS davon vor Säule-1-Validierung.
+
+### Marketing-Vision: Multi-Kanal-Content (YouTube/Reels/IG/FB)
+
+**Florian-Domäne** (PPC-Manager, kennt organischen Content), aber:
+- **YouTube-Video „wie es funktioniert"** + **„wie easy einrichten"** + Reels-Adaption für IG/FB/Shorts
+- **Gratis Probemonat** als Pricing-Anker
+- **Plattform** wo Mehrwert + Zeitersparnis erklärt wird (= eigene Landing-Page-Sektion / Microsite)
+
+**Bedingungen vor Bau:**
+1. **Substanz vor Marketing:** vor dem ersten Video braucht's eine echte Story („Max hat 5h/Woche gespart" mit Beleg). Vorher = leerer Pitch.
+2. **Max als Testimonial > Florian als Promoter:** authentischer Handwerker vor Kamera schlägt jeden polierten Pitch. Florian macht Production, Max steht im Bild.
+
+**Trigger:**
+- Max 4 Wochen produktive Nutzung + 1 konkrete Story („Auftrag X, der sonst weg gewesen wäre")
+- Pricing-Modell entschieden (für Probemonat-Logik)
+- Min 1-2 Reserve-Pilots in Pipeline (sonst „Marketing für 1 Kunden")
+
+### Säule-3-Erweiterung: Projekt-Assistent (Recherche + Montage-Checkliste)
+
+Verschmelzung aus zwei Max-Ideen:
+- **„Was brauche ich für die Montage von [X]?"** → KI generiert Material- + Werkzeug-Liste
+- **„Was muss ich beachten für [Projekt-Typ]?"** → Recherche-Tool für unbekannte Bereiche („mache ich selten, was ist State of the Art?")
+
+**Tech-Stack:**
+- Claude/GPT mit Web-Search-Tool-Use
+- Optional eigene Wissensbasis: pro Gewerk kuratierte Checklisten als Grundlage, KI passt an Projekt-Spezifika an
+- Output: strukturierte Checkliste mit Quellenangaben
+
+**Markt-Validierung erst:** ist das ein „nice-to-have" oder ein echter Workflow-Hebel? Frage in Pilot-Interview.
+
+**Trigger:**
+- Säule 1 läuft bei ≥2 Pilots
+- Mindestens 2 Pilots in Interview: „ja, würde ich nutzen"
+- (Optional) Säule 2 (Angebote) läuft schon – als Add-on im Angebots-Flow elegant integrierbar
+
+### Compliance-/Norm-Checkliste ⚠️ HAFTUNGS-WARNUNG
+
+Max-Idee: KI hilft bei Norm-Compliance (z.B. „Stababstand bei Geländer darf nie >120mm sein", „Dübel brauchen Zulassung").
+
+**WARNUNG – darf nicht in der Form gebaut werden wie gedacht:**
+Wenn KI verbindlich sagt „110mm ist ok" + Owner verbaut + Unfall (Kind klettert durch) → wer haftet? Genau die Sorte verbindliche Auskunft die wir bei Inhalts-Guardrails (STRATEGIE A1) explizit AUS dem Antwort-Tool raushalten wollen. **AGB-Anpassung + Haftungs-Klausel + Anwalt-Review zwingend.**
+
+**Wenn überhaupt → strikt als Informations-Pointer:**
+- *„Diese Themen solltest du prüfen: Stababstand (DIN 18065), Dübel-Zulassung (DIBt)"* – Hinweis auf Normen, KEINE Werte
+- Owner bestätigt explizit „Norm-Prüfung ist meine Verantwortung" beim Onboarding
+- Disclaimer überall sichtbar
+
+**Trigger:**
+- Anwalt-Review-Budget freigegeben (~1-2k€)
+- Klare Inhalts-Guardrails als Grundlage (= STRATEGIE A1 gebaut)
+- ≥3 Pilots fragen explizit danach (sonst Disziplin: nicht bauen)
+
+### Preisrecherche-Tool
+
+Max-Idee: „Wo liege ich preislich für [Projekt-Typ] in [Region]?"
+
+**Verkaufsversprechen extrem stark, Datenbasis-Problem real:**
+- **Online-Konfiguratoren crawlen** → Lizenz-Risiko, Endkundenpreise ≠ Handwerker-Ausgangspreise
+- **Plattform-Daten aggregieren** → DSGVO! Geht nur mit explizitem Opt-In + Anonymisierung
+- **Manuell pflegen** → skaliert nicht
+
+**Smartere Variante (warten auf Säule 2):**
+Wenn Säule 2 (Angebote) läuft, kann KI aus Owners EIGENEN Vergangenheits-Angeboten Empfehlungen generieren:
+*„Du hast bei 3 ähnlichen Carport-Projekten zwischen 8k und 12k geboten. Diesmal Empfehlung: ~10k."*
+- Keine fremden Daten, kein DSGVO-Issue
+- Lernt automatisch mit jedem neuen Angebot
+- Owner-Branchen-Markt-Wert in seiner eigenen Historie
+
+**Trigger:**
+- Säule 2 (Angebote) läuft mit ≥30 abgegebenen Angeboten in der DB
+- Owner pflegt Preise konsequent → KI hat Datenbasis
+
+---
+
 ## Sonstige Ideen (aus früheren Brainstormings)
 
 ### Diktat / Speech-to-Text → fertige Mail
