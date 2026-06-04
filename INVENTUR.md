@@ -1,6 +1,28 @@
 # Auftragswerk – System-Inventur
 
-> **Stand: 1.6.2026 abends (Tag 16 – Welle D + E + F + G durch, URL an Max raus)**
+> **Stand: 4.6.2026 abends (Tag 18 – Max-Pilot LIVE, 3 Sprints durch)**
+>
+> Pilot Bauelemente Rapp läuft seit Tag 18 mittags produktiv. Max hat sich
+> per Self-Service (Welle G) angemeldet, Gmail verbunden, WordPress.com-
+> Forward eingerichtet. **Slug: `bauelemente-rapp-2@kunden.auftragswerk.app`**
+> (`-2` weil alter manuell-angelegter Account vom 21.5. den Slug
+> `bauelemente-rapp` noch belegt – kann später per DELETE + UPDATE umgestellt
+> werden).
+>
+> **Kritischer Forward-Bug-Fix am Tag 18**: Postmark übergibt bei Forward-
+> Mails `To = info@firma.de` (Mail-Header-Empfänger), die Forward-Adresse
+> liegt in `OriginalRecipient`. Vercel + Edge Function lesen jetzt
+> `OriginalRecipient` priorisiert – Forward-Mails von ALLEN Mail-Providern
+> kommen damit an.
+>
+> **Aktuelle Tab-Struktur Inbox**: flach, 7 Tabs gleichberechtigt
+> (`Freigabe · Manuell · Reply · Versendet · Info · Erledigt · Aussortiert`).
+> Gruppen-Labels gestrichen weil Owner sie nicht intuitiv versteht.
+>
+> Plan-File: `~/.claude/plans/sooo-lies-backlog-md-delegated-moler.md`
+> + STRATEGIE.md + IDEEN-EISSCHRANK.md.
+
+> **Vorheriger Stand:** **1.6.2026 (Tag 16 – Welle D + E + F + G durch, URL an Max raus)**
 > Aktueller Referenz-Snapshot. Jeder neue Claude/Entwickler liest das + BACKLOG.md.
 >
 > **Welle-Stand:** A (Mobile) + B (Rechtstexte) + C (Gmail-OAuth) + D
@@ -54,6 +76,8 @@
 | `verfuegbarkeit_regel` | Wiederkehrende Verfügbarkeit (Mo-So × Uhrzeit-Range) pro Betrieb |
 | `verfuegbarkeit_sperre` | Einmalige Sperren (Urlaub, fester Termin) |
 | `gmail_connections` | Gmail-OAuth-Tokens pro Betrieb (AES-256-GCM-verschlüsselt), Scope `gmail.send`, Status aktiv/fehler/widerrufen |
+| `gesperrte_sender` | Block-Liste pro Betrieb (Tag 18). RLS-geschützt. Inbound-Route Pre-Check vor KI-Klassifikation – gesperrte Sender direkt als 'aussortiert' ohne Anthropic-Call. UNIQUE(betrieb_id, email). |
+| `entwuerfe.text_original` / `was_edited` | Edit-Diff Phase 1 (Tag 17). `text_original` = initialer KI-Entwurf, beim Versand mit `body_text` verglichen → `was_edited` boolean. Daraus baut Flo später ein Diagnose-View für Edit-Patterns. |
 | `ai_runs` | Audit-Log aller KI-Aufrufe |
 | `processing_errors` | Fehler-Log (Klassifikation, Entwurf, Storage-Upload) – sichtbar in `/dashboard/diagnose` |
 | `feedback` | User-Feedback (ungenutzt) |
@@ -66,12 +90,15 @@
 `body_text`, `body_text_clean`, `body_html`, `created_at`/`empfangen_am`, `status`,
 `geloescht_am` (Soft-Delete), `raw_payload`
 
-**`betriebe`** (~22 Spalten): Stammdaten (`name`, `inhaber`, `branche`, `region`,
+**`betriebe`** (~25 Spalten): Stammdaten (`name`, `inhaber`, `branche`, `region`,
 `mindestauftragswert`, `was_wir_machen`, `was_wir_nicht_machen`, `wichtige_kunden`,
-`ton_beispiele`, `signatur`), Mail (`inbound_email` = `<slug>@kunden.auftragswerk.app`
-**seit Welle E.2**, `sender_email`, `sender_name`, `sender_domain`,
-`sender_verified`, `postmark_signature_id`, `sender_dns_records`), Kalkulation
-(`stundensatz`). UNIQUE-Index auf `inbound_email` seit Migration
+`ton_beispiele`, `signatur`, `vermeiden` *(Tag 17, freitext-block für negative
+Stil-Constraints)*, `gebiete` jsonb *(Tag 18, Array<{plz_muster, label,
+mindestauftragswert}> für gebiets-abhängige Mindestaufträge)*), Mail
+(`inbound_email` = `<slug>@kunden.auftragswerk.app` **seit Welle E.2**,
+`sender_email`, `sender_name`, `sender_domain`, `sender_verified`,
+`postmark_signature_id`, `sender_dns_records`), Kalkulation (`stundensatz`).
+UNIQUE-Index auf `inbound_email` seit Migration
 `20260601_inbound_email_subdomain.sql`.
 
 **`profiles`**: `id` (= auth.users.id, PK), `betrieb_id`, `rolle` (`'inhaber'`
@@ -582,6 +609,27 @@ supabase functions deploy inbound-proxy --no-verify-jwt --project-ref lfziiallrf
 
 ---
 
+## 🆕 Tag 18 – wichtigste Code-Files
+
+- [app/api/sender/sperren/route.ts](app/api/sender/sperren/route.ts) –
+  Block-Sender API. POST `{email, grund?}` → upsert in gesperrte_sender
+  + UPDATE bestehende Anfragen auf 'aussortiert'.
+- [app/dashboard/inbox-refresh-button.tsx](app/dashboard/inbox-refresh-button.tsx) –
+  Client-Komponente, `router.refresh()` mit Spin + „Aktuell"-Feedback.
+- [app/dashboard/kunden/kunde-sperren-button.tsx](app/dashboard/kunden/kunde-sperren-button.tsx) –
+  ×-Button neben Kunden-Karte. stopPropagation damit Link nicht
+  mitgreift. POST → router.refresh.
+- [app/dashboard/profil/profil-form.tsx](app/dashboard/profil/profil-form.tsx)
+  enthält `GebieteEditor` (Tag 18) – 3-Spalten-Tabellen-UI mit ↑/×
+  Buttons + jeweils ein Input pro Eintrag. Plus `ListEditor` (Tag 18
+  Textarea-Refactor) + `TonbeispieleEditor` (alt).
+- [app/api/inbound/route.ts](app/api/inbound/route.ts) Pre-Check
+  gesperrte_sender VOR Klassifikation (spart Anthropic-Cost). Plus
+  `OriginalRecipient`-Routing für Forward-Mails (Tag 18 Bug-Fix).
+- [lib/entwurf.ts](lib/entwurf.ts) System-Prompt mit zwei neuen
+  Blöcken: VERMEIDEN (Tag 17) wenn `betrieb.vermeiden` befüllt,
+  EINZUGSGEBIET (Tag 18) wenn `betrieb.gebiete.length > 0`.
+
 ## 🚧 Pilot-Status (Bauelemente Rapp GmbH = "Max")
 
 **Pivot durch Welle G:** Max nutzt jetzt den Self-Service-Signup, nicht
@@ -593,15 +641,18 @@ mehr den alten manuell angelegten Account.
 | Catch-All-Subdomain `kunden.auftragswerk.app` (Welle E.2) | ✅ DNS+DKIM verifiziert |
 | Bestehender Bauelemente-Rapp-Eintrag hat Subdomain-Adresse | ✅ `bauelemente-rapp@kunden.auftragswerk.app` (via Migration) |
 | Self-Service-URL an Max raus | ✅ 1.6.2026 ~20:30 |
-| Max registriert sich via `/registrieren` | ⏳ |
-| Max bestätigt Confirmation-Mail | ⏳ |
-| Max verbindet Gmail (Welle C OAuth-Flow) | ⏳ |
-| Max trägt Verfügbarkeit ein | ⏳ |
-| Max füllt Profil (Was wir machen / Signatur) | ⏳ |
-| Max richtet Forward in WordPress.com ein (info@... → slug@kunden.auftragswerk.app) | ⏳ |
-| Smoke-Test A (Inbound externe Mail → Dashboard) | ⏳ |
-| Smoke-Test B (Outbound aus Max' Gmail) | ⏳ |
-| Pilot scharfschalten – Max nutzt im Echtbetrieb | ⏳ |
+| Max registriert sich via `/registrieren` | ✅ Tag 18 |
+| Max bestätigt Confirmation-Mail | ✅ Tag 18 |
+| Max verbindet Gmail (Welle C OAuth-Flow) | ✅ Tag 18 |
+| Max trägt Verfügbarkeit ein | ✅ Tag 18 |
+| Max füllt Profil (Was wir machen / Signatur) | ✅ Tag 18 (mit UI-Hinweis: alles in 1 Zeile geschrieben → Sprint 1 ListEditor zur Textarea umgebaut) |
+| Max richtet Forward in WordPress.com ein | ✅ Tag 18 (Gmail-Bestätigungs-Mail → Code + Confirm-Klick) |
+| **Bug-Fix `OriginalRecipient`** | ✅ Tag 18 – Forward-Mails wurden vorher 404'd, Postmark Retry-Loop |
+| Smoke-Test A (Inbound externe Mail → Dashboard) | ✅ Tag 18 (Postmark Activity zeigt 'Processed', mehrere Newsletter + echte Reply-Mails sind im Dashboard) |
+| Smoke-Test B (Outbound aus Max' Gmail) | ⏳ Wartet auf erste echte freigegebene Antwort |
+| Pilot scharfschalten – Max nutzt im Echtbetrieb | ✅ läuft seit Tag 18 mittags |
+| Max-Feedback Tag 17 (Refresh / Was-wir-machen / Tab-Struktur / Region/PLZ / Signatur / Baustein-Pricing / Kalender-optional) | ⏳ teilweise umgesetzt: Refresh + Was-wir-machen + Tab-Struktur + Region/PLZ + Sender-Block durch (Sprint 1-3). Geparkt im Eisschrank: Signatur-RichText, Baustein-Pricing, Kalender-optional |
+| Max-Feedback Tag 18 (Marketing-Säule 4 / 10k€-Kammer-Video / „Verfolgen" verstanden er nicht / Custom-Ordner für Kammer-Mails) | ⏳ Marketing als Säule 4 im Eisschrank dokumentiert. „Verfolgen" raus (Sprint 1). Custom-Ordner als Stufe 2 geparkt |
 
 ---
 
@@ -626,7 +677,12 @@ mehr den alten manuell angelegten Account.
 ---
 
 ## 📋 Wo's weitergeht
-Plan-File mit Detailstrategie: `~/.claude/plans/sooo-lies-backlog-md-delegated-moler.md`
+Drei Quellen:
+- **STRATEGIE.md** – konsolidierter Filter „was JETZT" (Leitprinzip,
+  Reihenfolge, gestrichene Items)
+- **IDEEN-EISSCHRANK.md** – alle geparkten Ideen mit Triggern (wann sie
+  rauskommen)
+- Plan-File: `~/.claude/plans/sooo-lies-backlog-md-delegated-moler.md`
 
 **Premium-Pivot-Plan (Tag 15–16) — ALLE WELLEN DURCH:**
 - ✅ Welle A: Mobile-Optimierung

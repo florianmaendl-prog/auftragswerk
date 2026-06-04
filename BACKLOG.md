@@ -1,6 +1,25 @@
 # Auftragswerk – Backlog
 
-> **Stand: 1.6.2026 abends (Tag 16 – Welle D + E + F + G durch, an Max raus)**
+> **Stand: 4.6.2026 abends (Tag 18 – Max-Pilot live, Sprint 1+2+3 durch)**
+>
+> Max hat sich angemeldet, Gmail verbunden, WordPress.com-Forward eingerichtet.
+> Echte Kunden-Mails laufen seit Tag 18 mittags. Bug-Fix
+> `OriginalRecipient`-Routing für Forward-Mails (Postmark → Edge Function →
+> Vercel) hat den Pilot scharfgeschaltet.
+>
+> Drei Sprints heute durchgezogen:
+> - **Sprint 1**: Tab-Struktur flach + Refresh-Button + Was-wir-machen
+>   Textarea-UX + Kunden-Lösch-Button + Sender-Block-Foundation +
+>   IDEEN-EISSCHRANK.md
+> - **Sprint 2**: Region/PLZ-Tier-Editor + gebiets-abhängiger
+>   Mindestauftragswert + KI-Prompt-Block
+> - **Sprint 3**: Sender-Sperren direkt aus Inbox-Quick-Menu
+>
+> Plus: STRATEGIE.md ist die neue Source-of-Truth für „was JETZT".
+> IDEEN-EISSCHRANK.md hält alle geparkten Ideen (Marketing-Säule 4,
+> Custom-Tags, Signatur-Rich-Text, Diktat, WhatsApp etc.) mit Triggern.
+
+> **Vorherige Stände:** **1.6.2026 (Tag 16 – Welle D + E + F + G durch, an Max raus)**
 >
 > Säule 1 production-live, production-reif, brand-konsistent, mobile-tauglich,
 > Gmail-OAuth funktioniert (Outbound verifiziert), Inbound auf eigener
@@ -55,6 +74,110 @@
 ---
 
 ## ✅ FERTIG
+
+### Tag 18 (4.6.2026): Max-Pilot LIVE + 3 Sprints + Bug-Fix
+
+#### Critical Bug-Fix: Forward-Mails routen mit OriginalRecipient
+- ✅ **Postmark-Webhook returnte HTTP 404 für alle Forward-Mails** weil
+  `app/api/inbound/route.ts` nur `ToFull[0].Email` und `To` gelesen hat.
+  Bei Forward-Mails setzt Postmark `To` auf den ORIGINAL-Empfänger laut
+  Mail-Header (`info@bauelemente-rapp.com`), die echte Forward-Adresse
+  (`bauelemente-rapp-2@kunden.auftragswerk.app`) liegt in `OriginalRecipient`.
+  Lookup auf `betriebe.inbound_email` fand nichts → 404 → Postmark-Retry-
+  Loop, alle echten Mails seit Welle G verloren.
+- ✅ Fix: `payload.OriginalRecipient ||  ToFull?.[0]?.Email || To` in
+  Vercel + Edge Function. Funktioniert für ALLE künftigen Kunden mit
+  Forward (egal ob Gmail/Outlook/IONOS).
+- ✅ Edge Function via supabase CLI re-deployed (`brew install supabase/tap/supabase`)
+- ✅ Smoke-Test: Postmark Activity zeigt „Processed" statt „Retry" –
+  Newsletter (community@hero-software, info@metallbau-onlineshop,
+  muenchen@news.handwerk-kompakt) sowie echte Anfragen kommen seitdem an.
+
+#### Sprint 1 – Quick-Wins aus Max-Feedback (Refresh + Tab + Was-wir-machen + Kunden-Lösch + Sender-Block + Eisschrank)
+- ✅ **Refresh-Button** im Inbox-Header (`app/dashboard/inbox-refresh-button.tsx`).
+  Spin-Animation während router.refresh(), kurzes „Aktuell"-Feedback.
+- ✅ **Tab-Struktur flach** – Gruppen-Labels („Zu tun" / „Verfolgen" /
+  „Archiv") entfernt, alle 7 Tabs gleichberechtigt nebeneinander. „Info"
+  prominent als Top-Level (war vorher unter „Verfolgen" versteckt, Max
+  verstand das nicht: „bestellungen anwalt etc info reiter oben besser").
+- ✅ **ListEditor Textarea-UX** – „Was wir machen" / „Was wir NICHT machen"
+  / „Wichtige Kunden" jetzt schlichte Textarea mit Auto-Split bei
+  Zeilenumbruch/Komma/Semikolon. Vorher: Liste-mit-Add-Button pro Item.
+  Lehre aus Max-Pilot (er hat alle Gewerke in 1 Zeile geschrieben):
+  Handwerker lesen kein UI, jeder Klick+Add ist Reibung. Textarea = friction-frei.
+- ✅ **Migration `20260604_gesperrte_sender.sql`** – RLS-geschützte
+  Block-Liste pro Betrieb (idempotent DROP+CREATE für Policies, damit
+  Re-Run nicht knallt).
+- ✅ **API `/api/sender/sperren`** – upsert in gesperrte_sender + UPDATE
+  alle bestehenden Anfragen dieses Absenders auf 'aussortiert'.
+- ✅ **Inbound-Route Pre-Check** vor KI-Klassifikation – gesperrte
+  Sender werden direkt als 'aussortiert' angelegt, kein Anthropic-Call,
+  keine Kosten. Auch Replies eines gesperrten Senders bleiben aussortiert.
+- ✅ **Kunden-Liste**: ×-Button neben jeder Karte (`KundeSperrenButton`),
+  blocked Sender werden raus-gefiltert. Auto-Anlage der Kunden bleibt
+  (Max sagt „passt weil nicht so viele"), Korrektur möglich.
+- ✅ **IDEEN-EISSCHRANK.md** – alles geparkte strukturiert dokumentiert
+  mit Triggern. Marketing-Säule 4 (KI-Video für Handwerker, 10k€-Kammer-
+  Pain) ausführlich mit Tech-Stack + Markt-These + Pushback-Argumenten.
+  Plus: Region/PLZ, Signatur-Rich-Text, Custom-Tags, Diktat, WhatsApp,
+  Lieferantenverzeichnis – alle mit Trigger-Bedingungen wann sie aus
+  dem Eisschrank kommen.
+
+#### Sprint 2 – Region/PLZ-Tier (Region + gebiets-abhängiger Mindestwert)
+- ✅ **Migration `20260604_betriebe_gebiete.sql`** – `betriebe.gebiete` jsonb,
+  Array von `{plz_muster, label, mindestauftragswert}`.
+- ✅ **API-Whitelist + JSON-Validierung** (plz_muster Pflicht,
+  mindestauftragswert numerisch oder null).
+- ✅ **Profil-Form `GebieteEditor`** – tabellen-artiger Editor mit 3
+  Spalten + ↑/×-Buttons pro Zeile. Reihenfolge zählt: spezifischste
+  PLZ-Bereiche oben, „*" als Wildcard unten.
+- ✅ **`lib/entwurf.ts` Prompt-Block** – wenn `gebiete` befüllt → eigener
+  Block in System-Prompt mit Tabelle + klaren Anweisungen (PLZ aus Anfrage
+  erkennen, freundlich bei Out-of-Area-Hinweis, niemals hart ablehnen).
+- ✅ **Globaler `mindestauftragswert`** bleibt als Fallback wenn
+  `gebiete` leer ist (Backward-Compat).
+- ✅ **Copy-Sweep**: „Match" / „Fallback" / Code-Boxen raus, alles in
+  Praktiker-Sprache. Spalten: PLZ / Region / „Ab € lohnt's".
+
+#### Sprint 3 – Sender-Sperren aus Inbox direkt
+- ✅ **`AnfrageQuickMenu` erweitert** um „Absender sperren" Option.
+  Heute ging Block nur über Kunden-Liste (Umweg). Jetzt direkt im
+  3-Punkte-Menü der Inbox-Karte.
+- ✅ Identische Logik wie KundeSperrenButton (POST /api/sender/sperren).
+- ✅ `vonEmail`-Prop optional für Backward-Kompat.
+
+### Tag 17 (3.6.2026) — STRATEGIE-Sprint mit Florian: Filter etablieren
+
+- ✅ **STRATEGIE.md** als konsolidierte Source-of-Truth nach Diskussion
+  zwischen Florian + Berater + Claude. Leitprinzip „Scale isn't about
+  doing more". Filter-Fragen für jedes Feature („Macht es den Kern
+  perfekter?" + „Skaliert es Multi-Tenant?"). Gestrichen: Schatten-Modus,
+  Sende-Cap, Kill-Switch, Reklamations-Counter, Test-Anfragen-Onboarding.
+  Geparkt: Säule 2 (Angebote), WhatsApp, Diktat, Material.
+- ✅ **LP-Sofortänderungen**: Trust-Block „Deine Kunden merken nichts
+  davon" als eigene Section, Header-Button Outline (Hierarchie zum
+  Haupt-CTA gewahrt), Meta-Description ehrlich (nicht „designt vom
+  Handwerksmeister"), Senden-Sprache („klickst frei" → „klickst auf
+  Senden" weil keiner so spricht).
+- ✅ **Edit-Diff Phase 1** – Migration `20260602_entwurfs_edits.sql`:
+  `entwuerfe.text_original` (initialer KI-Text) + `was_edited` Boolean.
+  `lib/entwurf.ts` setzt text_original beim Insert, `app/api/versand/route.ts`
+  setzt was_edited beim Send (Vergleich text_original vs. body_text).
+  Tooltip im Editor: „Was du änderst, hilft beim nächsten Mal."
+  Daraus baut Flo später ein Diagnose-View für Edit-Patterns + manuelles
+  Prompt-Tuning. Phase 2/3 (Auto-Stilbeispiel-Vorschläge, voll-auto) erst
+  wenn Phase 1 Pattern zeigt.
+- ✅ **`betriebe.vermeiden` Freitext-Feld** (`20260602_betriebe_vermeiden.sql`)
+  als negatives Pendant zu Stilbeispielen. „Keine Gedankenstriche", „Sag
+  ‚gern' statt ‚gerne'". Fließt als eigener VERMEIDEN-Block in den
+  System-Prompt (höher gewichtet als positive Stilbeispiele).
+- ✅ **Funktions-Tour Modal** (`components/brand/funktions-tour.tsx`) –
+  beim ersten Login auf `/dashboard/willkommen` automatisch, 5 Slides
+  mit echten UI-Komponenten + kuratiertem Handwerker-Mock-Content
+  (statt Screenshots). Slide 4 ist der Vertrauens-Slide („Bei jeder
+  Mail entscheidest du") und ersetzt jeden separaten Angst-Satz auf
+  der Page. localStorage-Flag verhindert Re-Show, plus permanenter
+  „Tour nochmal"-Link unten.
 
 ### Tag 16 (1.6.2026): Welle D + E + F + G – Wow, Reply-To-Premium, Mail-Empfang, Self-Service
 
