@@ -1,6 +1,7 @@
 import { supabaseAdmin } from './supabase';
-import { callClaude } from './claude';
+import { callClaude, type UserContentBlock } from './claude';
 import { cleanMail } from './mail-cleaner';
+import type { KiBild } from './bilder';
 
 type Anfrage = {
   id: string;
@@ -139,7 +140,15 @@ Wenn ein Stilbeispiel oben einer Vermeiden-Regel widerspricht: gilt die Vermeide
 
 `
     : ''
-}VERHALTEN JE NACH SITUATION:
+}BILDER-AUSWERTUNG (wenn der Kunde Fotos mitgeschickt hat):
+- Du siehst die Bilder direkt am Anfang dieser User-Nachricht (vor dem Text).
+- Wenn auf den Bildern etwas Konkretes erkennbar ist (sichtbarer Schaden, Maße, Material, Einbau-Situation, Umgebung), beziehe dich konkret darauf in deiner Antwort. Beispiel: "Auf den Fotos sehe ich, dass das untere Scharnier ausgerissen ist" oder "Vom Bild her wirkt das Geländer aus Edelstahl V4A".
+- Triff KEINE blinde Diagnose, wenn das Bild nicht eindeutig ist. Lieber: "Auf dem Foto kann ich [X] erkennen, vor Ort kann ich es besser einschätzen."
+- Wenn die Bilder unklar, verschwommen oder off-topic sind (z.B. Selfie, Innenraum ohne Bezug zum Auftrag), beziehe dich NICHT zwanghaft darauf.
+- Nenne KEINE konkreten Schadenssummen, Reparaturkosten oder Materialpreise basierend auf Bildern – das ist Owner-Hoheit.
+- Wenn keine Bilder mitgeschickt wurden, ignoriere diesen Block komplett.
+
+VERHALTEN JE NACH SITUATION:
 
 **Wenn dies ein REPLY im laufenden Gespräch ist (du siehst im User-Prompt den KONVERSATIONS-VERLAUF):**
 - Lies die KOMPLETTE Konversation chronologisch durch.
@@ -294,7 +303,8 @@ export async function generiereEntwurf(
   klassifikation: Klassifikation,
   betrieb: Betrieb,
   konversation?: ThreadNachricht[],
-  freieSlots?: string[]
+  freieSlots?: string[],
+  bilder?: KiBild[]
 ): Promise<EntwurfResult> {
   const systemPrompt = buildSystemPrompt(betrieb);
   const userMessage = buildUserPrompt(anfrage, klassifikation, konversation, freieSlots);
@@ -305,10 +315,35 @@ export async function generiereEntwurf(
     );
   }
 
+  // Vision V1: wenn Bilder mitgesendet wurden, bauen wir einen Multi-Block-
+  // Content (image-Blocks ZUERST, dann Text – Anthropic-Empfehlung). Sonst
+  // klassischer Text-only Pfad.
+  let userContent: UserContentBlock[] | undefined;
+  if (bilder && bilder.length > 0) {
+    console.log(
+      `Vision: ${bilder.length} Bild(er) an Entwurf-KI (anfrage=${anfrage.id})`
+    );
+    userContent = [
+      ...bilder.map(
+        (b) =>
+          ({
+            type: 'image' as const,
+            source: {
+              type: 'base64' as const,
+              media_type: b.mediaType,
+              data: b.base64,
+            },
+          })
+      ),
+      { type: 'text' as const, text: userMessage },
+    ];
+  }
+
   const claudeRes = await callClaude({
     model: 'claude-sonnet-4-6',
     systemPrompt,
     userMessage,
+    userContent,
     maxTokens: 1500,
     zweck: 'antwortentwurf',
     betriebId: betrieb.id,

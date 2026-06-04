@@ -20,10 +20,30 @@ const MODEL_PRICING = {
 
 export type SupportedModel = keyof typeof MODEL_PRICING;
 
+/**
+ * Content-Blocks für den User-Turn. Text alleine geht weiter über
+ * `userMessage: string`. Wenn Bilder ins Spiel kommen (Vision V1),
+ * setzt der Caller `userContent` mit einer Block-Liste – Bilder ZUERST,
+ * Text danach (Anthropic-Empfehlung für Vision-Anwendungen).
+ */
+export type UserContentBlock =
+  | { type: 'text'; text: string }
+  | {
+      type: 'image';
+      source: {
+        type: 'base64';
+        media_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+        data: string;
+      };
+    };
+
 export interface ClaudeCallOptions {
   model: SupportedModel;
   systemPrompt: string;
+  /** Klassischer Text-only Pfad. Wird verwendet wenn userContent nicht gesetzt ist. */
   userMessage: string;
+  /** Multi-modal Pfad (z.B. mit Bildern). Wenn gesetzt, überschreibt userMessage. */
+  userContent?: UserContentBlock[];
   maxTokens?: number;
   temperature?: number;
   cacheSystemPrompt?: boolean;
@@ -64,6 +84,11 @@ export async function callClaude(opts: ClaudeCallOptions): Promise<ClaudeCallRes
         ]
       : opts.systemPrompt;
 
+    // User-Content: bei Vision-Calls Block-Array mit Bildern (image-Blocks
+    // ZUERST, Text-Block am Ende – Anthropic-Empfehlung). Sonst Fallback
+    // auf den klassischen Text-only Pfad.
+    const userContent = opts.userContent ?? opts.userMessage;
+
     // API-Call
     const response = await anthropic.messages.create({
       model: opts.model,
@@ -73,7 +98,7 @@ export async function callClaude(opts: ClaudeCallOptions): Promise<ClaudeCallRes
       messages: [
         {
           role: 'user',
-          content: opts.userMessage,
+          content: userContent,
         },
       ],
     });

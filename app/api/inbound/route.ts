@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { cleanMail } from '@/lib/mail-cleaner';
 import { klassifiziereAnfrage } from '@/lib/klassifikation';
 import { generiereEntwurf, type ThreadNachricht } from '@/lib/entwurf';
+import { ladeBilderFuerKI } from '@/lib/bilder';
 import { speichereAnhang, verlinkeAnhang, type AnhangInput } from '@/lib/anhaenge';
 import { getFreieSlots } from '@/lib/verfuegbarkeit';
 
@@ -564,12 +565,29 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        // Vision V1: Foto-Anhänge der aktuellen Nachricht für die KI laden.
+        // Bei Erst-Anfragen die gerade eingegangene Mail, bei Replies die
+        // letzte eingehende. Wir nehmen schlicht neueNachricht.id – das ist
+        // bei beiden Fällen die Nachricht, die wir gerade eingespeichert
+        // haben. Wenn keine Bilder dabei sind, returnt der Helper leeres
+        // Array und der Vision-Pfad in generiereEntwurf wird übersprungen.
+        const bilder = neueNachricht
+          ? await ladeBilderFuerKI(neueNachricht.id).catch((err) => {
+              console.error(
+                'Vision: Bilder-Loading fehlgeschlagen (nicht-blockend):',
+                err instanceof Error ? err.message : err
+              );
+              return [];
+            })
+          : [];
+
         const entwurfRes = await generiereEntwurf(
           anfrageFuerKlass,
           klassifikation,
           betrieb,
           konversation,
-          freieSlots
+          freieSlots,
+          bilder
         );
 
         if (entwurfRes.success) {
