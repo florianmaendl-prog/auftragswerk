@@ -180,8 +180,8 @@ export function ProfilForm({
               className="mt-1.5"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Fallback wenn unten keine Einzugsgebiete gepflegt sind. Wenn
-              Einzugsgebiete da sind, gilt der Mindestwert pro Gebiet.
+              Gilt überall – wenn du unten Regionen einträgst, gewinnt der
+              Wert pro Region.
             </p>
           </div>
         </CardContent>
@@ -561,24 +561,25 @@ function GebieteEditor({
         <CardTitle className="text-base">Einzugsgebiet & Mindestaufträge</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Definiere wo du arbeitest und ab welchem Auftragswert es sich
-            lohnt. <strong>Erstes Match gewinnt</strong> – also
-            spezifischste PLZ-Bereiche oben, „*" als Fallback unten.
+            Trag ein, wo du normalerweise arbeitest und ab welcher
+            Auftragsgröße es sich für dich lohnt. Die KI geht die Liste
+            von oben nach unten durch – schreib also deine wichtigsten
+            Regionen zuerst hin.
           </p>
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Beispiele: <code className="bg-muted px-1 rounded">85*</code> = alle
-            85xxx, <code className="bg-muted px-1 rounded">85737</code> = nur
-            diese PLZ, <code className="bg-muted px-1 rounded">*</code> = alles
-            übrige (Fallback).
+            So schreibst du die PLZ:{' '}
+            <strong>85*</strong> = alle PLZ die mit 85 anfangen.{' '}
+            <strong>85737</strong> = nur genau diese PLZ.{' '}
+            <strong>*</strong> = alles andere.
           </p>
         </div>
 
         {items.length === 0 && (
           <p className="text-sm text-muted-foreground italic">
-            Noch keine Einzugsgebiete definiert. Standard:
-            „Allgemeiner Mindestauftragswert" oben gilt für alle Anfragen.
+            Noch nichts eingetragen. Solange hier leer ist, gilt der
+            „Allgemeine Mindestauftragswert" oben für alle Anfragen.
           </p>
         )}
 
@@ -586,9 +587,9 @@ function GebieteEditor({
           <div className="space-y-2">
             {/* Header-Zeile */}
             <div className="grid grid-cols-[80px_1fr_110px_64px] gap-2 px-1 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-              <span>PLZ-Muster</span>
-              <span>Label</span>
-              <span>Min. Wert (€)</span>
+              <span>PLZ</span>
+              <span>Region</span>
+              <span>Ab € lohnt's</span>
               <span></span>
             </div>
 
@@ -609,7 +610,7 @@ function GebieteEditor({
                 <Input
                   value={g.label}
                   onChange={(e) => updateRow(idx, { label: e.target.value })}
-                  placeholder="Hauptgebiet"
+                  placeholder="z.B. Ismaning & Umkreis"
                   maxLength={80}
                   className="text-sm"
                 />
@@ -659,7 +660,7 @@ function GebieteEditor({
 
         <div className="flex justify-end pt-1">
           <Button variant="outline" size="sm" onClick={addRow}>
-            + Gebiet hinzufügen
+            + Region hinzufügen
           </Button>
         </div>
       </CardContent>
