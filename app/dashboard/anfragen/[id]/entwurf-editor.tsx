@@ -15,6 +15,7 @@ import {
   CancelCircleIcon,
   CheckmarkCircle02Icon,
   Idea01Icon,
+  Image02Icon,
 } from '@hugeicons/core-free-icons';
 
 type Entwurf = {
@@ -30,10 +31,17 @@ export default function EntwurfEditor({
   entwurf,
   anfrageId,
   empfaenger,
+  kiBildAnzahl,
 }: {
   entwurf: Entwurf;
   anfrageId: string;
   empfaenger: string;
+  /**
+   * Anzahl Bild-Anhänge die der KI beim Erstellen des Entwurfs zur
+   * Verfügung standen. >0 → Vision-Pfad lief, Badge wird gezeigt.
+   * Aus Server-Component berechnet (letzte eingehende Nachricht).
+   */
+  kiBildAnzahl?: number;
 }) {
   const router = useRouter();
   const [betreff, setBetreff] = useState(entwurf.betreff_vorschlag);
@@ -131,6 +139,24 @@ export default function EntwurfEditor({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {kiBildAnzahl !== undefined && kiBildAnzahl > 0 && (
+          <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/[0.04] px-3 py-2 text-xs">
+            <HugeiconsIcon
+              icon={Image02Icon}
+              size={14}
+              strokeWidth={1.5}
+              className="text-primary flex-shrink-0"
+            />
+            <span className="text-foreground/85">
+              Die KI hat{' '}
+              <strong>
+                {kiBildAnzahl} {kiBildAnzahl === 1 ? 'Bild' : 'Bilder'}
+              </strong>{' '}
+              vom Kunden gesehen.
+            </span>
+          </div>
+        )}
+
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">An</label>
           <Input value={empfaenger} disabled className="bg-muted/30" />

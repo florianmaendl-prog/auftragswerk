@@ -561,6 +561,21 @@ export default async function AnfrageDetailPage({
               }}
               anfrageId={anfrage.id}
               empfaenger={anfrage.von_email}
+              kiBildAnzahl={(() => {
+                // Vision-V1-Transparenz: zähle Bild-Anhänge der letzten
+                // eingehenden Nachricht – das ist was die KI im Vision-
+                // Pfad mitbekommen hat (lib/bilder.ts lädt aus dieser
+                // nachricht_id). Limit 5 (lib/bilder.ts MAX_BILDER) wird
+                // im Badge gespiegelt damit Max weiß ob alles drin war.
+                const letzteEingang = [...nachrichten]
+                  .reverse()
+                  .find((n) => n.typ === 'eingang');
+                if (!letzteEingang) return 0;
+                const anhaenge = anhaengeByNachricht.get(letzteEingang.id) ?? [];
+                return anhaenge.filter((a) =>
+                  (a.content_type ?? '').toLowerCase().startsWith('image/')
+                ).length;
+              })()}
             />
           )}
 

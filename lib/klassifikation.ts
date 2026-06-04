@@ -101,6 +101,24 @@ Wenn "kundenanfrage", dann zusätzlich beurteilen:
 - kunde_typ: ("privat" / "architekt" / "bautraeger" / "gewerbe" / "lieferant" / "unklar")
 - dringlichkeit: ("hoch" / "mittel" / "niedrig")
 
+WICHTIG zum gewerk_match (häufiger Fehler vermeiden):
+
+Die Liste "WIR MACHEN" oben ist BEISPIELHAFT und beschreibt Schwerpunkte – sie ist NICHT als abschließende, exklusive Aufzählung gemeint. Owner pflegen 5-10 typische Items, machen aber oft 50+ verschiedene Arbeiten in ihrem Branchen-Spektrum.
+
+Nutze dein Branchen-Wissen:
+- "Metallbau" umfasst ALLE Arbeiten an/mit Metall: Geländer, Tore, Vordächer, Treppen, Türen, Scharniere, Beschläge, Schweißarbeiten, Reparaturen, Befestigungen, Stahlbau, Edelstahl, Aluminium etc. Eine Türscharnier-Reparatur ist Metallbau, auch wenn nur "Geländer" in der Liste steht.
+- "Maler" = Innen- und Außenanstrich, Tapezieren, Bodenbeschichtung, Lackieren, Renovierung. Auch wenn nur "Wohnungsanstrich" gelistet ist, gehört z.B. Fassadenarbeit dazu.
+- "Sanitär" = Heizung, Klima, Wasser, Bad-Sanierung, Rohre, Armaturen. Etc.
+- Analog für andere Gewerke: nutze dein Berufsbild-Wissen, nicht nur die wörtliche Liste.
+
+REGEL: setze gewerk_match
+- "passt": die Anfrage liegt klar im Branchen-Spektrum (auch wenn nicht 1:1 in der WIR-MACHEN-Liste)
+- "unklar": die Anfrage könnte zum Betrieb passen, ist aber unsicher (Owner soll selbst entscheiden) – DEFAULT bei Zweifel
+- "passt_nicht": NUR wenn die Anfrage klar in ein anderes Gewerk fällt (z.B. Elektrik-Anfrage an Maler, Holzarbeit an Metallbau, Bodenbelag an Heizungsbauer)
+- Beachte WIR MACHEN NICHT: dort genannte explizite Ausschlüsse haben Vorrang vor dem Branchen-Default.
+
+LIEBER "unklar" als "passt_nicht" – Owner entscheidet im Zweifel selbst. Eine vorschnelle Absage ist schlimmer als eine kurze Owner-Prüfung.
+
 EXTRAKTION:
 - Name des Absenders (Vorname + Nachname wenn erkennbar)
 - Firma (wenn vorhanden)
