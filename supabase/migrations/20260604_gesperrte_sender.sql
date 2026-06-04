@@ -28,7 +28,13 @@ CREATE INDEX IF NOT EXISTS idx_gesperrte_sender_betrieb_email
 
 ALTER TABLE gesperrte_sender ENABLE ROW LEVEL SECURITY;
 
--- Policy: nur eigene Sperren sehen/ändern (analog termine etc.)
+-- Policies idempotent: erst DROP IF EXISTS, dann CREATE.
+-- Postgres hat kein "CREATE POLICY IF NOT EXISTS", deshalb diese Form –
+-- so kann die Migration mehrfach ohne Fehler ausgeführt werden.
+DROP POLICY IF EXISTS gesperrte_sender_select_own ON gesperrte_sender;
+DROP POLICY IF EXISTS gesperrte_sender_insert_own ON gesperrte_sender;
+DROP POLICY IF EXISTS gesperrte_sender_delete_own ON gesperrte_sender;
+
 CREATE POLICY gesperrte_sender_select_own ON gesperrte_sender
   FOR SELECT USING (
     betrieb_id IN (
