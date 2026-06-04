@@ -22,6 +22,7 @@ import {
   CheckmarkCircle02Icon,
   Delete02Icon,
   MoreVerticalCircle01Icon,
+  CancelCircleIcon,
 } from '@hugeicons/core-free-icons';
 
 type StatusOption = {
@@ -43,9 +44,11 @@ const STATUS_OPTIONEN: StatusOption[] = [
 export function AnfrageQuickMenu({
   anfrageId,
   currentStatus,
+  vonEmail,
 }: {
   anfrageId: string;
   currentStatus: string;
+  vonEmail?: string;
 }) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -91,6 +94,40 @@ export function AnfrageQuickMenu({
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'In Papierkorb verschieben fehlgeschlagen');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function sperreSender() {
+    if (!vonEmail) return;
+    if (
+      !confirm(
+        `Absender "${vonEmail}" sperren? Alle bisherigen Anfragen werden aussortiert, künftige Mails von dieser Adresse landen direkt im Aussortiert-Tab.`
+      )
+    ) {
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/sender/sperren', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: vonEmail, grund: 'Aus Inbox gesperrt' }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.error || 'Sperren fehlgeschlagen');
+        return;
+      }
+      toast.success(
+        `Gesperrt. ${data.aussortierte_anfragen} alte Anfrage${
+          data.aussortierte_anfragen === 1 ? '' : 'n'
+        } aussortiert.`
+      );
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Sperren fehlgeschlagen');
     } finally {
       setIsLoading(false);
     }
@@ -150,6 +187,23 @@ export function AnfrageQuickMenu({
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
+        {vonEmail && (
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              sperreSender();
+            }}
+            className="text-destructive focus:text-destructive"
+          >
+            <HugeiconsIcon
+              icon={CancelCircleIcon}
+              size={16}
+              strokeWidth={1.5}
+              className="mr-2"
+            />
+            Absender sperren
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onSelect={(e) => {
             e.preventDefault();

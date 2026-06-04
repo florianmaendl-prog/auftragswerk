@@ -412,6 +412,7 @@ export default async function InboxPage({
                 <AnfrageQuickMenu
                   anfrageId={anfrage.id}
                   currentStatus={anfrage.status}
+                  vonEmail={anfrage.von_email}
                 />
               </div>
             </div>
