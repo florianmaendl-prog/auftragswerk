@@ -100,7 +100,12 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 onClick={() => handleResolve(true)}
                 className={cn(
                   'gap-1.5',
-                  state.options.destructive && 'bg-destructive hover:bg-destructive/90'
+                  // Destructive-Variant nutzt bg-destructive/10 + text-destructive
+                  // (zarte Outline-Optik). Für einen klaren Lösch-CTA brauchen wir
+                  // aber Vollrot mit weißem Text – das override muss BEIDES
+                  // setzen, sonst landet roter Text auf rotem Hintergrund.
+                  state.options.destructive &&
+                    'bg-destructive text-white hover:bg-destructive/90'
                 )}
               >
                 {state.options.confirmLabel ?? 'Bestätigen'}
