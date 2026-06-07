@@ -2,6 +2,7 @@ import { supabaseAdmin } from './supabase';
 import { callClaude, type UserContentBlock } from './claude';
 import { cleanMail } from './mail-cleaner';
 import type { KiBild } from './bilder';
+import type { KundenHistorieEintrag } from './kunden-historie';
 
 type Anfrage = {
   id: string;
@@ -253,7 +254,8 @@ function buildUserPrompt(
   anfrage: Anfrage,
   klassifikation: Klassifikation,
   konversation?: ThreadNachricht[],
-  freieSlots?: string[]
+  freieSlots?: string[],
+  kundenHistorie?: KundenHistorieEintrag[]
 ): string {
   const klassBlock = `KLASSIFIKATION (intern, vorab erfolgt):
 - Kategorie: ${klassifikation.kategorie}
@@ -264,6 +266,28 @@ function buildUserPrompt(
 - Zusammenfassung: ${klassifikation.zusammenfassung || '-'}
 - Fehlende Infos: ${(klassifikation.fehlende_infos || []).join(', ') || 'keine erkannt'}
 - Empfohlene Aktion: ${klassifikation.empfohlene_aktion || '-'}`;
+
+  // Kunden-Historie – wenn der Absender schon mal angefragt hat, weiß die KI
+  // jetzt darüber Bescheid und kann persönlicher formulieren ("schön von
+  // Ihnen wieder zu hören", "wie beim letzten Mal..."). Premium-Wow bei
+  // Stammkunden.
+  const historieBlock =
+    kundenHistorie && kundenHistorie.length > 0
+      ? `\n\nFRÜHERE ANFRAGEN DIESES KUNDEN (älteste zuerst, max 5):
+${[...kundenHistorie]
+  .reverse()
+  .map(
+    (h, i) =>
+      `${i + 1}. ${h.datum} – ${h.zusammenfassung} (Klassifikation damals: ${h.gewerk_match ?? 'unbekannt'})`
+  )
+  .join('\n')}
+
+Anwendung: Der Kunde hat schon einmal angefragt – formuliere persönlicher
+("schön von Ihnen wieder zu hören", "wie beim Geländer im Herbst...").
+Beziehe dich auf die Vergangenheit aber NUR wenn es natürlich passt –
+nicht künstlich erwähnen. Wenn die alte Anfrage damals nicht passte,
+diesmal aber doch (oder umgekehrt), formuliere höflich-knapp ohne Drama.`
+      : '';
 
   // Freie Slots aus dem Verfügbarkeits-Modul – wenn vorhanden, bekommt die KI
   // konkrete Termin-Vorschläge zum Anbieten statt vager "Anfang nächster Woche".
@@ -288,7 +312,7 @@ ${formatThread(konversation)}
 ---
 
 ${klassBlock}
-(Die Klassifikation bezieht sich auf die LETZTE Kunden-Nachricht oben.)
+(Die Klassifikation bezieht sich auf die LETZTE Kunden-Nachricht oben.)${historieBlock}
 
 Erstelle jetzt den Antwortentwurf auf die LETZTE Kunden-Nachricht. Berücksichtige den kompletten Verlauf. Wiederhole keine Fragen, die schon beantwortet sind. Wenn der Kunde etwas bestätigt hat, bestätige es kurz zurück – frag NICHT nochmal. Antworte nur mit JSON. KEINE Grußformel/Name am Ende des body_text.`;
   }
@@ -303,7 +327,7 @@ ${anfrage.body_text_clean || anfrage.body_text}
 
 ---
 
-${klassBlock}${slotsBlock}
+${klassBlock}${historieBlock}${slotsBlock}
 
 Erstelle jetzt den Antwortentwurf gemäß den Regeln. Antworte nur mit JSON. Schreibe KEINE Grußformel und KEINEN Namen am Ende des body_text.`;
 }
@@ -324,10 +348,17 @@ export async function generiereEntwurf(
   betrieb: Betrieb,
   konversation?: ThreadNachricht[],
   freieSlots?: string[],
-  bilder?: KiBild[]
+  bilder?: KiBild[],
+  kundenHistorie?: KundenHistorieEintrag[]
 ): Promise<EntwurfResult> {
   const systemPrompt = buildSystemPrompt(betrieb);
-  const userMessage = buildUserPrompt(anfrage, klassifikation, konversation, freieSlots);
+  const userMessage = buildUserPrompt(
+    anfrage,
+    klassifikation,
+    konversation,
+    freieSlots,
+    kundenHistorie
+  );
 
   if (konversation && konversation.length > 0) {
     console.log(

@@ -4,6 +4,7 @@ import { cleanMail } from '@/lib/mail-cleaner';
 import { klassifiziereAnfrage } from '@/lib/klassifikation';
 import { generiereEntwurf, type ThreadNachricht } from '@/lib/entwurf';
 import { ladeBilderFuerKI } from '@/lib/bilder';
+import { ladeKundenHistorie } from '@/lib/kunden-historie';
 import { speichereAnhang, verlinkeAnhang, type AnhangInput } from '@/lib/anhaenge';
 import { getFreieSlots } from '@/lib/verfuegbarkeit';
 
@@ -605,15 +606,41 @@ export async function POST(req: NextRequest) {
         // bei beiden Fällen die Nachricht, die wir gerade eingespeichert
         // haben. Wenn keine Bilder dabei sind, returnt der Helper leeres
         // Array und der Vision-Pfad in generiereEntwurf wird übersprungen.
-        const bilder = neueNachricht
-          ? await ladeBilderFuerKI(neueNachricht.id).catch((err) => {
+        const bilderPromise = neueNachricht
+          ? ladeBilderFuerKI(neueNachricht.id).catch((err) => {
               console.error(
                 'Vision: Bilder-Loading fehlgeschlagen (nicht-blockend):',
                 err instanceof Error ? err.message : err
               );
               return [];
             })
-          : [];
+          : Promise.resolve([]);
+
+        // Kunden-Historie (Sprint 5): letzte 5 Kundenanfragen desselben
+        // Absenders. Premium-Wow bei Stammkunden – KI weiß plötzlich was
+        // damals besprochen war.
+        const historiePromise = ladeKundenHistorie(
+          betrieb.id,
+          vonEmail,
+          anfrageId
+        ).catch((err) => {
+          console.error(
+            'Kunden-Historie Loading fehlgeschlagen (nicht-blockend):',
+            err instanceof Error ? err.message : err
+          );
+          return [];
+        });
+
+        const [bilder, kundenHistorie] = await Promise.all([
+          bilderPromise,
+          historiePromise,
+        ]);
+
+        if (kundenHistorie.length > 0) {
+          console.log(
+            `📚 Kunden-Historie: ${kundenHistorie.length} frühere Anfrage(n) von ${vonEmail} an Entwurf-KI übergeben`
+          );
+        }
 
         const entwurfRes = await generiereEntwurf(
           anfrageFuerKlass,
@@ -621,7 +648,8 @@ export async function POST(req: NextRequest) {
           betrieb,
           konversation,
           freieSlots,
-          bilder
+          bilder,
+          kundenHistorie
         );
 
         if (entwurfRes.success) {

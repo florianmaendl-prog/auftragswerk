@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EntwurfEditor from './entwurf-editor';
 import { DetailActions } from './detail-actions';
+import { PasstDochButton } from './passt-doch-button';
 import { ReplyEditor } from './reply-editor';
 import { TerminCard, type Termin } from './termin-card';
 import { KategorieBadge } from '@/components/brand/kategorie-badge';
@@ -300,12 +301,20 @@ export default async function AnfrageDetailPage({
                 {weitereAnfragenVomKunden === 1 ? 'Anfrage' : 'Anfragen'} von diesem Kunden →
               </Link>
             ) : null}
-            <div className="flex items-center gap-2 mt-3">
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
               <KategorieBadge
                 kategorie={klass?.kategorie as Parameters<typeof KategorieBadge>[0]['kategorie']}
                 gewerkMatch={klass?.gewerk_match as Parameters<typeof KategorieBadge>[0]['gewerkMatch']}
               />
               {klass && confidenceBadge(klass.confidence)}
+              {/* Passt-doch-Button: nur bei manueller Prüfung mit zweifelhaftem
+                  gewerk_match. Owner kann mit 1 Klick zu Zusage-Entwurf umstellen. */}
+              {anfrage.status === 'manuell_pruefen' &&
+                klass?.kategorie === 'kundenanfrage' &&
+                (klass?.gewerk_match === 'unklar' ||
+                  klass?.gewerk_match === 'passt_nicht') && (
+                  <PasstDochButton anfrageId={anfrage.id} />
+                )}
             </div>
           </div>
           <div className="flex-shrink-0">

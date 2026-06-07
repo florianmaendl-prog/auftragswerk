@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { AnfrageQuickMenu } from './anfrage-quick-menu';
 import { InboxRefreshButton } from './inbox-refresh-button';
+import { InboxSuche } from './inbox-suche';
 import { KategorieBadge } from '@/components/brand/kategorie-badge';
 import { EmptyState } from '@/components/brand/empty-state';
 import { InboxIcon } from '@hugeicons/core-free-icons';
@@ -179,11 +180,12 @@ function confidenceBadge(confidence: number | null) {
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; q?: string }>;
 }) {
   const params = await searchParams;
   const activeTabId = (TABS.find((t) => t.id === params.tab)?.id ?? 'freigabe') as TabId;
   const activeTab = TABS.find((t) => t.id === activeTabId)!;
+  const suchterm = (params.q ?? '').trim().toLowerCase();
 
   const supabase = await createClient();
 
@@ -247,7 +249,21 @@ export default async function InboxPage({
     {} as Record<TabId, number>
   );
 
-  const filtered = items.filter((a) => activeTab.statuses.includes(a.status));
+  const filtered = items
+    .filter((a) => activeTab.statuses.includes(a.status))
+    .filter((a) => {
+      // Volltext-Filter: Betreff / Von-Name / Von-Email matchen (case-insensitive).
+      // Wenn kein Suchterm → alles durchlassen.
+      if (!suchterm) return true;
+      const hay = (
+        (a.betreff ?? '') +
+        ' ' +
+        (a.von_name ?? '') +
+        ' ' +
+        (a.von_email ?? '')
+      ).toLowerCase();
+      return hay.includes(suchterm);
+    });
 
   return (
     <div className="container mx-auto py-6 sm:py-8 px-4 sm:px-6 max-w-5xl">
@@ -257,10 +273,17 @@ export default async function InboxPage({
             Inbox
           </h1>
           <p className="text-muted-foreground text-sm">
-            {items.length} {items.length === 1 ? 'Anfrage' : 'Anfragen'} insgesamt
+            {suchterm
+              ? `${filtered.length} ${filtered.length === 1 ? 'Treffer' : 'Treffer'} für „${suchterm}"`
+              : `${items.length} ${items.length === 1 ? 'Anfrage' : 'Anfragen'} insgesamt`}
           </p>
         </div>
         <InboxRefreshButton />
+      </div>
+
+      {/* Suche – debounced, schreibt ?q= in die URL */}
+      <div className="mb-5 max-w-md">
+        <InboxSuche />
       </div>
 
       {/* MINI-STATS-BAR */}

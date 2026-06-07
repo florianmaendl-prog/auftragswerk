@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/brand/empty-state';
 import { UserGroupIcon } from '@hugeicons/core-free-icons';
 import { KundeSperrenButton } from './kunde-sperren-button';
+import { KundenSucheSort } from './kunden-suche-sort';
 
 type AnalyseRow = {
   kategorie: string | null;
@@ -44,7 +45,18 @@ function timeAgo(date: string): string {
   return new Date(date).toLocaleDateString('de-DE');
 }
 
-export default async function KundenPage() {
+export default async function KundenPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; sort?: string }>;
+}) {
+  const params = await searchParams;
+  const suchterm = (params.q ?? '').trim().toLowerCase();
+  const sortMode = (params.sort ?? 'letzter_kontakt') as
+    | 'letzter_kontakt'
+    | 'name'
+    | 'anzahl';
+
   const supabase = await createClient();
 
   // Anfragen + Sperrliste parallel holen (RLS scoped auf eigenen Betrieb)
@@ -96,20 +108,54 @@ export default async function KundenPage() {
     }
   }
 
-  const kunden = Array.from(kundenMap.values()).sort((a, b) =>
-    b.letzter_kontakt.localeCompare(a.letzter_kontakt)
-  );
+  // Such-Filter (Name / Firma / Email, case-insensitive)
+  const alleKunden = Array.from(kundenMap.values());
+  const gefiltert = suchterm
+    ? alleKunden.filter((k) =>
+        (
+          (k.name ?? '') +
+          ' ' +
+          (k.firma ?? '') +
+          ' ' +
+          k.email
+        )
+          .toLowerCase()
+          .includes(suchterm)
+      )
+    : alleKunden;
+
+  // Sortierung – Default letzter Kontakt absteigend
+  const kunden = [...gefiltert].sort((a, b) => {
+    if (sortMode === 'name') {
+      return (a.name ?? a.email).localeCompare(b.name ?? b.email, 'de', {
+        sensitivity: 'base',
+      });
+    }
+    if (sortMode === 'anzahl') {
+      return b.anzahl - a.anzahl;
+    }
+    return b.letzter_kontakt.localeCompare(a.letzter_kontakt);
+  });
 
   return (
     <div className="container mx-auto py-6 sm:py-8 px-4 sm:px-6 max-w-5xl">
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1">
           Kunden
         </h1>
         <p className="text-muted-foreground text-sm">
-          {kunden.length} {kunden.length === 1 ? 'Kunde' : 'Kunden'} insgesamt
+          {suchterm
+            ? `${kunden.length} ${kunden.length === 1 ? 'Treffer' : 'Treffer'} für „${suchterm}" (von ${alleKunden.length})`
+            : `${alleKunden.length} ${alleKunden.length === 1 ? 'Kunde' : 'Kunden'} insgesamt`}
         </p>
       </div>
+
+      {/* Such- + Sortier-Leiste – nur einblenden wenn überhaupt jemand da */}
+      {alleKunden.length > 0 && (
+        <div className="mb-5">
+          <KundenSucheSort />
+        </div>
+      )}
 
       {kunden.length === 0 ? (
         <EmptyState
