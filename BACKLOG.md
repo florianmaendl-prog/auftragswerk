@@ -1,6 +1,55 @@
 # Auftragswerk – Backlog
 
-> **Stand: 7.6.2026 abends (Tag 19 – Vision + Guardrails + Sprint 5 + Sprint 6 durch)**
+> **Stand: 7.6.2026 spät abends (Tag 20 – ehrliche Aktivitäts-Karte, Reply-Editor-Gleichstellung, Branding-Audit)**
+>
+> Marathon-Tag nach kurzem Pause-Stand. Vier Brocken durch:
+>
+> - **Aktivitäts-Karte** auf Dashboard (Commit `f8a2bde`) — bewusst KEINE
+>   "X Stunden gespart"-Bullshit-Zahl, sondern nur DB-Fakten: Heute / Woche /
+>   Monat-Buckets mit Anfragen rein, Antworten raus, Termine fest, Werbung
+>   weg, ungeändert versendet, Median-Antwortzeit. Owner-Pushback: erfundene
+>   Zahl würde smarte Handwerker als SaaS-Bullshit durchschauen →
+>   Vertrauensbruch. Lösung: eigene Story aus echten Counts.
+>
+> - **Reply-Editor als gleichwertige Wahl** (STRATEGIE A2) — neue
+>   `AntwortBereich`-Wrapper-Komponente mit Toggle "KI-Entwurf nutzen ↔
+>   Selbst schreiben" visuell gleichgewichtet über dem Editor. Default
+>   bleibt KI-Entwurf, Owner ohne Vertrauen kann jederzeit selbst tippen
+>   ohne den Entwurf wegzuwerfen. Senkt Skeptiker-Schwelle, Tool wirkt
+>   nicht als Zwang.
+>
+> - **Favicon-Brand** (`app/icon.tsx` + `app/apple-icon.tsx`) — generierte
+>   PNG-Icons (32x32 für Browser-Tab, 180x180 für iOS Home-Screen) mit
+>   weißem "A" auf Stahlblau-Background `#3D556B`. Next-Default-Favicon
+>   gelöscht. Brand zeigt sich endlich auch im Tab.
+>
+> - **Multi-User-Branding-Audit** — alle Code-Kommentare von "Max",
+>   "Bauelemente Rapp" etc. auf generische Begriffe ("Owner", "Mustermann
+>   Bau") neutralisiert. 17 Dateien betroffen (Routes, Komponenten,
+>   Migrations). Verbleibende "Max"-Vorkommen sind alle entweder
+>   MAXIMUM (`lib/files.ts`) oder "Max Mustermann" (deutsches generic
+>   "John Doe"). Codebase ist multi-tenant-ready für Pilot #2.
+>
+> **Kritischer Real-Befund aus DB-Check (`scripts/check-edits.ts` +
+> `scripts/check-versand.ts`):** Max hat seit Pilot-Live (4.6.) **5
+> Anfragen reingekriegt aber 0 Antworten versendet**. Erklärung vom
+> Owner per Telefon: Max ist im Beobachtungs-Modus — schaut sich
+> Sortierung an, prüft Entwurfsqualität, drückt bewusst noch nicht
+> Senden weil er erst sicher sein will. Das findet er gut.
+>
+> **Konsequenzen:**
+> - **Ton Phase 2 (Auto-Stilbeispiele) wartet auf echte Versände**, nicht
+>   auf "30+ Edits". Bei 0 Edits gibt's nichts zu lernen. Trigger
+>   neu definiert.
+> - **"Entwurf fertig"-Ping war Fehl-Diagnose** — Max vergisst nicht
+>   aufs Tool zu schauen, er prüft aktiv. A3-Trigger NICHT gefallen.
+> - **Aktivitäts-Karte zeigt jetzt die Wahrheit:** "1 KI-Entwurf bereit,
+>   0 raus". Genau das, was ehrlich ist.
+>
+> Plus: zwei Debug-Scripts liegen jetzt unter `scripts/` (npx tsx
+> `--env-file=.env.local`), nutzen Supabase Service-Role-Key.
+>
+> **Vorheriger Stand:** **7.6.2026 abends (Tag 19 – Vision + Guardrails + Sprint 5 + Sprint 6 durch)**
 >
 > Max-Pilot läuft seit Tag 18 produktiv. Tag 19 war ein massiver Push:
 > 6 Sprints/Fixes hintereinander. Tool ist signifikant näher am

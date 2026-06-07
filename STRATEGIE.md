@@ -256,10 +256,11 @@ machen.
    *„In einer Mittagspause eingerichtet."*
 
 **Mittelfristig (nach Max-Launch):**
-- **Favicon** (das „A" in Saira) — taucht im Tab/Bookmark auf
-- **Echter Dashboard-Screenshot** (Inbox mit Entwurf) im Hero/Lösungs-
-  Block — zeigen schlägt sagen. **Kein Stockfoto.**
-- Gewerke als Pills, nicht Komma-Wortwand
+- **Favicon** (das „A" in Saira) — taucht im Tab/Bookmark auf. **Tag 20 ✅**
+- ~~**Echter Dashboard-Screenshot**~~ — **bewusst NICHT** (Owner-Entscheidung
+  Tag 20): LP soll Premium-Look in einem Guss bleiben, Screenshots brechen
+  die ruhige Brand-Optik + altern schnell. 3 LoesungCards bleiben.
+- Gewerke als Pills, nicht Komma-Wortwand. **Schon da**
 - Pricing weiterhin bewusst weglassen (Pilot-Phase)
 
 ---
@@ -390,6 +391,11 @@ Owner über Postmark, simpel.
 7. ⏳ **Ton-Treffsicherheit** (Teil A1) — **DAUER-AUFGABE**. Edit-Diff
    Phase 1 sammelt jetzt Daten. Phase 2 (Auto-Stilbeispiel-Vorschläge)
    wenn 30+ Real-Edits in der DB.
+   **Tag-20-Stand:** Max hat seit Pilot-Live (4.6.) 0 Mails versendet
+   (Beobachtungs-Modus — schaut Sortierung + Entwurfsqualität an, drückt
+   bewusst noch nicht Senden). Trigger neu definiert: nicht „30+ Edits"
+   sondern „30+ Versände mit mind. 20% Edit-Rate". Sonst keine Pattern-
+   Basis möglich. Phase 2 weiter geparkt bis echte Sende-Aktivität.
 8. ✅ **Aktivitäts-Karte** im Dashboard (Teil A4, Tag 20) — **bewusst
    keine erfundene "X Stunden gespart"-Zahl** (würde smarte Handwerker
    sofort als SaaS-Bullshit durchschauen → Vertrauensbruch). Stattdessen
@@ -399,7 +405,23 @@ Owner über Postmark, simpel.
    ("schaut, 67 Mails letzten Monat – das hat das Ding mir alles
    vorgeschrieben"). Eigene Wahrheit > berechnete Hersteller-Behauptung.
 9. ⏳ **STRATEGISCHE ENTSCHEIDUNG 2** (Ping „Entwurf fertig") — falls
-   Max sagt „vergesse das Tool im Alltag"
+   Max sagt „vergesse das Tool im Alltag".
+   **Tag-20-Stand:** Trigger NICHT gefallen. Max prüft aktiv, vergisst
+   das Tool nicht — er drückt nur bewusst noch nicht Senden. Anderes
+   Problem als das was Ping lösen würde. Ping bleibt geparkt.
+
+10b. ✅ **Reply-Editor als gleichwertige Wahl** (Teil A2) — Tag 20.
+    `AntwortBereich`-Wrapper mit Toggle "KI-Entwurf nutzen ↔ Selbst
+    schreiben" über dem Editor, beide visuell gleichgewichtet. Senkt
+    Skeptiker-Schwelle, Tool wirkt nicht als Zwang.
+
+10c. ✅ **Brand-Favicon** (Teil B4 Mittelfristig) — Tag 20. `app/icon.tsx`
+    + `app/apple-icon.tsx` mit weißem A auf Stahlblau-Bg via Next-App-
+    Router `ImageResponse`. Browser-Tab + iOS-Home-Screen branded.
+
+10d. ✅ **Multi-User-Branding-Audit** — Tag 20. Code-Kommentare in 17
+    Dateien von Pilot-spezifischen Namen ("Max", "Bauelemente Rapp")
+    auf generische Begriffe neutralisiert. Codebase multi-tenant-ready.
 10. ⏳ **Compliance-Block** (Teil B2) — Pflicht für „fertig" / Innung
     (e-recht24, DPAs, BVDW-AVV, echte Impressum-Anschrift)
 11. ⏳ **Microsoft/Outlook-OAuth** (Teil B1) — sobald Pilot #2 dranhängt

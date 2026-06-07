@@ -1,6 +1,31 @@
 # Auftragswerk – System-Inventur
 
-> **Stand: 7.6.2026 abends (Tag 19 – Vision + Guardrails + Sprint 5 + Sprint 6 durch)**
+> **Stand: 7.6.2026 spät abends (Tag 20 – Aktivitäts-Karte, Reply-Editor-Gleichstellung, Branding-Audit)**
+>
+> Marathon-Tag nach Aktivitäts-Karten-Push. Vier Items durch:
+>
+> 1. **Aktivitäts-Karte** auf Dashboard ist die ehrliche Variante (bewusst
+>    keine "X Stunden gespart"-Zahl). Heute / Woche / Monat-Buckets aus
+>    DB-Counts + Median-Antwortzeit. Anti-SaaS-Bullshit-Move.
+> 2. **`AntwortBereich`-Wrapper** mit Toggle "KI-Entwurf nutzen ↔ Selbst
+>    schreiben" gleichwertig (STRATEGIE A2 letzter Absatz). Reply-Editor
+>    ist nicht mehr nur Fallback. Datei: [app/dashboard/anfragen/[id]/antwort-bereich.tsx](app/dashboard/anfragen/[id]/antwort-bereich.tsx).
+> 3. **Brand-Favicon** via Next-App-Router `icon.tsx` + `apple-icon.tsx`
+>    (generierte PNG aus `ImageResponse`, weißes A auf Stahlblau). Next-
+>    Default-Favicon gelöscht.
+> 4. **Multi-User-Branding-Audit** durch: alle Code-Kommentare neutralisiert
+>    (17 Dateien, "Max"→"Owner", "Bauelemente Rapp"→"Mustermann Bau" etc.).
+>    Verbleibende "Max"-Vorkommen sind nur noch MAXIMUM oder "Max Mustermann"
+>    (deutsches generic). Codebase ready für Pilot #2.
+>
+> **Real-Befund**: Max hat seit Pilot-Live (4.6.) 5 Anfragen reingekriegt,
+> aber **0 versendet** (DB-Check via `scripts/check-edits.ts` +
+> `scripts/check-versand.ts`). Max ist im Beobachtungs-Modus, prüft
+> Qualität, drückt bewusst nicht Senden. Gewissenhafter Owner-Reflex,
+> kein Pain. Konsequenz: Ton Phase 2 wartet auf echte Versände, nicht
+> "30+ Edits". Ping-Mail-Trigger NICHT gefallen.
+>
+> **Vorheriger Stand:** **7.6.2026 abends (Tag 19 – Vision + Guardrails + Sprint 5 + Sprint 6 durch)**
 >
 > Tag 19 war ein massiver Push. 6 Sprints/Fixes:
 > - Vision V1 (KI sieht jpg/png/webp/gif-Anhänge)
