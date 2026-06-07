@@ -307,14 +307,6 @@ export default async function AnfrageDetailPage({
                 gewerkMatch={klass?.gewerk_match as Parameters<typeof KategorieBadge>[0]['gewerkMatch']}
               />
               {klass && confidenceBadge(klass.confidence)}
-              {/* Passt-doch-Button: nur bei manueller Prüfung mit zweifelhaftem
-                  gewerk_match. Owner kann mit 1 Klick zu Zusage-Entwurf umstellen. */}
-              {anfrage.status === 'manuell_pruefen' &&
-                klass?.kategorie === 'kundenanfrage' &&
-                (klass?.gewerk_match === 'unklar' ||
-                  klass?.gewerk_match === 'passt_nicht') && (
-                  <PasstDochButton anfrageId={anfrage.id} />
-                )}
             </div>
           </div>
           <div className="flex-shrink-0">
@@ -322,6 +314,18 @@ export default async function AnfrageDetailPage({
           </div>
         </div>
       </div>
+
+      {/* Owner-Override-Banner: nur bei manueller Prüfung mit zweifelhaftem
+          gewerk_match. Owner kann mit 1 Klick auf Zusage umstellen –
+          Sonnet-Prompt bekommt dann ownerBestaetigtPassend=true. */}
+      {anfrage.status === 'manuell_pruefen' &&
+        klass?.kategorie === 'kundenanfrage' &&
+        (klass?.gewerk_match === 'unklar' ||
+          klass?.gewerk_match === 'passt_nicht') && (
+          <div className="mb-6">
+            <PasstDochButton anfrageId={anfrage.id} />
+          </div>
+        )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* LINKS: Konversation + KI-Analyse */}

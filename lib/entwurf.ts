@@ -255,8 +255,27 @@ function buildUserPrompt(
   klassifikation: Klassifikation,
   konversation?: ThreadNachricht[],
   freieSlots?: string[],
-  kundenHistorie?: KundenHistorieEintrag[]
+  kundenHistorie?: KundenHistorieEintrag[],
+  ownerBestaetigtPassend?: boolean
 ): string {
+  // Owner-Override – wenn der Inhaber im Dashboard explizit "Auftrag annehmen"
+  // gedrückt hat, hat seine Einschätzung Vorrang über die KI-Klassifikation.
+  // Sonnet würde sonst aus dem Anfrage-Text selbst denken "passt nicht" und
+  // trotz gewerk_match=passt eine Absage formulieren. Dieser Block räumt das ab.
+  const ownerOverrideBlock = ownerBestaetigtPassend
+    ? `⚠️ OWNER-BESTÄTIGUNG (entscheidend, hat Vorrang über deine eigene Einschätzung):
+Der Inhaber hat diese Anfrage explizit als zu seinem Leistungsspektrum gehörig bestätigt.
+Das bedeutet HART:
+- Du schreibst eine ECHTE ZUSAGE. KEINE Absage, kein "eher Glaserei", kein "passt nicht zu uns".
+- Bedanke dich, bestätige dass das machbar ist ("Das schauen wir uns gerne an", "Klar, das machen wir").
+- Frage nach fehlenden Infos die fürs Angebot relevant sind (Maße, Adresse, Wunschtermin).
+- Schlage einen konkreten nächsten Schritt vor: Aufmaßtermin (mit konkreten Slots wenn unten welche stehen) ODER Telefonat.
+- IGNORIERE deine eigene Branchen-Einschätzung. Wenn der Owner sagt "machen wir", dann machen wir.
+- Beziehe dich bei Bildern weiterhin konkret darauf (was siehst du, was bringst du mit), aber im Sinne einer Zusage.
+
+`
+    : '';
+
   const klassBlock = `KLASSIFIKATION (intern, vorab erfolgt):
 - Kategorie: ${klassifikation.kategorie}
 - Passt zum Gewerk: ${klassifikation.gewerk_match || 'unbekannt'}
@@ -305,7 +324,7 @@ existiert.`
 
   // Reply-Pfad: mindestens eine Ursprungs-Nachricht + ein Reply = ≥ 2 Einträge.
   if (konversation && konversation.length >= 2) {
-    return `DIES IST EIN REPLY IM LAUFENDEN GESPRÄCH. Hier der komplette KONVERSATIONS-VERLAUF chronologisch (älteste zuerst):
+    return `${ownerOverrideBlock}DIES IST EIN REPLY IM LAUFENDEN GESPRÄCH. Hier der komplette KONVERSATIONS-VERLAUF chronologisch (älteste zuerst):
 
 ${formatThread(konversation)}
 
@@ -318,7 +337,7 @@ Erstelle jetzt den Antwortentwurf auf die LETZTE Kunden-Nachricht. Berücksichti
   }
 
   // Erst-Antwort / kein Thread-Kontext: bisheriges Verhalten + optionale Slots.
-  return `KUNDENANFRAGE:
+  return `${ownerOverrideBlock}KUNDENANFRAGE:
 
 Von: ${anfrage.von_name || ''} <${anfrage.von_email}>
 Betreff: ${anfrage.betreff}
@@ -349,7 +368,8 @@ export async function generiereEntwurf(
   konversation?: ThreadNachricht[],
   freieSlots?: string[],
   bilder?: KiBild[],
-  kundenHistorie?: KundenHistorieEintrag[]
+  kundenHistorie?: KundenHistorieEintrag[],
+  ownerBestaetigtPassend?: boolean
 ): Promise<EntwurfResult> {
   const systemPrompt = buildSystemPrompt(betrieb);
   const userMessage = buildUserPrompt(
@@ -357,7 +377,8 @@ export async function generiereEntwurf(
     klassifikation,
     konversation,
     freieSlots,
-    kundenHistorie
+    kundenHistorie,
+    ownerBestaetigtPassend
   );
 
   if (konversation && konversation.length > 0) {

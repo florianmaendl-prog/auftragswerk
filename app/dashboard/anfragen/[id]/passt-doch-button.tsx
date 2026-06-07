@@ -5,19 +5,24 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { CheckmarkCircle02Icon, Sparkles } from '@hugeicons/core-free-icons';
+import {
+  CheckmarkCircle02Icon,
+  Sparkles,
+  Alert02Icon,
+} from '@hugeicons/core-free-icons';
 import { cn } from '@/lib/utils';
 
 /**
- * "Passt doch"-Button (Sprint 5, Max-Wunsch).
+ * "Auftrag annehmen"-Banner (Sprint 5, Max-Wunsch, Tag 19 Polish).
  *
- * Sichtbar wenn Anfrage manuell_pruefen ist und KI eher abgesagt hat
- * (gewerk_match=unklar oder passt_nicht). Klick → API rebuilds Entwurf
- * mit forciertem gewerk_match='passt' → Owner kriegt eine Zusage statt
- * Absage und kann direkt freigeben.
+ * Eigener Banner über der Konversation – nicht inline neben dem
+ * KategorieBadge, weil dort zu klein und der CTA unterging. Sichtbar
+ * nur wenn manuell_pruefen + gewerk_match=unklar/passt_nicht. Klick →
+ * API rebuilds Entwurf mit ownerBestaetigtPassend=true (Override-Block
+ * im KI-Prompt sorgt für echte Zusage statt Absage).
  *
- * Lernen V1: nach Erfolg Toast mit Hinweis im Profil zu ergänzen.
- * Auto-Lernen kommt später (Phase 3) wenn 30+ Korrekturen vorliegen.
+ * Toast nach Erfolg ist bewusst KURZ – der längere Lern-Tipp landet
+ * als Inline-Hinweis (separat) damit's nicht über Brand-Design knallt.
  */
 export function PasstDochButton({ anfrageId }: { anfrageId: string }) {
   const router = useRouter();
@@ -44,11 +49,7 @@ export function PasstDochButton({ anfrageId }: { anfrageId: string }) {
         setBusy(false);
         return;
       }
-      toast.success('Entwurf wurde als Zusage neu geschrieben.', {
-        description:
-          'Tipp: ergänze diese Art Anfrage in deinem Profil unter „Was wir machen" – dann erkennt die KI sie künftig direkt.',
-        duration: 8000,
-      });
+      toast.success('Entwurf neu geschrieben.');
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Neuer Entwurf fehlgeschlagen');
@@ -57,20 +58,39 @@ export function PasstDochButton({ anfrageId }: { anfrageId: string }) {
   }
 
   return (
-    <Button
-      type="button"
-      onClick={handleClick}
-      disabled={busy}
-      className={cn('gap-1.5')}
-      size="sm"
-    >
-      <HugeiconsIcon
-        icon={busy ? Sparkles : CheckmarkCircle02Icon}
-        size={14}
-        strokeWidth={1.5}
-        className={cn(busy && 'animate-pulse')}
-      />
-      {busy ? 'KI schreibt neu…' : 'Passt doch – Entwurf als Zusage'}
-    </Button>
+    <div className="rounded-md border border-amber-200 bg-amber-50/60 p-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+      <div className="flex items-start gap-2 min-w-0">
+        <HugeiconsIcon
+          icon={Alert02Icon}
+          size={18}
+          strokeWidth={1.5}
+          className="text-amber-700 flex-shrink-0 mt-0.5"
+        />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-amber-900">
+            KI ist unsicher, ob diese Anfrage zu deinem Spektrum passt.
+          </p>
+          <p className="text-xs text-amber-800/85 mt-0.5">
+            Wenn du den Auftrag machen willst, schreibt die KI in 5 Sek einen
+            neuen Entwurf als Zusage.
+          </p>
+        </div>
+      </div>
+      <Button
+        type="button"
+        onClick={handleClick}
+        disabled={busy}
+        size="sm"
+        className={cn('gap-1.5 flex-shrink-0 w-full sm:w-auto')}
+      >
+        <HugeiconsIcon
+          icon={busy ? Sparkles : CheckmarkCircle02Icon}
+          size={14}
+          strokeWidth={1.5}
+          className={cn(busy && 'animate-pulse')}
+        />
+        {busy ? 'KI schreibt neu…' : 'Auftrag annehmen'}
+      </Button>
+    </div>
   );
 }

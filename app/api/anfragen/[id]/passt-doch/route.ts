@@ -129,7 +129,8 @@ export async function POST(
     undefined, // Konversation: bei "passt doch" wollen wir frischen Entwurf, keinen Reply-Pfad
     undefined, // freie Slots optional – nicht jetzt nachladen
     bilder,
-    kundenHistorie
+    kundenHistorie,
+    true // ownerBestaetigtPassend – Override für Sonnet damit eine echte Zusage rauskommt
   );
 
   if (!entwurfRes.success) {
