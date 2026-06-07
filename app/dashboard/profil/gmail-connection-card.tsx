@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   MailIcon,
@@ -36,6 +37,7 @@ export function GmailConnectionCard({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
 
   // OAuth-Callback-Feedback verarbeiten + URL bereinigen
@@ -59,13 +61,14 @@ export function GmailConnectionCard({
 
   async function handleDisconnect() {
     if (busy) return;
-    if (
-      !confirm(
-        'Gmail-Verbindung trennen? Versand fällt danach auf den Postmark-Standard zurück. Du kannst jederzeit neu verbinden.'
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Gmail-Verbindung trennen?',
+      description:
+        'Der Versand fällt danach auf den Postmark-Standard zurück. Du kannst jederzeit neu verbinden.',
+      confirmLabel: 'Verbindung trennen',
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const res = await fetch('/api/auth/google/disconnect', {

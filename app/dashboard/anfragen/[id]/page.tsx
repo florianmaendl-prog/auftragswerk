@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EntwurfEditor from './entwurf-editor';
 import { DetailActions } from './detail-actions';
 import { PasstDochButton } from './passt-doch-button';
+import { NotizEditor } from './notiz-editor';
 import { ReplyEditor } from './reply-editor';
 import { TerminCard, type Termin } from './termin-card';
 import { KategorieBadge } from '@/components/brand/kategorie-badge';
@@ -123,6 +124,7 @@ export default async function AnfrageDetailPage({
       status,
       created_at,
       geloescht_am,
+      notiz,
       analysen (
         id,
         analysiert_am,
@@ -554,13 +556,45 @@ export default async function AnfrageDetailPage({
           )}
         </div>
 
-        {/* RECHTS: Termin-Card (immer oben) + Entwurf-Editor + ReplyEditor */}
+        {/* RECHTS: Termin-Card (immer oben) + Notiz + Entwurf-Editor + ReplyEditor */}
         <div className="space-y-4">
           <TerminCard
             anfrageId={anfrage.id}
             termine={termine}
             extrahierterTermin={extrahierterTermin}
           />
+
+          {/* Owner-Notiz (intern, nicht in Mails sichtbar) */}
+          <NotizEditor
+            anfrageId={anfrage.id}
+            initialNotiz={(anfrage as { notiz?: string | null }).notiz ?? null}
+          />
+
+          {/* Loading-Hint: Anfrage gerade eingegangen, KI arbeitet aber noch
+              an Klassifikation + Entwurf. Owner soll nicht denken "fehlt was". */}
+          {!entwurf &&
+            anfrage.status === 'neu' &&
+            new Date(anfrage.created_at).getTime() > Date.now() - 5 * 60 * 1000 && (
+              <Card className="border-dashed border-primary/40 bg-primary/[0.03]">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
+                    </span>
+                    KI arbeitet noch dran
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Die KI klassifiziert die Anfrage und baut den Entwurf
+                    gerade. Das dauert in der Regel 10–30 Sekunden. Klick
+                    oben „Aktualisieren" in einer Minute, dann sollte der
+                    Entwurf hier liegen.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
           {entwurf && (
             <EntwurfEditor

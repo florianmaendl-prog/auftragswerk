@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 
 export type Gebiet = {
@@ -402,6 +403,7 @@ function TonbeispieleEditor({
   items: string[];
   onChange: (items: string[]) => void;
 }) {
+  const confirm = useConfirm();
   const [draft, setDraft] = useState('');
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
@@ -412,8 +414,13 @@ function TonbeispieleEditor({
     setDraft('');
   }
 
-  function remove(idx: number) {
-    if (!confirm('Dieses Stilbeispiel wirklich entfernen?')) return;
+  async function remove(idx: number) {
+    const ok = await confirm({
+      title: 'Stilbeispiel entfernen?',
+      confirmLabel: 'Entfernen',
+      destructive: true,
+    });
+    if (!ok) return;
     onChange(items.filter((_, i) => i !== idx));
     if (expandedIdx === idx) setExpandedIdx(null);
   }

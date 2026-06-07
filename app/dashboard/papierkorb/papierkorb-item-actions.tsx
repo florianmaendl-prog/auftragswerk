@@ -4,12 +4,14 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowTurnBackwardIcon } from '@hugeicons/core-free-icons';
 
 export function PapierkorbItemActions({ anfrageId }: { anfrageId: string }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [isLoading, setIsLoading] = useState(false);
 
   async function restore() {
@@ -35,13 +37,14 @@ export function PapierkorbItemActions({ anfrageId }: { anfrageId: string }) {
   }
 
   async function hardDelete() {
-    if (
-      !confirm(
-        'ENDGÜLTIG löschen?\n\nDie Anfrage wird komplett aus der Datenbank entfernt – inklusive aller Nachrichten, Entwürfe und Analysen. Das kann NICHT rückgängig gemacht werden.'
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Endgültig löschen?',
+      description:
+        'Die Anfrage wird komplett aus der Datenbank entfernt – inklusive aller Nachrichten, Entwürfe und Analysen. Das kann NICHT rückgängig gemacht werden.',
+      confirmLabel: 'Endgültig löschen',
+      destructive: true,
+    });
+    if (!ok) return;
     setIsLoading(true);
     try {
       const res = await fetch(`/api/anfragen/${anfrageId}`, {

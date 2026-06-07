@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 
 const WOCHENTAGE_LANG = [
@@ -30,6 +31,7 @@ export type Regel = {
 
 export function RegelEditor({ regeln }: { regeln: Regel[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [showAdd, setShowAdd] = useState(false);
   const [wochentage, setWochentage] = useState<number[]>([1]);
   const [start, setStart] = useState('08:00');
@@ -86,7 +88,13 @@ export function RegelEditor({ regeln }: { regeln: Regel[] }) {
   }
 
   async function loesche(id: string) {
-    if (!confirm('Regel wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Regel löschen?',
+      description: 'Diese wiederkehrende Verfügbarkeit ist danach weg.',
+      confirmLabel: 'Löschen',
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {

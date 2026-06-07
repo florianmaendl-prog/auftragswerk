@@ -25,8 +25,30 @@ type AnfrageWithJoins = {
   entwuerfe: Array<{
     id: string;
     status: string;
+    versendet_am: string | null;
   }> | null;
 };
+
+const STALE_TAGE_THRESHOLD = 7;
+
+/**
+ * Stale-Tage einer versendeten Anfrage berechnen. Heuristik: spätester
+ * `versendet_am` aller Entwürfe der Anfrage, sonst created_at als Fallback.
+ * Returnt null wenn nicht versendet oder noch frisch (<7 Tage).
+ */
+function staleTage(anfrage: AnfrageWithJoins): number | null {
+  if (anfrage.status !== 'versendet') return null;
+  let basisZeit: number | null = null;
+  for (const e of anfrage.entwuerfe ?? []) {
+    if (e.versendet_am) {
+      const t = new Date(e.versendet_am).getTime();
+      if (basisZeit === null || t > basisZeit) basisZeit = t;
+    }
+  }
+  if (basisZeit === null) basisZeit = new Date(anfrage.created_at).getTime();
+  const tage = Math.floor((Date.now() - basisZeit) / (1000 * 60 * 60 * 24));
+  return tage >= STALE_TAGE_THRESHOLD ? tage : null;
+}
 
 type TabId =
   | 'freigabe'
@@ -200,7 +222,7 @@ export default async function InboxPage({
       status,
       created_at,
       analysen (kategorie, gewerk_match, confidence),
-      entwuerfe (id, status)
+      entwuerfe (id, status, versendet_am)
     `
     )
     .is('geloescht_am', null)
@@ -389,6 +411,7 @@ export default async function InboxPage({
         {filtered.map((anfrage) => {
           const klass = anfrage.analysen?.[0];
           const hatEntwurf = anfrage.status === 'entwurf_bereit';
+          const stale = staleTage(anfrage);
 
           return (
             <div key={anfrage.id} className="relative group">
@@ -399,7 +422,8 @@ export default async function InboxPage({
                 <Card
                   className={cn(
                     'p-4 pr-16 sm:pr-14 hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer',
-                    hatEntwurf && 'border-l-4 border-l-primary'
+                    hatEntwurf && 'border-l-4 border-l-primary',
+                    stale !== null && 'border-l-4 border-l-amber-400'
                   )}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -413,12 +437,23 @@ export default async function InboxPage({
                         />
                         <h3 className="font-medium truncate">{anfrage.betreff}</h3>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground ml-4">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground ml-4 flex-wrap">
                         <span className="truncate">
                           von {anfrage.von_name || anfrage.von_email}
                         </span>
                         <span>·</span>
                         <span className="flex-shrink-0">{timeAgo(anfrage.created_at)}</span>
+                        {stale !== null && (
+                          <>
+                            <span>·</span>
+                            <span
+                              className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900 ring-1 ring-amber-200"
+                              title="Diese Mail wurde vor mehr als einer Woche versendet und es kam noch keine Antwort. Vielleicht mal nachhaken?"
+                            >
+                              wartet seit {stale} Tagen
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">

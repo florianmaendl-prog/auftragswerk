@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import {
@@ -51,6 +52,7 @@ export function AnfrageQuickMenu({
   vonEmail?: string;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [isLoading, setIsLoading] = useState(false);
 
   async function aendereStatus(newStatus: string) {
@@ -75,9 +77,13 @@ export function AnfrageQuickMenu({
   }
 
   async function softDelete() {
-    if (!confirm('In den Papierkorb verschieben? Kann später wiederhergestellt werden.')) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'In den Papierkorb verschieben?',
+      description: 'Die Anfrage kann später aus dem Papierkorb wiederhergestellt werden.',
+      confirmLabel: 'Verschieben',
+      destructive: true,
+    });
+    if (!ok) return;
     setIsLoading(true);
     try {
       const res = await fetch(`/api/anfragen/${anfrageId}`, {
@@ -101,13 +107,13 @@ export function AnfrageQuickMenu({
 
   async function sperreSender() {
     if (!vonEmail) return;
-    if (
-      !confirm(
-        `Absender "${vonEmail}" sperren? Alle bisherigen Anfragen werden aussortiert, künftige Mails von dieser Adresse landen direkt im Aussortiert-Tab.`
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Absender sperren?',
+      description: `"${vonEmail}" wird gesperrt. Alle bisherigen Anfragen werden aussortiert, künftige Mails von dieser Adresse landen direkt im Aussortiert-Tab.`,
+      confirmLabel: 'Sperren',
+      destructive: true,
+    });
+    if (!ok) return;
     setIsLoading(true);
     try {
       const res = await fetch('/api/sender/sperren', {

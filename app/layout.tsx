@@ -3,6 +3,7 @@ import { Inter, Saira_Condensed } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
 const inter = Inter({
   subsets: ['latin'],
@@ -38,7 +39,7 @@ export default function RootLayout({
       className={cn(inter.variable, sairaCondensed.variable, "antialiased")}
     >
       <body className="min-h-screen bg-background text-foreground font-sans">
-        {children}
+        <ConfirmProvider>{children}</ConfirmProvider>
         <Toaster position="top-right" closeButton />
       </body>
     </html>

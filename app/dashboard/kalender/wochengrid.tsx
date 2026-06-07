@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -104,6 +105,7 @@ export function WochenGrid({
   termine: TerminFuerGrid[];
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [subMode, setSubMode] = useState<SubMode>('view');
   // Form-State für create-termin / edit-termin
@@ -341,13 +343,14 @@ export function WochenGrid({
 
   async function sageTerminAb() {
     if (!selectedCell?.termin) return;
-    if (
-      !confirm(
-        'Termin wirklich absagen? Status wird auf "abgesagt" gesetzt – kann später wiederhergestellt werden.'
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Termin absagen?',
+      description:
+        'Status wird auf „abgesagt" gesetzt – kann später wiederhergestellt werden.',
+      confirmLabel: 'Absagen',
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {
@@ -373,9 +376,13 @@ export function WochenGrid({
   }
 
   async function loescheRegel(id: string) {
-    if (!confirm('Regel löschen? Diese wiederkehrende Verfügbarkeit ist danach weg.')) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Regel löschen?',
+      description: 'Diese wiederkehrende Verfügbarkeit ist danach weg.',
+      confirmLabel: 'Löschen',
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {
@@ -396,7 +403,12 @@ export function WochenGrid({
   }
 
   async function loescheSperre(id: string) {
-    if (!confirm('Sperre löschen?')) return;
+    const ok = await confirm({
+      title: 'Sperre löschen?',
+      confirmLabel: 'Löschen',
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {

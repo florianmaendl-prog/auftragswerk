@@ -28,14 +28,30 @@ export async function PATCH(
     return NextResponse.json({ error: 'Nicht eingeloggt' }, { status: 401 });
   }
 
-  let body: { action?: string; status?: string };
+  let body: { action?: string; status?: string; notiz?: string | null };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalides JSON' }, { status: 400 });
   }
 
-  const { action, status } = body;
+  const { action, status, notiz } = body;
+
+  // INTERNE NOTIZ (owner-eigene Notiz, nicht in Mails sichtbar)
+  if (typeof notiz === 'string' || notiz === null) {
+    const cleaned =
+      typeof notiz === 'string' && notiz.trim().length > 0
+        ? notiz.trim().slice(0, 5000)
+        : null;
+    const { error } = await supabase
+      .from('anfragen')
+      .update({ notiz: cleaned })
+      .eq('id', id);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, action: 'notiz_updated' });
+  }
 
   // SOFT-DELETE
   if (action === 'soft_delete') {

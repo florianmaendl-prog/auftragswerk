@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 export type Sperre = {
   id: string;
@@ -26,6 +27,7 @@ function formatDateTime(d: string): string {
 
 export function SperreEditor({ sperren }: { sperren: Sperre[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [showAdd, setShowAdd] = useState(false);
   const [von, setVon] = useState('');
   const [bis, setBis] = useState('');
@@ -67,7 +69,12 @@ export function SperreEditor({ sperren }: { sperren: Sperre[] }) {
   }
 
   async function loesche(id: string) {
-    if (!confirm('Sperre wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Sperre löschen?',
+      confirmLabel: 'Löschen',
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   CheckmarkCircle02Icon,
@@ -26,17 +27,18 @@ import { cn } from '@/lib/utils';
  */
 export function PasstDochButton({ anfrageId }: { anfrageId: string }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
 
   async function handleClick() {
     if (busy) return;
-    if (
-      !confirm(
-        'KI hat diese Anfrage als nicht-passend eingestuft. Soll ich einen neuen Entwurf als Zusage schreiben?'
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Auftrag annehmen?',
+      description:
+        'Die KI hat diese Anfrage als nicht-passend eingestuft. Wenn du den Auftrag trotzdem machst, schreibt die KI in wenigen Sekunden einen neuen Entwurf als Zusage.',
+      confirmLabel: 'Auftrag annehmen',
+    });
+    if (!ok) return;
 
     setBusy(true);
     try {

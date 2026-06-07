@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import {
@@ -70,6 +71,7 @@ export function DetailActions({
   currentStatus: string;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [isLoading, setIsLoading] = useState(false);
 
   const currentLabel = STATUS_LABELS[currentStatus] ?? {
@@ -103,13 +105,13 @@ export function DetailActions({
 
   async function softDelete() {
     if (isLoading) return;
-    if (
-      !confirm(
-        'Diese Anfrage in den Papierkorb verschieben? Sie kann später wiederhergestellt werden.'
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'In den Papierkorb verschieben?',
+      description: 'Die Anfrage kann später aus dem Papierkorb wiederhergestellt werden.',
+      confirmLabel: 'Verschieben',
+      destructive: true,
+    });
+    if (!ok) return;
     setIsLoading(true);
     try {
       const res = await fetch(`/api/anfragen/${anfrageId}`, {

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { CancelCircleIcon } from '@hugeicons/core-free-icons';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 
 /**
@@ -19,6 +20,7 @@ import { cn } from '@/lib/utils';
  */
 export function KundeSperrenButton({ email }: { email: string }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [isPending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
 
@@ -27,13 +29,13 @@ export function KundeSperrenButton({ email }: { email: string }) {
     e.stopPropagation();
     if (busy || isPending) return;
 
-    if (
-      !confirm(
-        `Absender "${email}" sperren? Alle bestehenden Anfragen werden aussortiert, künftige Mails von dieser Adresse landen direkt im Aussortiert-Tab.`
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Absender sperren?',
+      description: `"${email}" wird gesperrt. Alle bestehenden Anfragen werden aussortiert, künftige Mails von dieser Adresse landen direkt im Aussortiert-Tab.`,
+      confirmLabel: 'Sperren',
+      destructive: true,
+    });
+    if (!ok) return;
 
     setBusy(true);
     try {
