@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EntwurfEditor from './entwurf-editor';
+import { AntwortBereich } from './antwort-bereich';
 import { DetailActions } from './detail-actions';
 import { PasstDochButton } from './passt-doch-button';
 import { NachfassButton } from './nachfass-button';
@@ -618,7 +619,39 @@ export default async function AnfrageDetailPage({
               </Card>
             )}
 
-          {entwurf && (
+          {entwurf && !entwurfIstVersendet && istAktiv && (
+            <AntwortBereich
+              entwurf={{
+                id: entwurf.id,
+                betreff_vorschlag: entwurf.betreff_vorschlag,
+                body_text: entwurf.body_text,
+                interne_notiz: entwurf.interne_notiz,
+                status: entwurf.status,
+                modell: entwurf.modell,
+              }}
+              anfrageId={anfrage.id}
+              empfaenger={anfrage.von_email}
+              empfaengerName={anfrage.von_name}
+              urspruenglicherBetreff={anfrage.betreff || ''}
+              kiBildAnzahl={(() => {
+                // Vision-V1-Transparenz: zähle Bild-Anhänge der letzten
+                // eingehenden Nachricht – das ist was die KI im Vision-
+                // Pfad mitbekommen hat (lib/bilder.ts lädt aus dieser
+                // nachricht_id). Limit 5 (lib/bilder.ts MAX_BILDER) wird
+                // im Badge gespiegelt damit Owner weiß ob alles drin war.
+                const letzteEingang = [...nachrichten]
+                  .reverse()
+                  .find((n) => n.typ === 'eingang');
+                if (!letzteEingang) return 0;
+                const anhaenge = anhaengeByNachricht.get(letzteEingang.id) ?? [];
+                return anhaenge.filter((a) =>
+                  (a.content_type ?? '').toLowerCase().startsWith('image/')
+                ).length;
+              })()}
+            />
+          )}
+
+          {entwurf && (entwurfIstVersendet || !istAktiv) && (
             <EntwurfEditor
               entwurf={{
                 id: entwurf.id,
@@ -630,21 +663,6 @@ export default async function AnfrageDetailPage({
               }}
               anfrageId={anfrage.id}
               empfaenger={anfrage.von_email}
-              kiBildAnzahl={(() => {
-                // Vision-V1-Transparenz: zähle Bild-Anhänge der letzten
-                // eingehenden Nachricht – das ist was die KI im Vision-
-                // Pfad mitbekommen hat (lib/bilder.ts lädt aus dieser
-                // nachricht_id). Limit 5 (lib/bilder.ts MAX_BILDER) wird
-                // im Badge gespiegelt damit Max weiß ob alles drin war.
-                const letzteEingang = [...nachrichten]
-                  .reverse()
-                  .find((n) => n.typ === 'eingang');
-                if (!letzteEingang) return 0;
-                const anhaenge = anhaengeByNachricht.get(letzteEingang.id) ?? [];
-                return anhaenge.filter((a) =>
-                  (a.content_type ?? '').toLowerCase().startsWith('image/')
-                ).length;
-              })()}
             />
           )}
 
