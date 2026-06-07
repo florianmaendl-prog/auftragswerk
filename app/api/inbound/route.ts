@@ -454,7 +454,7 @@ export async function POST(req: NextRequest) {
     if (!klassRes.success) {
       console.error(`✗ Klassifikation fehlgeschlagen: ${klassRes.error}`);
       // KI down / kaputt – Anfrage darf nicht im Nirvana hängen.
-      // Status auf 'manuell_pruefen' + Eintrag in Diagnose, damit Max es sieht.
+      // Status auf 'manuell_pruefen' + Eintrag in Diagnose, damit Owner es sieht.
       await supabaseAdmin.from('processing_errors').insert({
         betrieb_id: betrieb.id,
         anfrage_id: anfrageId,
@@ -481,7 +481,7 @@ export async function POST(req: NextRequest) {
 
     // SCHRITT 3: Premium-Routing
     //
-    // Neue Logik (Premium-Vision: Max kriegt IMMER einen Vorschlag):
+    // Neue Logik (Premium-Vision: Owner kriegt IMMER einen Vorschlag):
     //
     //   KUNDENANFRAGEN bekommen IMMER einen Entwurf:
     //     - gewerk_match='passt' + confidence >= 0.6 → Entwurf + Tab 'Freigabe'
@@ -491,10 +491,10 @@ export async function POST(req: NextRequest) {
     //
     //   ANDERE KATEGORIEN: kein Entwurf nötig
     //     - rechnung/bestellung/innung → Tab 'Info'
-    //     - sonstiges → Tab 'Manuell prüfen' (Max entscheidet selbst)
+    //     - sonstiges → Tab 'Manuell prüfen' (Owner entscheidet selbst)
     //     - werbung → Tab 'Aussortiert'
     //
-    //   Max kann den Entwurf jederzeit ändern oder ignorieren und manuell schreiben.
+    //   Owner kann den Entwurf jederzeit ändern oder ignorieren und manuell schreiben.
 
     const klass = klassRes.klassifikation;
     const INFO_KATEGORIEN = ['rechnung', 'bestellung_versand', 'innung_behoerde'];
@@ -665,7 +665,7 @@ export async function POST(req: NextRequest) {
           if (passungOk && confidenceOk) {
             neuerStatus = 'entwurf_bereit';
           } else {
-            // Entwurf ist da, aber Max soll nochmal drüber schauen
+            // Entwurf ist da, aber Owner soll nochmal drüber schauen
             neuerStatus = 'manuell_pruefen';
             // generiereEntwurf hat status='entwurf_bereit' gesetzt – korrigieren
             await supabaseAdmin
@@ -678,7 +678,7 @@ export async function POST(req: NextRequest) {
           }
         } else {
           console.error(`✗ Entwurf fehlgeschlagen: ${entwurfRes.error}`);
-          // Entwurf konnte nicht gebaut werden – Max muss manuell antworten.
+          // Entwurf konnte nicht gebaut werden – Owner muss manuell antworten.
           // Diagnose-Eintrag, damit es nicht still im Hintergrund verschwindet.
           await supabaseAdmin.from('processing_errors').insert({
             betrieb_id: betrieb.id,

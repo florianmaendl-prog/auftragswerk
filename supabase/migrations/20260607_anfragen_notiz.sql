@@ -2,7 +2,7 @@
 -- Tag 19 (7.6.2026) – Interne Owner-Notiz pro Anfrage
 -- ============================================
 -- Sprint 6 Polish-Welle. Handwerker telefonieren oft parallel zur
--- Mail-Konversation – wenn Max mit Frau Müller telefoniert hat
+-- Mail-Konversation – wenn der Owner mit Frau Müller telefoniert hat
 -- ("zahlt schlecht, lieber 50% Anzahlung verlangen"), braucht er ein
 -- freies Notiz-Feld an der Anfrage. Heute gibt es nur
 -- entwuerfe.interne_notiz (KI-generiert), aber nichts owner-eigenes.

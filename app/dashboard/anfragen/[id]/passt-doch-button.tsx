@@ -14,7 +14,7 @@ import {
 import { cn } from '@/lib/utils';
 
 /**
- * "Auftrag annehmen"-Banner (Sprint 5, Max-Wunsch, Tag 19 Polish).
+ * "Auftrag annehmen"-Banner (Sprint 5, Pilot-Feedback, Tag 19 Polish).
  *
  * Eigener Banner über der Konversation – nicht inline neben dem
  * KategorieBadge, weil dort zu klein und der CTA unterging. Sichtbar

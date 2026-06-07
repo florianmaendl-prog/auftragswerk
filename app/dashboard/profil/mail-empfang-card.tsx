@@ -31,7 +31,7 @@ const PROVIDERS: { id: Provider; label: string; subtitle: string }[] = [
  * Card "Mail-Empfang einrichten". Zeigt dem Owner die saubere
  * Inbound-Adresse seines Betriebs (Subdomain seit Welle E.2) +
  * Forward-Anleitungen pro Provider, damit Kundenmails an seine
- * Geschäftsadresse (z.B. info@bauelemente-rapp.com) automatisch
+ * Geschäftsadresse (z.B. info@mustermann-bau.de) automatisch
  * in Auftragswerk landen.
  *
  * Endkunden schreiben weiterhin an die echte Geschäftsadresse –

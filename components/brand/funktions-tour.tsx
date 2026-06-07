@@ -268,7 +268,7 @@ Passen Ihnen einer dieser Termine?
 Geben Sie mir kurz Bescheid welcher.
 
 Beste Grüße
-Max`}
+[Dein Name]`}
               className="text-xs leading-relaxed font-sans h-44 resize-none pointer-events-none"
             />
 

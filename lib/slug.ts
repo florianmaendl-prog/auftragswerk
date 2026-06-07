@@ -3,7 +3,7 @@
  * `kunden.auftragswerk.app` (Welle E.2).
  *
  * Aus dem Betriebsnamen wird eine URL- und E-Mail-sichere Adresse:
- *   "Bauelemente Rapp GmbH" → "bauelemente-rapp"
+ *   "Mustermann Bau GmbH" → "mustermann-bau"
  *   "Metallbau Müller & Söhne" → "metallbau-mueller-und-soehne"
  *   "AB+ Elektro 24" → "ab-elektro-24"
  *

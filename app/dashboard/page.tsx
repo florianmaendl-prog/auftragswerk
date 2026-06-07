@@ -178,7 +178,7 @@ type InboxStats = {
  * BEWUSST nur Fakten – KEIN "X Stunden gespart"-Bullshit. Owner-Pushback
  * Tag 20: "spart laut Hersteller 12h" durchschauen smarte Handwerker
  * sofort, Vertrauensbruch. Lösung: nur Counts/Quotienten/Zeiten aus
- * der DB. Max baut seine eigene Story für die Innung.
+ * der DB. Der Owner baut seine eigene Story (z.B. Innungs-Vorstellung).
  */
 function computeStats(
   items: AnfrageWithJoins[],
@@ -425,7 +425,7 @@ export default async function InboxPage({
       {/* AKTIVITÄTS-KARTE – nur Fakten, keine erfundenen Zeit-Schätzungen.
           Owner-Pushback Tag 20: "X Stunden gespart" wäre Bullshit-Kalkulation,
           smarte Handwerker durchschauen das sofort. Hier nur was wirklich
-          messbar ist – Max baut seine eigene Story für die Innung. */}
+          messbar ist – Owner baut seine eigene Story (z.B. Innungs-Vorstellung). */}
       <div className="mb-5 rounded-md border border-input bg-muted/20 p-4 space-y-3 text-sm">
         {/* Heute-Zeile – kompakt */}
         {stats.heuteNeu === 0 &&

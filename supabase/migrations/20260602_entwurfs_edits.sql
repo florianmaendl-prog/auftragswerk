@@ -6,7 +6,7 @@
 -- den initialen KI-Entwurf separat (text_original) und vergleichen
 -- ihn beim Versand mit dem final gesendeten Text (was_edited).
 --
--- Daraus baut Flo später ein Diagnose-View "wie oft editiert Max?
+-- Daraus baut sich ein Diagnose-View "wie oft editiert der Owner?
 -- was sind die häufigsten Änderungen?", manuelles Prompt-Tuning
 -- (Phase 2 wäre Auto-Stilbeispiel-Vorschlag, Phase 3 voll-auto).
 

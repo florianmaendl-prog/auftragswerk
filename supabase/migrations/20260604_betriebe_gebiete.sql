@@ -1,7 +1,7 @@
 -- ============================================
 -- Tag 18 (4.6.2026) – Einzugsgebiet + gebiets-abhängiger Mindestauftragswert
 -- ============================================
--- Aus Max-Pilot Tag 18: ein globaler Mindestauftragswert ergibt keinen
+-- Aus Pilot-Feedback Tag 18: ein globaler Mindestauftragswert ergibt keinen
 -- Sinn. Handwerker fahren in der Heimat-PLZ auch für 100€, aber 60km
 -- weiter nur ab 5.000€. KI soll bei Anfragen die geografische und
 -- wertmäßige Passung mitprüfen.

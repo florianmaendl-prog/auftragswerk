@@ -1,7 +1,7 @@
 /**
  * Anhang-Upload-Helper – wird sowohl vom Inbound-Webhook
  * (Postmark-Attachments) als auch von den Versand-Routes
- * (von Max hochgeladene Dateien) benutzt.
+ * (vom Owner hochgeladene Dateien) benutzt.
  *
  * Storage-Layout: <betrieb_id>/<anfrage_id>/<uuid>_<safe_filename>
  * Privater Bucket 'anhaenge' – Lesen + Schreiben nur über service-role.

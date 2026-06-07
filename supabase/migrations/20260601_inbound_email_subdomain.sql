@@ -9,7 +9,7 @@
 -- Routing möglich.
 --
 -- Jetzt: pro Betrieb eine eigene saubere Subdomain-Adresse, z.B.
--- "bauelemente-rapp@kunden.auftragswerk.app". MX-Record für die Subdomain
+-- "mustermann-bau@kunden.auftragswerk.app". MX-Record für die Subdomain
 -- routet alle Mails zu Postmark, Postmark forwarded an unseren Edge-Proxy.
 --
 -- Migration setzt für ALLE bestehenden Betriebe einen Slug-basierten

@@ -1,7 +1,7 @@
 -- ============================================
 -- Tag 18 (4.6.2026) – Gesperrte Sender (Blocklist)
 -- ============================================
--- Aus Max-Pilot Tag 18: jede Menge Newsletter (Handwerkskammer,
+-- Aus Pilot-Feedback Tag 18: jede Menge Newsletter (Handwerkskammer,
 -- hero-software, metallbau-onlineshop) landen in der Inbox. Owner soll
 -- per Klick "von dieser Adresse nie wieder" sagen können.
 --

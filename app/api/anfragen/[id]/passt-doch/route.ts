@@ -6,7 +6,7 @@ import { ladeBilderFuerKI } from '@/lib/bilder';
 import { ladeKundenHistorie } from '@/lib/kunden-historie';
 
 /**
- * "Passt doch"-Aktion (Sprint 5, Tag 19, Max-Wunsch).
+ * "Passt doch"-Aktion (Sprint 5, Tag 19, aus Pilot-Feedback).
  *
  * Owner ist im Manuell-prüfen-Tab und sieht eine Anfrage die die KI
  * als unklar/passt_nicht klassifiziert hat. Owner weiß: passt doch.

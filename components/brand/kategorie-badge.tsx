@@ -3,13 +3,13 @@ import { cn } from '@/lib/utils';
 /**
  * Visualisiert die KI-Klassifikation als Pill-Badge.
  * Bewusst eine *Handlungsanweisung* statt einer Prio-Skala (HOCH/MITTEL/NIEDRIG
- * überfordert Handwerker, sagt nicht was zu tun ist). Max sieht auf einen
+ * überfordert Handwerker, sagt nicht was zu tun ist). Owner sieht auf einen
  * Blick: "Anfrage = entwerfen lassen, Prüfen = selbst draufschauen, Info =
  * zur Kenntnis, Aussortiert = ignorieren, Passt nicht = Absage schreiben".
  *
  * Combined-Logik: bei kategorie='kundenanfrage' entscheidet zusätzlich
  * gewerk_match (passt vs. unklar vs. passt_nicht), weil das die eigentliche
- * Handlungsanweisung für Max ist.
+ * Handlungsanweisung für den Owner ist.
  */
 
 type Kategorie =

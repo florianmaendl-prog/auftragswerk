@@ -345,7 +345,7 @@ export async function POST(req: NextRequest) {
 
     // 12. Entwurf-Status updaten → 'versendet' (löst den 'in_versand'-Lock).
     //     Mail ist schon raus, also bei Fehler nur loggen, NICHT 500 zurückgeben –
-    //     sonst klickt Max nochmal und Kunde kriegt 2 Mails.
+    //     sonst klickt der Owner nochmal und Kunde kriegt 2 Mails.
     //
     //     was_edited: Owner-Edit-Tracking (STRATEGIE.md A1 "Lernen aus Edits").
     //     true wenn der Owner den Body vor dem Senden geändert hat. text_original

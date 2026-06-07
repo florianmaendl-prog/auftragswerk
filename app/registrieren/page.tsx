@@ -123,7 +123,7 @@ export default function RegistrierenPage() {
                     <Input
                       id="betriebsname"
                       type="text"
-                      placeholder="z.B. Bauelemente Rapp"
+                      placeholder="z.B. Mustermann Bau GmbH"
                       value={betriebsname}
                       onChange={(e) => setBetriebsname(e.target.value)}
                       required

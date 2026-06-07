@@ -238,7 +238,7 @@ export function ProfilForm({
             onChange={(e) => setData({ ...data, signatur: e.target.value })}
             rows={6}
             maxLength={5000}
-            placeholder={`Mit freundlichen Grüßen\nMax Mustermann\nMetallbau Max\n...`}
+            placeholder={`Mit freundlichen Grüßen\nMax Mustermann\nMustermann Bau\n...`}
             className="font-sans"
           />
           <p className="text-xs text-muted-foreground mt-2">
@@ -331,7 +331,7 @@ export function ProfilForm({
 /**
  * Eine simple Textarea statt Liste-mit-Add-Buttons. Owner schreibt
  * frei rein (Komma, Semikolon oder Zeilenumbrüche egal) – beim Save
- * wird automatisch in items[] gesplittet. Lehre aus Max-Pilot Tag 18:
+ * wird automatisch in items[] gesplittet. Lehre aus Pilot-Feedback:
  * Handwerker lesen kein UI, Klick+Add+Eingabe pro Item ist zu viel
  * Reibung. Eine Textarea ist genau Friction-frei.
  */
