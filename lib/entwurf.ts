@@ -63,6 +63,57 @@ export type ThreadNachricht = {
   erstellt_am: string;
 };
 
+/**
+ * Eigener System-Prompt für den Nachfass-Modus. Bewusst kurz und ohne
+ * die Erst-Antwort-Verhaltens-Regeln (PASST → bedanken + Termine, UNSICHER
+ * → Verständnisfragen etc.). Sonst gewinnen die Erst-Antwort-Regeln und
+ * Sonnet baut wieder eine neue Erst-Antwort statt einer Nachfass-Erinnerung.
+ *
+ * Nimmt nur das mit, was für eine kurze höfliche Erinnerung gebraucht wird:
+ * Identität, Stil-Beispiele, Vermeiden-Regeln, Signatur-Regeln am Ende.
+ */
+function buildSystemPromptNachfass(betrieb: Betrieb): string {
+  const tonBeispiele = (betrieb.ton_beispiele || [])
+    .map((b, i) => `BEISPIEL ${i + 1}:\n${b}`)
+    .join('\n\n---\n\n');
+
+  return `Du bist die KI-Assistentin von ${betrieb.name}, einem ${betrieb.branche}-Betrieb${betrieb.region ? ` in ${betrieb.region}` : ''}.
+
+DEINE AUFGABE: Du schreibst eine SEHR KURZE, höfliche Nachfass-Mail an einen Kunden, der seit über einer Woche nicht geantwortet hat. Du erinnerst dezent an die vorherige Mail – KEINE neue Anfrage-Beantwortung, KEINE Termin-Vorschläge die schon mal gemacht wurden, KEINE Wiederholung der Original-Antwort.
+
+NACHFASS-REGELN (diese sind hart):
+- Maximal 3-5 Sätze. Wirklich kurz.
+- Knapper, freundlicher Ton. Wie wenn du einen Kunden nach 10 Tagen nochmal anrufst.
+- Erinnere dezent: "Wollte kurz nachhaken ob meine Mail angekommen ist."
+- Frage optional ob noch Fragen offen sind oder ob der Auftrag noch aktuell ist.
+- KEIN Verkaufs-Druck, KEINE Drängelei, KEINE Mahnung.
+- KEINE neue Anfrage-Bearbeitung – die Original-Antwort wurde schon geschickt.
+- KEINE Termin-Slots wiederholen.
+- KEINE Schuld-Andeutungen ("ich habe seit X Tagen nichts gehört").
+
+${
+  betrieb.vermeiden && betrieb.vermeiden.trim()
+    ? `WAS DU VERMEIDEN MUSST (auch im Nachfass):
+
+${betrieb.vermeiden.trim()}
+
+`
+    : ''
+}STIL-BEISPIELE (Anrede, Ton, Länge dieses Betriebs):
+
+${tonBeispiele || '(Keine Beispiele vorhanden – nutze einen freundlichen, knappen Ton mit Sie-Anrede.)'}
+
+ABSCHLUSS:
+- Schreibe KEINE Grußformel und KEINEN Namen am Ende – die Signatur hängt das System dran.
+
+AUSGABE-FORMAT (JSON, kein Markdown):
+{
+  "betreff_vorschlag": "AW: <Originalbetreff>",
+  "body_text": "<dein kurzer Nachfass, ohne Grußformel/Name>",
+  "interne_notiz": "<sehr kurzer Hinweis falls relevant, sonst leer>"
+}`;
+}
+
 function buildSystemPrompt(betrieb: Betrieb): string {
   const tonBeispiele = (betrieb.ton_beispiele || [])
     .map((b, i) => `BEISPIEL ${i + 1}:\n${b}`)
@@ -407,7 +458,13 @@ export async function generiereEntwurf(
   ownerBestaetigtPassend?: boolean,
   nachfassModus?: boolean
 ): Promise<EntwurfResult> {
-  const systemPrompt = buildSystemPrompt(betrieb);
+  // Nachfass-Modus bekommt einen eigenen, kürzeren System-Prompt OHNE die
+  // ganzen Erst-Antwort-Verhalten-Regeln. Sonst gewinnt der Standard-Prompt
+  // ("bedanken + Termine vorschlagen") und Sonnet baut wieder eine
+  // Erst-Antwort statt einen Nachfass.
+  const systemPrompt = nachfassModus
+    ? buildSystemPromptNachfass(betrieb)
+    : buildSystemPrompt(betrieb);
   const userMessage = buildUserPrompt(
     anfrage,
     klassifikation,
