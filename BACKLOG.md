@@ -1,6 +1,28 @@
 # Auftragswerk – Backlog
 
-> **Stand: 4.6.2026 abends (Tag 18 – Max-Pilot live, Sprint 1+2+3 durch)**
+> **Stand: 7.6.2026 abends (Tag 19 – Vision + Guardrails + Sprint 5 + Sprint 6 durch)**
+>
+> Max-Pilot läuft seit Tag 18 produktiv. Tag 19 war ein massiver Push:
+> 6 Sprints/Fixes hintereinander. Tool ist signifikant näher am
+> „premium-perfekt".
+>
+> **Heute durch:**
+> - **Vision V1**: KI sieht Foto-Anhänge (jpg/png/webp/gif), max 5 Bilder
+>   à 5MB. Bei visuellen Gewerken (Metallbau, Sanitär, Dach, Maler) der
+>   Premium-Wow-Moment.
+> - **Inhalts-Guardrails + Eskalations-Erkennung**: KI nennt nie Preise,
+>   nie verbindliche Zusagen, eskaliert Beschwerden/Anwalt automatisch.
+> - **Branchen-Default-Fix**: Klassifikator versteht jetzt dass
+>   `was_wir_machen` Schwerpunkte sind, nicht exklusive Liste. Default
+>   bei Zweifel "unklar" statt "passt_nicht". Plus Vision-Transparenz-Badge.
+> - **Sprint 5**: Inbox + Kundenliste Volltextsuche + Sortierung,
+>   Kundenhistorie im KI-Entwurfs-Prompt (Premium-Wow für Stammkunden),
+>   "Auftrag annehmen"-Banner mit Owner-Override-Prompt.
+> - **Sprint 6 Polish-Welle**: Brand-Confirm-Dialog überall (13 Stellen),
+>   Loading-Hint bei frischer Anfrage, interne Notiz pro Anfrage,
+>   Stale-Indikator für versendete Anfragen ohne Reply (>7 Tage).
+>
+> **Vorheriger Stand:** **4.6.2026 (Tag 18 – Max-Pilot live, Sprint 1+2+3 durch)**
 >
 > Max hat sich angemeldet, Gmail verbunden, WordPress.com-Forward eingerichtet.
 > Echte Kunden-Mails laufen seit Tag 18 mittags. Bug-Fix
@@ -74,6 +96,114 @@
 ---
 
 ## ✅ FERTIG
+
+### Tag 19 (7.6.2026): Vision + Guardrails + Sprint 5 + Sprint 6 (massiver Push)
+
+#### Vision V1 — KI sieht Foto-Anhänge
+- ✅ **`lib/bilder.ts`** (neu) – `ladeBilderFuerKI(nachrichtId)` lädt
+  jpg/png/webp/gif aus Storage-Bucket, base64-encoded. Defensive Limits:
+  max 5 Bilder pro Anfrage, max 5 MB pro Bild (Anthropic-Hard-Limit),
+  Sortierung kleinste zuerst.
+- ✅ **`lib/claude.ts`** – `ClaudeCallOptions.userContent` erweitert um
+  Multi-Block-Content (text + image-source). image-Blocks ZUERST,
+  text danach (Anthropic-Empfehlung).
+- ✅ **`lib/entwurf.ts`** – `generiereEntwurf` akzeptiert optionalen
+  `bilder`-Parameter. System-Prompt um Block „BILDER-AUSWERTUNG"
+  erweitert: konkret werden bei eindeutigen Bildern, keine blinde
+  Diagnose, kein Schadens-Preis aus Bild.
+- ✅ **`app/api/inbound/route.ts`** – lädt Bilder der gerade
+  eingespeicherten Nachricht und reicht sie an `generiereEntwurf`
+  weiter. Catch-Block damit Bilder-Fail nie die Pipeline killt.
+- ✅ **UI-Badge im EntwurfEditor**: `🖼 Die KI hat X Bilder vom Kunden
+  gesehen` – Vision-Transparenz, Max weiß jederzeit ob die KI
+  Bild-Kontext hatte.
+- ✅ **Kosten**: ~1-3 Cent pro Bild nach internem Resize, weit innerhalb
+  des KI-Kosten-Caps (50 Analysen/h).
+
+#### Inhalts-Guardrails + Eskalations-Erkennung (Iron Rule 3 bewusst durchbrochen)
+- ✅ **`lib/entwurf.ts` Prompt-Härtung**: Neuer fetter Block
+  „INHALTS-GUARDRAILS" mit 6 verbotenen Aussage-Typen:
+  1. KEINE PREISE (auch nicht „ca." / „ab" / Richtwert)
+  2. KEINE VERBINDLICHEN ZUSAGEN bei Terminen
+  3. KEINE TECHNISCHEN GARANTIEN („hält 30 Jahre")
+  4. KEINE NORM-/COMPLIANCE-AUSSAGEN (DIN-Werte, Pflichten)
+  5. KEINE SCHADENS-EINSCHÄTZUNG aus Foto
+  6. KEINE MEDIZINISCHEN/RECHTLICHEN/VERSICHERUNGS-AUSKÜNFTE
+- ✅ **Migration `20260605_eskalation_erkannt.sql`**:
+  `analysen.eskalation_erkannt` + `analysen.eskalation_grund`.
+- ✅ **`lib/klassifikation.ts`** – Haiku prüft auf Eskalations-Signale
+  (Anwalt/Mängelrüge/Drohung/aggressiver Ton/Schadensersatz-Forderung).
+  Default: "in Zweifel LIEBER eskalieren".
+- ✅ **Inbound-Pipeline**: wenn `eskalation_erkannt` → Iron Rule 3
+  (KI baut Entwurf für ALLE) bewusst umgangen → kein Auto-Entwurf,
+  Status `manuell_pruefen`, Eintrag in `processing_errors` mit Grund.
+  Frühes Return aus der Pipeline.
+
+#### Branchen-Default-Fix + Vision-Transparenz (Hot-Fix nach Max-Live-Test)
+- ✅ **`lib/klassifikation.ts`**: Klassifikator versteht jetzt explizit
+  dass `was_wir_machen` Schwerpunkte sind, NICHT exklusive Liste.
+  Branchen-Wissen aktiviert: „Metallbau = ALLES aus Metall inkl.
+  Scharniere/Beschläge/Türen/Stahlbau", „Maler = alles Anstrich-bezogen"
+  etc. Default bei Zweifel `unklar` statt `passt_nicht`.
+  Lehre dokumentiert: vorschnelle Absage ist schlimmer als kurze
+  Owner-Prüfung.
+- ✅ **`lib/entwurf.ts` passt_nicht-Block** erweitert: bei Bildern MUSS
+  Sonnet trotz Absage 1 Satz konkret darauf eingehen („Auf den Fotos
+  sehe ich klassische Glastür-Scharniere – das macht ein Schlosser
+  besser"). Vorher kollidierten „kurze Absage" und „auf Bilder eingehen".
+
+#### Sprint 5 – Such-Foundation + Kundenhistorie + Passt-doch-Button
+- ✅ **`app/dashboard/inbox-suche.tsx`** (neu) – debounced URL-Param-Search
+  `?q=` über Betreff/Name/Email. Page filtert serverseitig.
+- ✅ **`app/dashboard/kunden/kunden-suche-sort.tsx`** (neu) – gleiche
+  Search-Pattern + Sort-Dropdown (Letzter Kontakt / Name A-Z / Anzahl).
+- ✅ **Kundenhistorie im KI-Prompt**: `lib/kunden-historie.ts` (neu)
+  lädt letzte 5 Kundenanfragen desselben Absenders mit Zusammenfassung +
+  gewerk_match. Neuer Block „FRÜHERE ANFRAGEN DIESES KUNDEN" im
+  Entwurfs-Prompt mit Anweisung „persönlicher formulieren – aber nur
+  wenn es natürlich passt, nicht erzwungen". Premium-Wow für Stammkunden.
+- ✅ **„Auftrag annehmen"-Button + API**: `/api/anfragen/[id]/passt-doch`
+  (neu) – setzt gewerk_match=passt + löscht alten Entwurf + ruft
+  generiereEntwurf neu auf mit `ownerBestaetigtPassend=true` Override-Flag.
+- ✅ **Owner-Override-Prompt** in lib/entwurf.ts: wenn Flag gesetzt →
+  fetter ⚠️-Block ganz oben im User-Prompt: „Owner hat bestätigt →
+  ECHTE ZUSAGE, KEINE Absage, ignoriere deine eigene Branchen-Einschätzung."
+  Bug-Fix: gewerk_match=passt im Klassifikations-Block reicht NICHT –
+  Sonnet würde sonst aus dem Anfrage-Text selbst ableiten „eher Glaserei".
+- ✅ **Banner-Style** (Polish-Pass nach Max-Feedback): Amber-Banner
+  ÜBER dem Konversations-Grid statt inline neben den Badges. Klare
+  2-Zeilen-Begründung („KI ist unsicher … Wenn du den Auftrag machen
+  willst, schreibt die KI in 5 Sek einen neuen Entwurf als Zusage").
+  Button-Text: „Auftrag annehmen".
+
+#### Sprint 6 – Polish-Welle (Confirm + Loading + Notiz + Stale)
+- ✅ **Brand-ConfirmDialog**: `components/ui/confirm-dialog.tsx` (neu) –
+  ConfirmProvider + useConfirm-Hook, Promise-basierte API. radix-Dialog
+  mit destructive-Variante für Lösch-Aktionen. 13 Stellen umgestellt:
+  anfrage-quick-menu (softDelete + sperreSender), detail-actions
+  (softDelete), passt-doch-button, gmail-connection-card, profil-form
+  (stilbeispiel-remove), kalender/wochengrid (termin-absage + regel +
+  sperre), regel-editor, sperre-editor, papierkorb-item-actions
+  (hardDelete), kunde-sperren-button. Browser-natives `confirm()` komplett
+  raus aus User-Pfaden.
+- ✅ **Loading-Hint in Anfrage-Detail**: bei `status='neu'` UND `<5 Min alt`
+  UND noch kein Entwurf → dezente Pulsing-Card „KI arbeitet noch dran".
+- ✅ **Migration `20260607_anfragen_notiz.sql`**: `anfragen.notiz` TEXT.
+- ✅ **NotizEditor** (`app/dashboard/anfragen/[id]/notiz-editor.tsx` neu):
+  Auto-Save beim Blur, "speichern…/gespeichert"-Status-Indicator. Für
+  Telefonat-Erinnerungen, Kunden-Eigenheiten – nicht in Mails sichtbar.
+  API erweitert: PATCH `{notiz}`.
+- ✅ **Stale-Indikator**: `staleTage()`-Helper in `app/dashboard/page.tsx`
+  basiert auf `entwuerfe.versendet_am` (Fallback created_at), Threshold
+  7 Tage. In Inbox-Karte: amber border-left + Pill „wartet seit X Tagen".
+  Owner sieht direkt welche Mails Nachfass brauchen.
+
+#### Strategie + Doku Updates
+- ✅ **IDEEN-EISSCHRANK.md erweitert**: Max-Brainstorming Tag 18
+  (Flugzeug-Session, mit Bierchen) dokumentiert. 4 Feature-Ideen
+  (Marketing-Säule 4 mit 10k€-Kammer-Pain, Säule-3-erweitert
+  „Projekt-Assistent", Compliance-Checkliste mit Haftungs-Warnung,
+  Preisrecherche mit Säule-2-Add-on-Variante).
 
 ### Tag 18 (4.6.2026): Max-Pilot LIVE + 3 Sprints + Bug-Fix
 

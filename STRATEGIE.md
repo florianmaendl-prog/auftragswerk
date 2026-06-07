@@ -377,24 +377,36 @@ Owner über Postmark, simpel.
 
 ## TEIL F — Reihenfolge
 
-1. **Max-Feedback abwarten** (~3–7 Tage Realbetrieb mit echten Anfragen)
-2. **LP-Sofortänderungen** (Teil B4) — 20 Min, kein Code
-3. **Funktions-Tour Modal** (Teil A2) — 5 Slides, ~3 h
-4. **Edit-Diff Phase 1** (Teil A1 „Lernen aus Edits") — Schema + Diff
-   beim Versand + Tooltip im Editor, ~2 h
-5. **Vision / Foto-Verständnis** (Teil A1) — Bilder als image-blocks in
-   `lib/entwurf.ts`, Down-Scaling, ~halber Tag
-6. **Inhalts-Guardrails** (Teil A1) — System-Prompt-Update + Inline-
-   Hinweise im Entwurf, ~halber Tag
-7. **Ton-Treffsicherheit** (Teil A1) — Dauer-Aufgabe, mit Max-Edits
-   kalibrieren
-8. **ROI-Zahl** im Dashboard (Teil A4) — Aggregation vorhandener Daten,
-   ~2 h
-9. **STRATEGISCHE ENTSCHEIDUNG 2** (Ping) — falls Max-Feedback dazu drängt
-10. **Compliance-Block** (Teil B2) — Pflicht für „fertig" / Innung
-11. **Microsoft/Outlook-OAuth** (Teil B1) — sobald Pilot #2 dranhängt
-12. **Referenz-Beweis** (Teil B3) — Zitat + Gesicht, sobald Max läuft
-13. **Erst dann** Teil C (Diktat → Angebots-Editor → WhatsApp → Material)
+1. ✅ **Max-Feedback abwarten** (~3–7 Tage Realbetrieb) — Pilot läuft
+   seit Tag 18 produktiv
+2. ✅ **LP-Sofortänderungen** (Teil B4) — Tag 17 durch
+3. ✅ **Funktions-Tour Modal** (Teil A2) — Tag 17 durch
+4. ✅ **Edit-Diff Phase 1** (Teil A1) — Tag 17 durch
+5. ✅ **Vision / Foto-Verständnis** (Teil A1) — Tag 19 durch
+   (verifiziert mit Max-Real-Test, 7195 input-tokens beweist Bilder
+   im KI-Kontext)
+6. ✅ **Inhalts-Guardrails** (Teil A1) — Tag 19 durch (6 verbotene
+   Aussage-Typen + Eskalations-Erkennung)
+7. ⏳ **Ton-Treffsicherheit** (Teil A1) — **DAUER-AUFGABE**. Edit-Diff
+   Phase 1 sammelt jetzt Daten. Phase 2 (Auto-Stilbeispiel-Vorschläge)
+   wenn 30+ Real-Edits in der DB.
+8. ⏳ **ROI-Zahl** im Dashboard (Teil A4) — geparkt, aktuell nicht
+   dringend. Hochziehen wenn Max sagt „ich seh nicht was es bringt".
+9. ⏳ **STRATEGISCHE ENTSCHEIDUNG 2** (Ping „Entwurf fertig") — falls
+   Max sagt „vergesse das Tool im Alltag"
+10. ⏳ **Compliance-Block** (Teil B2) — Pflicht für „fertig" / Innung
+    (e-recht24, DPAs, BVDW-AVV, echte Impressum-Anschrift)
+11. ⏳ **Microsoft/Outlook-OAuth** (Teil B1) — sobald Pilot #2 dranhängt
+12. ⏳ **Referenz-Beweis** (Teil B3) — Zitat + Gesicht, sobald Max läuft
+13. ⏸ **Erst dann** Teil C (Diktat → Angebots-Editor → WhatsApp → Material)
+
+**Bonus-Items zwischendurch gebaut (über Reihenfolge hinaus):**
+- Tag 18: Forward-Bug-Fix (OriginalRecipient-Routing), Sprint 1-3
+  (Tab-Struktur + Refresh + Was-wir-machen + Region/PLZ + Sender-Block)
+- Tag 19: Branchen-Default-Fix in Klassifikation (vorschnelle Absagen
+  vermieden), Sprint 5 (Suche + Kundenhistorie + Auftrag-annehmen mit
+  Owner-Override-Prompt), Sprint 6 Polish-Welle (Brand-Confirm-Dialog +
+  Loading-Hint + Notiz-Feld + Stale-Indikator)
 
 ---
 

@@ -1,6 +1,20 @@
 # Auftragswerk – System-Inventur
 
-> **Stand: 4.6.2026 abends (Tag 18 – Max-Pilot LIVE, 3 Sprints durch)**
+> **Stand: 7.6.2026 abends (Tag 19 – Vision + Guardrails + Sprint 5 + Sprint 6 durch)**
+>
+> Tag 19 war ein massiver Push. 6 Sprints/Fixes:
+> - Vision V1 (KI sieht jpg/png/webp/gif-Anhänge)
+> - Inhalts-Guardrails (KI nennt nie Preise / verbindliche Zusagen)
+> - Eskalations-Erkennung (Anwalt/Mängelrüge → kein Auto-Entwurf)
+> - Branchen-Default-Fix (was_wir_machen ≠ exklusive Liste, Default unklar)
+> - Sprint 5 (Such-Foundation + Kundenhistorie + Passt-doch-Button mit Override)
+> - Sprint 6 Polish (Brand-Confirm-Dialog überall + Loading-Hint + Notiz-Feld + Stale-Indikator)
+>
+> Plus Hot-Fix: Owner-Override-Prompt damit „Auftrag annehmen" wirklich Zusage schreibt
+> (gewerk_match=passt im Klass-Block reicht nicht – Sonnet würde sonst aus Anfrage-Text
+> selbst „passt nicht" ableiten).
+>
+> **Vorheriger Stand:** **4.6.2026 (Tag 18 – Max-Pilot LIVE, 3 Sprints durch)**
 >
 > Pilot Bauelemente Rapp läuft seit Tag 18 mittags produktiv. Max hat sich
 > per Self-Service (Welle G) angemeldet, Gmail verbunden, WordPress.com-
@@ -78,6 +92,8 @@
 | `gmail_connections` | Gmail-OAuth-Tokens pro Betrieb (AES-256-GCM-verschlüsselt), Scope `gmail.send`, Status aktiv/fehler/widerrufen |
 | `gesperrte_sender` | Block-Liste pro Betrieb (Tag 18). RLS-geschützt. Inbound-Route Pre-Check vor KI-Klassifikation – gesperrte Sender direkt als 'aussortiert' ohne Anthropic-Call. UNIQUE(betrieb_id, email). |
 | `entwuerfe.text_original` / `was_edited` | Edit-Diff Phase 1 (Tag 17). `text_original` = initialer KI-Entwurf, beim Versand mit `body_text` verglichen → `was_edited` boolean. Daraus baut Flo später ein Diagnose-View für Edit-Patterns. |
+| `anfragen.notiz` | Interne Owner-Notiz (Tag 19 Sprint 6). Text, nicht in Mails sichtbar. NotizEditor in Detail-Page mit Auto-Save. |
+| `analysen.eskalation_erkannt` / `eskalation_grund` | Tag 19, Inhalts-Guardrails. Haiku flaggt Anwalt/Mängelrüge/Drohung. Inbound skipped Auto-Entwurf bei true. |
 | `ai_runs` | Audit-Log aller KI-Aufrufe |
 | `processing_errors` | Fehler-Log (Klassifikation, Entwurf, Storage-Upload) – sichtbar in `/dashboard/diagnose` |
 | `feedback` | User-Feedback (ungenutzt) |
@@ -100,6 +116,14 @@ mindestauftragswert}> für gebiets-abhängige Mindestaufträge)*), Mail
 `postmark_signature_id`, `sender_dns_records`), Kalkulation (`stundensatz`).
 UNIQUE-Index auf `inbound_email` seit Migration
 `20260601_inbound_email_subdomain.sql`.
+
+**`anfragen.notiz`** *(Tag 19, Sprint 6)* – freie Owner-Notiz pro Anfrage
+(intern, nicht in Mails sichtbar). Für Telefonat-Erinnerungen, Kunden-Eigenheiten.
+Auto-Save beim Blur via NotizEditor in Anfrage-Detail.
+
+**`analysen.eskalation_erkannt` + `analysen.eskalation_grund`** *(Tag 19)* –
+Haiku setzt true bei Anwalt/Mängelrüge/Drohung. Inbound-Pipeline skipped dann
+Auto-Entwurf, Status manuell_pruefen, Eintrag in processing_errors.
 
 **`profiles`**: `id` (= auth.users.id, PK), `betrieb_id`, `rolle` (`'inhaber'`
 ist Default bei Self-Service-Signup; weitere Rollen für Multi-User später).
@@ -523,6 +547,50 @@ Nicht verlieren beim Refactoring:
     Account-Token). Sender `info@auftragswerk.app`. Default-Supabase-
     SMTP (2 Mails/h) ist unbrauchbar — nie zurückschalten.
 
+30. **Vision-Limits nicht aufweichen ohne Kostenkontrolle** — `lib/bilder.ts`
+    hat max 5 Bilder à 5 MB pro Anfrage. Anthropic skaliert intern auf
+    1568×1568, kostet ~1.6k Tokens pro Megapixel. Wenn das Limit aufgemacht
+    wird (z.B. „alle Bilder zur KI"), muss der KI-Kosten-Cap (50 Analysen/h)
+    angepasst werden. Vision-Calls sind 3-5× teurer als text-only Entwürfe.
+
+31. **Inhalts-Guardrails sind HART, nicht weich** — `lib/entwurf.ts`
+    System-Prompt verbietet 6 Aussage-Typen (Preise, verbindliche Zusagen,
+    technische Garantien, Norm-Werte, Schadens-Einschätzung aus Foto,
+    medizinische/rechtliche/Versicherungs-Auskünfte). Diese Regeln sind
+    Reputations- + Haftungs-Schutz. Bei jedem Prompt-Refactor nicht
+    versehentlich weichspülen — alle 6 müssen erhalten bleiben.
+
+32. **Eskalations-Erkennung bricht Iron Rule 3 bewusst** — Wenn
+    `analysen.eskalation_erkannt=true` (Anwalt/Mängelrüge/Drohung/
+    aggressiver Ton), wird KEIN Auto-Entwurf gebaut. Iron Rule 3 („KI baut
+    Entwurf für ALLE Kundenanfragen") gilt damit eine bewusste Ausnahme.
+    Status → manuell_pruefen, Eintrag in `processing_errors`. Owner muss
+    selbst antworten.
+
+33. **Klassifikator: Branchen-Default vor strikter Wort-Match-Liste** —
+    `lib/klassifikation.ts` System-Prompt sagt explizit: `was_wir_machen`
+    ist beispielhaft, NICHT abschließend. Haiku nutzt Branchen-Wissen
+    (Metallbau = alles aus Metall inkl. Scharniere; Maler = alles
+    Anstrich-bezogen etc.). Default bei Zweifel `unklar` statt
+    `passt_nicht`. Wenn das je geändert wird (z.B. „strenger sein"),
+    Side-Effect bedenken: vorschnelle Absagen vergraulen Pilots.
+
+34. **Owner-Override beim Re-Generate** — Wenn Owner „Auftrag annehmen"
+    klickt (`/api/anfragen/[id]/passt-doch`), wird `generiereEntwurf` mit
+    `ownerBestaetigtPassend=true` aufgerufen. Das triggert einen fetten
+    ⚠️-Override-Block im User-Prompt der Sonnet zwingt eine Zusage zu
+    schreiben statt eigener Branchen-Einschätzung. Reine
+    `gewerk_match=passt`-Marker in der Klassifikation reichen NICHT –
+    Sonnet würde sonst trotzdem absagen wenn der Anfrage-Text wie
+    „Sturmglastür" oder ähnliches enthält. Wichtig: Override nur in
+    diesem expliziten Owner-Action-Pfad, nirgendwo sonst.
+
+35. **Browser-native `confirm()` nie wieder einführen** — Seit Sprint 6
+    (Tag 19) läuft alles über `useConfirm()` Hook + `<ConfirmProvider>`
+    in `app/layout.tsx`. Brand-Look ist überall identisch, destructive
+    Aktionen rot, Standard Stahlblau. Wenn neue Dialoge gebaut werden:
+    immer den Hook nutzen, nie `window.confirm()` ins Repo zurück.
+
 ---
 
 ## 📜 Compliance-Status (DSGVO + Rechtstexte)
@@ -609,6 +677,44 @@ supabase functions deploy inbound-proxy --no-verify-jwt --project-ref lfziiallrf
 
 ---
 
+## 🆕 Tag 19 – wichtigste Code-Files
+
+**Vision V1:**
+- [lib/bilder.ts](lib/bilder.ts) – `ladeBilderFuerKI(nachrichtId)`:
+  lädt jpg/png/webp/gif aus Storage-Bucket, base64-encoded. Max 5
+  Bilder à 5MB. Sortierung kleinste zuerst.
+- [lib/claude.ts](lib/claude.ts) – `ClaudeCallOptions.userContent` mit
+  Block-Array (text + image-source) für Multi-Modal-Calls.
+
+**Kunden-Historie (Premium-Wow Stammkunden):**
+- [lib/kunden-historie.ts](lib/kunden-historie.ts) –
+  `ladeKundenHistorie(betriebId, vonEmail, aktuelleAnfrageId)`:
+  letzte 5 Kundenanfragen desselben Absenders mit Zusammenfassung.
+  Fließt als „FRÜHERE ANFRAGEN DIESES KUNDEN"-Block in den
+  Entwurfs-Prompt.
+
+**Passt-doch / Owner-Override:**
+- [app/api/anfragen/[id]/passt-doch/route.ts](app/api/anfragen/[id]/passt-doch/route.ts) –
+  POST setzt gewerk_match=passt + löscht alten Entwurf + ruft
+  `generiereEntwurf` neu mit `ownerBestaetigtPassend=true`.
+- [app/dashboard/anfragen/[id]/passt-doch-button.tsx](app/dashboard/anfragen/[id]/passt-doch-button.tsx) –
+  Amber-Banner über Konversations-Grid, „Auftrag annehmen"-Button.
+- `lib/entwurf.ts` Override-Block: wenn `ownerBestaetigtPassend=true`,
+  fetter ⚠️-Block ganz oben im User-Prompt der Sonnet zwingt eine
+  Zusage zu schreiben statt eigener Branchen-Einschätzung.
+
+**Sprint 6 Polish:**
+- [components/ui/confirm-dialog.tsx](components/ui/confirm-dialog.tsx) –
+  ConfirmProvider + useConfirm-Hook, Promise-basiert. Wrappt den App-
+  Tree in `app/layout.tsx`.
+- [app/dashboard/anfragen/[id]/notiz-editor.tsx](app/dashboard/anfragen/[id]/notiz-editor.tsx) –
+  Owner-Notiz Auto-Save beim Blur.
+- [app/dashboard/inbox-suche.tsx](app/dashboard/inbox-suche.tsx) +
+  [app/dashboard/kunden/kunden-suche-sort.tsx](app/dashboard/kunden/kunden-suche-sort.tsx) –
+  debounced URL-Param-Search.
+- `app/dashboard/page.tsx` `staleTage()`-Helper – berechnet
+  Wartetage seit versendet_am, threshold 7. Karten mit amber border-left.
+
 ## 🆕 Tag 18 – wichtigste Code-Files
 
 - [app/api/sender/sperren/route.ts](app/api/sender/sperren/route.ts) –
@@ -653,6 +759,13 @@ mehr den alten manuell angelegten Account.
 | Pilot scharfschalten – Max nutzt im Echtbetrieb | ✅ läuft seit Tag 18 mittags |
 | Max-Feedback Tag 17 (Refresh / Was-wir-machen / Tab-Struktur / Region/PLZ / Signatur / Baustein-Pricing / Kalender-optional) | ⏳ teilweise umgesetzt: Refresh + Was-wir-machen + Tab-Struktur + Region/PLZ + Sender-Block durch (Sprint 1-3). Geparkt im Eisschrank: Signatur-RichText, Baustein-Pricing, Kalender-optional |
 | Max-Feedback Tag 18 (Marketing-Säule 4 / 10k€-Kammer-Video / „Verfolgen" verstanden er nicht / Custom-Ordner für Kammer-Mails) | ⏳ Marketing als Säule 4 im Eisschrank dokumentiert. „Verfolgen" raus (Sprint 1). Custom-Ordner als Stufe 2 geparkt |
+| Max-Feedback Tag 19 (Passt-doch-Button / Kunden-Suche / Browser-Popup hässlich) | ✅ alle 3 umgesetzt (Sprint 5 + Sprint 6 Brand-Confirm-Dialog) |
+| **Vision V1** (KI sieht Foto-Anhänge) | ✅ Tag 19 live, Vision-Transparenz-Badge in EntwurfEditor |
+| **Inhalts-Guardrails + Eskalations-Erkennung** | ✅ Tag 19, 6 verbotene Aussage-Typen + Eskalation flaggt automatisch |
+| **Branchen-Default-Fix** in Klassifikation | ✅ Tag 19, Default unklar statt passt_nicht |
+| **Sprint 5**: Inbox+Kunden-Suche + Kundenhistorie im KI-Prompt + Auftrag-annehmen-Override | ✅ Tag 19 |
+| **Sprint 6 Polish**: Brand-ConfirmDialog (13 Stellen) + Loading-Hint + Notiz-Feld + Stale-Indikator | ✅ Tag 19 |
+| Max-Real-Smoke-Test Sturmglastür-Anfrage mit 2 Fotos | ✅ Vision verifiziert (7195 input-tokens vs ~2500 text-only), Owner-Override-Pfad funktioniert (Banner → „Auftrag annehmen" → echte Zusage) |
 
 ---
 
