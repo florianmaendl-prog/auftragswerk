@@ -256,8 +256,43 @@ function buildUserPrompt(
   konversation?: ThreadNachricht[],
   freieSlots?: string[],
   kundenHistorie?: KundenHistorieEintrag[],
-  ownerBestaetigtPassend?: boolean
+  ownerBestaetigtPassend?: boolean,
+  nachfassModus?: boolean
 ): string {
+  // Nachfass-Modus: Owner hat in der UI "Nachfass schreiben" geklickt bei
+  // einer versendeten Anfrage ohne Reply (Stale-Indikator >7 Tage). KI baut
+  // KEINEN neuen Erst-Entwurf sondern eine freundliche Erinnerung.
+  // Spezial-Pfad – komplett anderer Prompt unten.
+  if (nachfassModus && konversation && konversation.length > 0) {
+    return `NACHFASS-MODUS – der Inhaber hat dich gebeten eine freundliche Erinnerung an einen Kunden zu schreiben, der seit über einer Woche nicht geantwortet hat.
+
+HIER DER BISHERIGE KONVERSATIONS-VERLAUF (älteste zuerst):
+
+${formatThread(konversation)}
+
+---
+
+DEINE AUFGABE:
+Schreibe eine SEHR KURZE, höfliche Nachfass-Mail (3–5 Sätze max).
+
+GRUNDREGELN für Nachfass:
+- Knapp und freundlich. Keine Wiederholung der gesamten Original-Anfrage.
+- Dezent erinnern: "Wollte kurz nachhaken ob meine Mail angekommen ist."
+- Optional ein konkreter offener Punkt: "Falls Ihnen noch Infos fehlen, gerne melden" oder "Falls der Auftrag noch aktuell ist, freue ich mich über kurze Rückmeldung".
+- KEIN Verkaufs-Druck, KEINE Drängerei, KEINE Mahnung. Wenn der Kunde nicht will, will er nicht.
+- KEINE neuen Angebote, KEINE neuen Slots vorschlagen wenn nicht nötig.
+- KEINE Schuld-Andeutungen ("ich habe seit X Tagen nichts gehört").
+- KEINE Grußformel und KEINEN Namen am Ende – die Signatur hängt das System dran.
+- Den ursprünglichen Threading-Faden weiterführen (Betreff: "AW: ..." oder ähnlich).
+
+AUSGABE-FORMAT (JSON, kein Markdown):
+{
+  "betreff_vorschlag": "AW: <Originalbetreff>",
+  "body_text": "<dein kurzer Nachfass, ohne Grußformel/Name>",
+  "interne_notiz": "<sehr kurzer Hinweis für den Inhaber falls relevant, sonst leerer String>"
+}`;
+  }
+
   // Owner-Override – wenn der Inhaber im Dashboard explizit "Auftrag annehmen"
   // gedrückt hat, hat seine Einschätzung Vorrang über die KI-Klassifikation.
   // Sonnet würde sonst aus dem Anfrage-Text selbst denken "passt nicht" und
@@ -369,7 +404,8 @@ export async function generiereEntwurf(
   freieSlots?: string[],
   bilder?: KiBild[],
   kundenHistorie?: KundenHistorieEintrag[],
-  ownerBestaetigtPassend?: boolean
+  ownerBestaetigtPassend?: boolean,
+  nachfassModus?: boolean
 ): Promise<EntwurfResult> {
   const systemPrompt = buildSystemPrompt(betrieb);
   const userMessage = buildUserPrompt(
@@ -378,7 +414,8 @@ export async function generiereEntwurf(
     konversation,
     freieSlots,
     kundenHistorie,
-    ownerBestaetigtPassend
+    ownerBestaetigtPassend,
+    nachfassModus
   );
 
   if (konversation && konversation.length > 0) {

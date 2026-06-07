@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EntwurfEditor from './entwurf-editor';
 import { DetailActions } from './detail-actions';
 import { PasstDochButton } from './passt-doch-button';
+import { NachfassButton } from './nachfass-button';
 import { NotizEditor } from './notiz-editor';
 import { ReplyEditor } from './reply-editor';
 import { TerminCard, type Termin } from './termin-card';
@@ -328,6 +329,27 @@ export default async function AnfrageDetailPage({
             <PasstDochButton anfrageId={anfrage.id} />
           </div>
         )}
+
+      {/* Nachfass-Banner: bei status=versendet mit letzter ausgehender Mail
+          >7 Tage her. Closes the loop des Stale-Indikators in der Inbox. */}
+      {(() => {
+        if (anfrage.status !== 'versendet') return null;
+        // Letzte ausgehende Nachricht als Referenz für Stale-Berechnung
+        const letzterAusgang = [...nachrichten]
+          .reverse()
+          .find((n) => n.typ === 'ausgang');
+        if (!letzterAusgang) return null;
+        const tage = Math.floor(
+          (Date.now() - new Date(letzterAusgang.erstellt_am).getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+        if (tage < 7) return null;
+        return (
+          <div className="mb-6">
+            <NachfassButton anfrageId={anfrage.id} wartetTage={tage} />
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* LINKS: Konversation + KI-Analyse */}
