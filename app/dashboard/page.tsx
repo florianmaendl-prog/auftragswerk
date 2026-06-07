@@ -26,6 +26,7 @@ type AnfrageWithJoins = {
     id: string;
     status: string;
     versendet_am: string | null;
+    was_edited: boolean | null;
   }> | null;
 };
 
@@ -144,42 +145,141 @@ function getStartOfWeek(): Date {
   return d;
 }
 
+function getStartOfMonth(): Date {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 type InboxStats = {
-  heuteNeu: number;        // Anfragen reingekommen heute, nicht-reply, nicht-aussortiert
-  heuteReplies: number;    // Kunden-Antworten heute
+  // Heute – für die Top-Zeile (kompakt)
+  heuteNeu: number;
+  heuteReplies: number;
   heuteAussortiert: number;
-  wocheAnfragen: number;   // alle Anfragen außer aussortiert
-  wocheTermine: number;    // aus termine-Tabelle
+  // Woche – primärer Block
+  wocheAnfragen: number;
+  wocheAntworten: number;
+  wocheTermine: number;
+  wocheUngeaendert: number;
+  wocheAussortiert: number;
+  // Monat – Innungs-Story-Block (größere Zahlen)
+  monatAnfragen: number;
+  monatAntworten: number;
+  monatTermine: number;
+  monatUngeaendert: number;
+  monatAussortiert: number;
+  monatAntwortzeitMedianMin: number | null;
 };
 
-function computeStats(items: AnfrageWithJoins[], wocheTermine: number): InboxStats {
+/**
+ * Ehrliche Aktivitäts-Statistiken (Tag 20).
+ *
+ * BEWUSST nur Fakten – KEIN "X Stunden gespart"-Bullshit. Owner-Pushback
+ * Tag 20: "spart laut Hersteller 12h" durchschauen smarte Handwerker
+ * sofort, Vertrauensbruch. Lösung: nur Counts/Quotienten/Zeiten aus
+ * der DB. Max baut seine eigene Story für die Innung.
+ */
+function computeStats(
+  items: AnfrageWithJoins[],
+  wocheTermine: number,
+  monatTermine: number
+): InboxStats {
   const tHeute = getStartOfToday().getTime();
   const tWoche = getStartOfWeek().getTime();
+  const tMonat = getStartOfMonth().getTime();
 
   let heuteNeu = 0;
   let heuteReplies = 0;
   let heuteAussortiert = 0;
+
   let wocheAnfragen = 0;
+  let wocheAntworten = 0;
+  let wocheUngeaendert = 0;
+  let wocheAussortiert = 0;
+
+  let monatAnfragen = 0;
+  let monatAntworten = 0;
+  let monatUngeaendert = 0;
+  let monatAussortiert = 0;
+
+  // Antwortzeit-Sammlung (in Minuten) – nur Anfragen mit versendetem Entwurf
+  const antwortMinutenMonat: number[] = [];
 
   for (const it of items) {
-    const ts = it.created_at ? new Date(it.created_at).getTime() : 0;
-    if (ts < tWoche) continue;
+    const tsAnfrage = it.created_at ? new Date(it.created_at).getTime() : 0;
+    const istAussortiert = it.status === 'aussortiert';
 
-    if (it.status !== 'aussortiert') wocheAnfragen++;
+    // versendet_am des letztens versendeten Entwurfs (falls vorhanden)
+    let tsVersendet = 0;
+    for (const e of it.entwuerfe ?? []) {
+      if (e.versendet_am) {
+        const t = new Date(e.versendet_am).getTime();
+        if (t > tsVersendet) tsVersendet = t;
+      }
+    }
+    // war ein Entwurf editiert beim Versand? Nur der letzte zählt
+    const entwurfWasEdited = (it.entwuerfe ?? [])
+      .filter((e) => e.versendet_am)
+      .some((e) => e.was_edited === true);
 
-    if (ts < tHeute) continue;
-    if (it.status === 'reply_eingegangen') heuteReplies++;
-    else if (it.status === 'aussortiert') heuteAussortiert++;
-    else if (
-      it.status === 'entwurf_bereit' ||
-      it.status === 'manuell_pruefen' ||
-      it.status === 'neu' ||
-      it.status === 'versendet'
-    )
-      heuteNeu++;
+    // MONAT-Bucket
+    if (tsAnfrage >= tMonat) {
+      if (istAussortiert) monatAussortiert++;
+      else monatAnfragen++;
+      if (tsVersendet >= tMonat) {
+        monatAntworten++;
+        if (!entwurfWasEdited) monatUngeaendert++;
+        const min = Math.floor((tsVersendet - tsAnfrage) / (1000 * 60));
+        if (min > 0 && min < 60 * 24 * 14) antwortMinutenMonat.push(min);
+      }
+    }
+
+    // WOCHE-Bucket
+    if (tsAnfrage >= tWoche) {
+      if (istAussortiert) wocheAussortiert++;
+      else wocheAnfragen++;
+      if (tsVersendet >= tWoche) {
+        wocheAntworten++;
+        if (!entwurfWasEdited) wocheUngeaendert++;
+      }
+    }
+
+    // HEUTE-Bucket
+    if (tsAnfrage >= tHeute) {
+      if (it.status === 'reply_eingegangen') heuteReplies++;
+      else if (istAussortiert) heuteAussortiert++;
+      else if (
+        it.status === 'entwurf_bereit' ||
+        it.status === 'manuell_pruefen' ||
+        it.status === 'neu' ||
+        it.status === 'versendet'
+      )
+        heuteNeu++;
+    }
   }
 
-  return { heuteNeu, heuteReplies, heuteAussortiert, wocheAnfragen, wocheTermine };
+  // Median der Antwortzeit – robuster gegen Ausreißer als Mittelwert
+  const sortiert = [...antwortMinutenMonat].sort((a, b) => a - b);
+  const median =
+    sortiert.length === 0 ? null : sortiert[Math.floor(sortiert.length / 2)];
+
+  return {
+    heuteNeu,
+    heuteReplies,
+    heuteAussortiert,
+    wocheAnfragen,
+    wocheAntworten,
+    wocheTermine,
+    wocheUngeaendert,
+    wocheAussortiert,
+    monatAnfragen,
+    monatAntworten,
+    monatTermine,
+    monatUngeaendert,
+    monatAussortiert,
+    monatAntwortzeitMedianMin: median,
+  };
 }
 
 function confidenceBadge(confidence: number | null) {
@@ -222,7 +322,7 @@ export default async function InboxPage({
       status,
       created_at,
       analysen (kategorie, gewerk_match, confidence),
-      entwuerfe (id, status, versendet_am)
+      entwuerfe (id, status, versendet_am, was_edited)
     `
     )
     .is('geloescht_am', null)
@@ -250,17 +350,31 @@ export default async function InboxPage({
     }
   }
 
-  // Mini-Stats für die Top-Bar: Termine dieser Woche separat zählen
+  // Termine Woche + Monat parallel (für die Aktivitäts-Karte – ehrliche Zahlen,
+  // keine Zeit-Spar-Schätzungen)
   const startWoche = getStartOfWeek();
   const startNaechsteWoche = new Date(startWoche);
   startNaechsteWoche.setDate(startNaechsteWoche.getDate() + 7);
-  const { count: terminCount } = await supabase
-    .from('termine')
-    .select('id', { count: 'exact', head: true })
-    .gte('datum', startWoche.toISOString())
-    .lt('datum', startNaechsteWoche.toISOString())
-    .neq('status', 'abgesagt');
-  const stats = computeStats(items, terminCount ?? 0);
+  const startMonat = getStartOfMonth();
+  const startNaechsterMonat = new Date(startMonat);
+  startNaechsterMonat.setMonth(startNaechsterMonat.getMonth() + 1);
+
+  const [{ count: terminCountWoche }, { count: terminCountMonat }] =
+    await Promise.all([
+      supabase
+        .from('termine')
+        .select('id', { count: 'exact', head: true })
+        .gte('datum', startWoche.toISOString())
+        .lt('datum', startNaechsteWoche.toISOString())
+        .neq('status', 'abgesagt'),
+      supabase
+        .from('termine')
+        .select('id', { count: 'exact', head: true })
+        .gte('datum', startMonat.toISOString())
+        .lt('datum', startNaechsterMonat.toISOString())
+        .neq('status', 'abgesagt'),
+    ]);
+  const stats = computeStats(items, terminCountWoche ?? 0, terminCountMonat ?? 0);
 
   // Counts pro Tab
   const counts: Record<TabId, number> = TABS.reduce(
@@ -308,8 +422,12 @@ export default async function InboxPage({
         <InboxSuche />
       </div>
 
-      {/* MINI-STATS-BAR */}
-      <div className="mb-5 rounded-md border border-input bg-muted/20 p-3 text-sm space-y-1">
+      {/* AKTIVITÄTS-KARTE – nur Fakten, keine erfundenen Zeit-Schätzungen.
+          Owner-Pushback Tag 20: "X Stunden gespart" wäre Bullshit-Kalkulation,
+          smarte Handwerker durchschauen das sofort. Hier nur was wirklich
+          messbar ist – Max baut seine eigene Story für die Innung. */}
+      <div className="mb-5 rounded-md border border-input bg-muted/20 p-4 space-y-3 text-sm">
+        {/* Heute-Zeile – kompakt */}
         {stats.heuteNeu === 0 &&
         stats.heuteReplies === 0 &&
         stats.heuteAussortiert === 0 ? (
@@ -339,17 +457,97 @@ export default async function InboxPage({
             )}
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
-          <span className="font-medium">Diese Woche:</span>
-          <span>
-            <span className="font-semibold text-foreground">{stats.wocheAnfragen}</span>{' '}
-            {stats.wocheAnfragen === 1 ? 'Anfrage' : 'Anfragen'}
-          </span>
-          <Link href="/dashboard/termine" className="hover:underline">
-            <span className="font-semibold text-foreground">{stats.wocheTermine}</span>{' '}
-            {stats.wocheTermine === 1 ? 'Termin' : 'Termine'}
-          </Link>
+
+        {/* Woche – primärer Block, 4 große Zahlen */}
+        <div>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium mb-2">
+            Diese Woche
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <p className="text-2xl font-bold text-foreground leading-none">
+                {stats.wocheAnfragen}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.wocheAnfragen === 1 ? 'Anfrage' : 'Anfragen'} rein
+              </p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground leading-none">
+                {stats.wocheAntworten}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.wocheAntworten === 1 ? 'Antwort' : 'Antworten'} raus
+              </p>
+            </div>
+            <Link href="/dashboard/termine" className="hover:opacity-80 transition-opacity">
+              <p className="text-2xl font-bold text-foreground leading-none">
+                {stats.wocheTermine}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.wocheTermine === 1 ? 'Termin' : 'Termine'}
+              </p>
+            </Link>
+            <Link
+              href="/dashboard?tab=aussortiert"
+              className="hover:opacity-80 transition-opacity"
+            >
+              <p className="text-2xl font-bold text-muted-foreground leading-none">
+                {stats.wocheAussortiert}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.wocheAussortiert === 1 ? 'Werbung' : 'Werbung'} weg
+              </p>
+            </Link>
+          </div>
         </div>
+
+        {/* Monat – kleinere Sub-Zeile mit den großen Zahlen + Qualitäts-Hinweise */}
+        {(stats.monatAnfragen > 0 || stats.monatAntworten > 0) && (
+          <div className="border-t border-border/50 pt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span className="font-medium">Diesen Monat:</span>
+            <span>
+              <span className="font-semibold text-foreground">
+                {stats.monatAnfragen}
+              </span>{' '}
+              Anfragen
+            </span>
+            <span>
+              <span className="font-semibold text-foreground">
+                {stats.monatAntworten}
+              </span>{' '}
+              Antworten
+            </span>
+            <span>
+              <span className="font-semibold text-foreground">
+                {stats.monatTermine}
+              </span>{' '}
+              Termine
+            </span>
+            {stats.monatAntworten > 0 && (
+              <span
+                title="Ungeändert versendet = KI-Entwurf hat den Ton getroffen, du hast nur freigegeben."
+              >
+                <span className="font-semibold text-foreground">
+                  {stats.monatUngeaendert}/{stats.monatAntworten}
+                </span>{' '}
+                ungeändert versendet
+              </span>
+            )}
+            {stats.monatAntwortzeitMedianMin !== null && (
+              <span
+                title="Median-Zeit von eingegangener Anfrage bis zur versendeten Antwort."
+              >
+                Ø Antwortzeit{' '}
+                <span className="font-semibold text-foreground">
+                  {stats.monatAntwortzeitMedianMin < 60
+                    ? `${stats.monatAntwortzeitMedianMin} Min`
+                    : `${Math.round(stats.monatAntwortzeitMedianMin / 60)} h`}
+                </span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* FLACHE TAB-LEISTE – alle 7 Tabs gleichberechtigt, "Info" prominent

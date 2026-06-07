@@ -390,8 +390,14 @@ Owner über Postmark, simpel.
 7. ⏳ **Ton-Treffsicherheit** (Teil A1) — **DAUER-AUFGABE**. Edit-Diff
    Phase 1 sammelt jetzt Daten. Phase 2 (Auto-Stilbeispiel-Vorschläge)
    wenn 30+ Real-Edits in der DB.
-8. ⏳ **ROI-Zahl** im Dashboard (Teil A4) — geparkt, aktuell nicht
-   dringend. Hochziehen wenn Max sagt „ich seh nicht was es bringt".
+8. ✅ **Aktivitäts-Karte** im Dashboard (Teil A4, Tag 20) — **bewusst
+   keine erfundene "X Stunden gespart"-Zahl** (würde smarte Handwerker
+   sofort als SaaS-Bullshit durchschauen → Vertrauensbruch). Stattdessen
+   nur Fakten aus der DB: Anfragen rein, Antworten raus, Termine,
+   Werbung weg, ungeändert versendet (zeigt KI-Qualität implizit),
+   Median-Antwortzeit. Max baut seine eigene Story für die Innung
+   ("schaut, 67 Mails letzten Monat – das hat das Ding mir alles
+   vorgeschrieben"). Eigene Wahrheit > berechnete Hersteller-Behauptung.
 9. ⏳ **STRATEGISCHE ENTSCHEIDUNG 2** (Ping „Entwurf fertig") — falls
    Max sagt „vergesse das Tool im Alltag"
 10. ⏳ **Compliance-Block** (Teil B2) — Pflicht für „fertig" / Innung
