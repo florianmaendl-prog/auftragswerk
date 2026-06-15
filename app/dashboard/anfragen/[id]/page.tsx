@@ -141,7 +141,9 @@ export default async function AnfrageDetailPage({
         extrahierter_name,
         extrahierte_firma,
         extrahierte_telefon,
+        extrahierte_adresse,
         extrahierte_plz,
+        extrahierte_position,
         fehlende_infos,
         empfohlene_aktion,
         extrahierter_termin
@@ -520,7 +522,10 @@ export default async function AnfrageDetailPage({
                 </div>
 
                 {(klass.extrahierter_name ||
+                  klass.extrahierte_firma ||
+                  klass.extrahierte_position ||
                   klass.extrahierte_telefon ||
+                  klass.extrahierte_adresse ||
                   klass.extrahierte_plz) && (
                   <div className="pt-2 border-t">
                     <p className="text-muted-foreground text-xs mb-1">
@@ -531,6 +536,11 @@ export default async function AnfrageDetailPage({
                         <p className="flex items-center gap-1.5">
                           <HugeiconsIcon icon={UserIcon} size={12} strokeWidth={1.5} />
                           {klass.extrahierter_name}
+                          {klass.extrahierte_position && (
+                            <span className="text-muted-foreground">
+                              · {klass.extrahierte_position}
+                            </span>
+                          )}
                         </p>
                       )}
                       {klass.extrahierte_firma && (
@@ -542,15 +552,39 @@ export default async function AnfrageDetailPage({
                       {klass.extrahierte_telefon && (
                         <p className="flex items-center gap-1.5">
                           <HugeiconsIcon icon={CallIcon} size={12} strokeWidth={1.5} />
-                          {klass.extrahierte_telefon}
+                          <a
+                            href={`tel:${klass.extrahierte_telefon.replace(/\s+/g, '')}`}
+                            className="hover:text-primary hover:underline"
+                          >
+                            {klass.extrahierte_telefon}
+                          </a>
                         </p>
                       )}
-                      {klass.extrahierte_plz && (
-                        <p className="flex items-center gap-1.5">
-                          <HugeiconsIcon icon={Location01Icon} size={12} strokeWidth={1.5} />
-                          {klass.extrahierte_plz}
-                        </p>
-                      )}
+                      {(klass.extrahierte_adresse || klass.extrahierte_plz) && (() => {
+                        const adresseFull = [
+                          klass.extrahierte_adresse,
+                          klass.extrahierte_plz,
+                        ]
+                          .filter(Boolean)
+                          .join(', ');
+                        return (
+                          <p className="flex items-center gap-1.5">
+                            <HugeiconsIcon
+                              icon={Location01Icon}
+                              size={12}
+                              strokeWidth={1.5}
+                            />
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(adresseFull)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:text-primary hover:underline"
+                            >
+                              {adresseFull}
+                            </a>
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}

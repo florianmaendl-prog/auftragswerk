@@ -44,6 +44,7 @@ export interface KlassifikationResult {
   extrahierte_telefon: string | null;
   extrahierte_adresse: string | null;
   extrahierte_plz: string | null;
+  extrahierte_position: string | null;
   fehlende_infos: string[];
   materialbedarf_erkannt: boolean;
   empfohlene_aktion: string;
@@ -125,6 +126,7 @@ EXTRAKTION:
 - Telefonnummer (wenn in Mail/Signatur)
 - Adresse (Straße + Hausnr)
 - PLZ
+- Position/Rolle des Absenders (wenn in Signatur/Mail erkennbar, z.B. "Geschäftsführer", "Architekt", "Bauleiter", "Hausverwaltung", "Einkauf"). Bei Privatkunden ohne Funktion: null.
 - Fehlende Infos für ein Angebot (Liste, z.B. ["Maße", "Material", "Termin", "Budget"])
 - materialbedarf_erkannt: erwähnt die Mail konkreten Materialbedarf? (true/false)
 - extrahierter_termin: Wenn die Mail einen konkreten Aufmaß-/Vor-Ort-Termin
@@ -173,6 +175,7 @@ Antworte AUSSCHLIESSLICH mit gültigem JSON, keine Erklärungen, keine Markdown-
   "extrahierte_telefon": "..." | null,
   "extrahierte_adresse": "..." | null,
   "extrahierte_plz": "..." | null,
+  "extrahierte_position": "..." | null,
   "fehlende_infos": ["..."],
   "materialbedarf_erkannt": false,
   "empfohlene_aktion": "Was sollte der Meister als nächstes tun (kurzer Satz)",
@@ -270,6 +273,7 @@ ${mailText}`;
     extrahierte_telefon: klassifikation.extrahierte_telefon,
     extrahierte_adresse: klassifikation.extrahierte_adresse,
     extrahierte_plz: klassifikation.extrahierte_plz,
+    extrahierte_position: klassifikation.extrahierte_position ?? null,
     fehlende_infos: klassifikation.fehlende_infos,
     materialbedarf_erkannt: klassifikation.materialbedarf_erkannt,
     empfohlene_aktion: klassifikation.empfohlene_aktion,

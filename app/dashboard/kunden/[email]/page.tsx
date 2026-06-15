@@ -11,6 +11,9 @@ type AnalyseRow = {
   extrahierter_name: string | null;
   extrahierte_firma: string | null;
   extrahierte_telefon: string | null;
+  extrahierte_adresse: string | null;
+  extrahierte_plz: string | null;
+  extrahierte_position: string | null;
   kunde_typ: string | null;
 };
 
@@ -49,7 +52,7 @@ export default async function KundeDetailPage({
     .from('anfragen')
     .select(
       `id, betreff, von_name, status, created_at,
-       analysen (kategorie, zusammenfassung, gewerk_match, extrahierter_name, extrahierte_firma, extrahierte_telefon, kunde_typ)`
+       analysen (kategorie, zusammenfassung, gewerk_match, extrahierter_name, extrahierte_firma, extrahierte_telefon, extrahierte_adresse, extrahierte_plz, extrahierte_position, kunde_typ)`
     )
     .eq('von_email', email)
     .is('geloescht_am', null)
@@ -67,14 +70,30 @@ export default async function KundeDetailPage({
     notFound();
   }
 
-  // Header-Infos aus der jüngsten Kundenanfrage-Analyse
-  const latestKundenAnalyse = rows[0]?.analysen?.find(
-    (an) => an.kategorie === 'kundenanfrage'
-  );
-  const displayName = latestKundenAnalyse?.extrahierter_name || rows[0]?.von_name || email;
-  const firma = latestKundenAnalyse?.extrahierte_firma;
-  const telefon = latestKundenAnalyse?.extrahierte_telefon;
-  const kundeTyp = latestKundenAnalyse?.kunde_typ;
+  // Kontaktdaten "best-of" sammeln: pro Feld den jüngsten nicht-leeren Wert
+  // aus allen Kundenanfrage-Analysen. Sonst würde eine jüngere Mail ohne
+  // Signatur ältere, vollständigere Daten überschreiben.
+  const kundenAnalysen = rows
+    .flatMap((a) => a.analysen ?? [])
+    .filter((an) => an.kategorie === 'kundenanfrage');
+  const erstesNichtLeer = <K extends keyof AnalyseRow>(feld: K) =>
+    kundenAnalysen.find((an) => an[feld] && String(an[feld]).trim().length > 0)?.[feld] ?? null;
+
+  const displayName =
+    (erstesNichtLeer('extrahierter_name') as string | null) ||
+    rows[0]?.von_name ||
+    email;
+  const firma = erstesNichtLeer('extrahierte_firma') as string | null;
+  const telefon = erstesNichtLeer('extrahierte_telefon') as string | null;
+  const adresse = erstesNichtLeer('extrahierte_adresse') as string | null;
+  const plz = erstesNichtLeer('extrahierte_plz') as string | null;
+  const position = erstesNichtLeer('extrahierte_position') as string | null;
+  const kundeTyp = erstesNichtLeer('kunde_typ') as string | null;
+
+  const adresseFull = [adresse, plz].filter(Boolean).join(', ');
+  const mapsHref = adresseFull
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(adresseFull)}`
+    : null;
 
   return (
     <div className="container mx-auto py-6 px-4 sm:px-6 max-w-5xl">
@@ -87,11 +106,13 @@ export default async function KundeDetailPage({
 
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">{displayName}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {firma && <span>{firma} · </span>}
-          <span>{email}</span>
-          {telefon && <span> · {telefon}</span>}
-        </p>
+        {(firma || position) && (
+          <p className="text-sm text-muted-foreground mt-1">
+            {position && <span>{position}</span>}
+            {position && firma && <span> bei </span>}
+            {firma && <span>{firma}</span>}
+          </p>
+        )}
         <div className="flex items-center gap-2 mt-2">
           {kundeTyp && (
             <span className="text-xs rounded-full border px-2 py-0.5 bg-muted text-muted-foreground">
@@ -102,6 +123,28 @@ export default async function KundeDetailPage({
             {rows.length} {rows.length === 1 ? 'Anfrage' : 'Anfragen'} insgesamt
           </span>
         </div>
+      </div>
+
+      {/* Kontaktdaten-Block – klickbar damit Owner direkt anrufen / Maps öffnen kann.
+          Alle Felder kommen aus der KI-Extraktion (jüngster nicht-leerer Wert pro
+          Feld). Mailto immer da (=Absender), Rest nur wenn vorhanden. */}
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <KontaktZeile label="E-Mail" value={email} href={`mailto:${email}`} />
+        {telefon && (
+          <KontaktZeile
+            label="Telefon"
+            value={telefon}
+            href={`tel:${telefon.replace(/\s+/g, '')}`}
+          />
+        )}
+        {adresseFull && mapsHref && (
+          <KontaktZeile
+            label="Adresse"
+            value={adresseFull}
+            href={mapsHref}
+            externalHint="In Maps öffnen"
+          />
+        )}
       </div>
 
       <div className="space-y-2">
@@ -140,5 +183,35 @@ export default async function KundeDetailPage({
         })}
       </div>
     </div>
+  );
+}
+
+function KontaktZeile({
+  label,
+  value,
+  href,
+  externalHint,
+}: {
+  label: string;
+  value: string;
+  href: string;
+  externalHint?: string;
+}) {
+  const istExtern = href.startsWith('http');
+  return (
+    <a
+      href={href}
+      target={istExtern ? '_blank' : undefined}
+      rel={istExtern ? 'noopener noreferrer' : undefined}
+      className="flex flex-col gap-0.5 rounded-md border border-input bg-muted/20 px-3 py-2 text-sm transition-colors hover:bg-muted/40 hover:border-foreground/20"
+    >
+      <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+        {label}
+      </span>
+      <span className="text-foreground break-all">{value}</span>
+      {externalHint && (
+        <span className="text-[11px] text-muted-foreground">{externalHint} →</span>
+      )}
+    </a>
   );
 }
