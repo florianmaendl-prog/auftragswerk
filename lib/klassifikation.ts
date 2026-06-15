@@ -2,6 +2,7 @@
  * Klassifikation eingehender Anfragen via Claude Haiku
  */
 
+import { jsonrepair } from 'jsonrepair';
 import { callClaude } from '@/lib/claude';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -188,7 +189,8 @@ WICHTIG:
 - gewerk_match, wert_indikator, kunde_typ, dringlichkeit NUR bei kategorie="kundenanfrage", sonst null
 - confidence zwischen 0.0 und 1.0
 - Keine Floskeln, sei präzise und nüchtern
-- Bei Werbung: zusammenfassung kurz halten ("Newsletter zu X", "Werbung für Y")`;
+- Bei Werbung: zusammenfassung kurz halten ("Newsletter zu X", "Werbung für Y")
+- JSON-STRING-REGEL: in allen Text-Werten (zusammenfassung, empfohlene_aktion etc.) für Zitate AUSSCHLIESSLICH die typografischen deutschen Anführungszeichen „..." oder Apostrophe verwenden – NIEMALS gerade ASCII-Quotes ", die brechen den JSON-String. Falls du wirklich eine ASCII-Quote brauchst: als \" escapen.`;
 }
 
 /**
@@ -231,28 +233,40 @@ ${mailText}`;
     return { success: false, error: result.error };
   }
 
-  // JSON parsen
+  // JSON parsen mit Fallback auf jsonrepair.
+  // Haiku patzt manchmal bei deutschen Anführungszeichen in String-Werten
+  // (z.B. "...Reihe „Von Hand" von HERO..." – das schließende " bricht den
+  // JSON-String). jsonrepair fixt das automatisch, ohne erneuten KI-Call.
   let klassifikation: KlassifikationResult;
+  // Falls Claude doch mal mit ```json wrappt, säubern
+  const cleanText = result.text
+    .replace(/^```json\s*/i, '')
+    .replace(/```\s*$/, '')
+    .trim();
   try {
-    // Falls Claude doch mal mit ```json wrappt, säubern
-    const cleanText = result.text
-      .replace(/^```json\s*/i, '')
-      .replace(/```\s*$/, '')
-      .trim();
     klassifikation = JSON.parse(cleanText);
-  } catch (err: unknown) {
-    const errorMsg = `JSON Parse Fehler: ${err instanceof Error ? err.message : 'unknown'}`;
-    console.error(errorMsg, 'Response war:', result.text);
+  } catch (firstErr) {
+    try {
+      // jsonrepair behebt: unescaped quotes, trailing commas, missing braces,
+      // single quotes, fehlende quote-Pairs – alles typische LLM-Output-Pannen
+      klassifikation = JSON.parse(jsonrepair(cleanText));
+      console.warn(
+        `Klassifikations-JSON via jsonrepair gerettet (anfrage=${anfrage.id})`
+      );
+    } catch (err: unknown) {
+      const errorMsg = `JSON Parse Fehler (auch nach Repair): ${err instanceof Error ? err.message : 'unknown'}, ursprünglich: ${firstErr instanceof Error ? firstErr.message : 'unknown'}`;
+      console.error(errorMsg, 'Response war:', result.text);
 
-    await supabaseAdmin.from('processing_errors').insert({
-      betrieb_id: betrieb.id,
-      anfrage_id: anfrage.id,
-      schritt: 'klassifikation',
-      fehler_text: errorMsg,
-      fehler_details: { claude_response: result.text },
-    });
+      await supabaseAdmin.from('processing_errors').insert({
+        betrieb_id: betrieb.id,
+        anfrage_id: anfrage.id,
+        schritt: 'klassifikation',
+        fehler_text: errorMsg,
+        fehler_details: { claude_response: result.text },
+      });
 
-    return { success: false, error: errorMsg };
+      return { success: false, error: errorMsg };
+    }
   }
 
   // In 'analysen' speichern
