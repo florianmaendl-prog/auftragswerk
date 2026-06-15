@@ -178,27 +178,15 @@ export function EmailKontoCard({
                     automatisch von den Termin-Vorschlägen ausgeblendet.
                   </p>
                 )}
+              {verbunden.provider === 'gmail' &&
+                !verbunden.conn.calendar_sync_aktiv && (
+                  <p className="text-xs text-green-800 mt-1">
+                    Tipp: unter „Kalender" kannst du zusätzlich deinen
+                    Google-Kalender verbinden, damit belegte Zeiten
+                    automatisch ausgeblendet werden.
+                  </p>
+                )}
             </div>
-
-            {verbunden.provider === 'gmail' &&
-              !verbunden.conn.calendar_sync_aktiv && (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-2">
-                  <p className="font-medium">
-                    Google-Kalender-Sync verfügbar
-                  </p>
-                  <p>
-                    Lass Auftragswerk deinen Google-Kalender lesen, damit
-                    belegte Zeiten automatisch von den Termin-Vorschlägen
-                    ausgeblendet werden. Nur Lese-Zugriff – wir tragen
-                    nichts in deinen Kalender ein.
-                  </p>
-                  <Button asChild size="sm" variant="outline">
-                    <a href="/api/auth/google/start">
-                      Kalender-Zugriff freigeben
-                    </a>
-                  </Button>
-                </div>
-              )}
 
             <div className="rounded-md border border-input bg-muted/30 p-3 text-xs text-foreground/80 space-y-1">
               <p className="font-medium text-foreground">

@@ -66,7 +66,7 @@ export default async function KalenderPage({
 
   const supabase = await createClient();
 
-  const [regelnRes, sperrenRes, termineRes] = await Promise.all([
+  const [regelnRes, sperrenRes, termineRes, gmailConnRes] = await Promise.all([
     supabase
       .from('verfuegbarkeit_regel')
       .select('id, wochentag, start_uhrzeit, ende_uhrzeit, aktiv')
@@ -85,11 +85,21 @@ export default async function KalenderPage({
       .neq('status', 'abgesagt')
       .gte('datum', monday.toISOString())
       .lt('datum', sundayExclusive.toISOString()),
+    supabase
+      .from('gmail_connections')
+      .select('google_email, status, calendar_sync_aktiv, calendar_letzter_sync')
+      .maybeSingle(),
   ]);
 
   const regeln = (regelnRes.data as Regel[]) || [];
   const sperren = (sperrenRes.data as Sperre[]) || [];
   const termineRaw = (termineRes.data as TerminRow[]) || [];
+  const gmailConn = gmailConnRes.data as {
+    google_email: string;
+    status: string;
+    calendar_sync_aktiv: boolean | null;
+    calendar_letzter_sync: string | null;
+  } | null;
 
   // Termine in flache Struktur für die Client-Grid-Komponente
   const termineFuerGrid = termineRaw.map((t) => ({
@@ -104,6 +114,9 @@ export default async function KalenderPage({
   }));
 
 
+  const istGmailVerbunden = gmailConn?.status === 'aktiv';
+  const istSyncAktiv = !!gmailConn?.calendar_sync_aktiv;
+
   return (
     <div className="container mx-auto py-6 sm:py-8 px-4 sm:px-6 max-w-7xl">
       <div className="mb-6">
@@ -115,6 +128,46 @@ export default async function KalenderPage({
           KI bei neuen Anfragen automatisch als Aufmaß-Termin vor.
         </p>
       </div>
+
+      {istGmailVerbunden && !istSyncAktiv && (
+        <div className="mb-5 rounded-md border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1">
+            <p className="font-medium text-amber-900 text-sm">
+              Google-Kalender mit Auftragswerk verbinden
+            </p>
+            <p className="text-xs text-amber-900 mt-1">
+              Wenn du im Google-Kalender schon einen Termin hast, blockt
+              Auftragswerk die Zeit automatisch – die KI schlägt dem Kunden
+              dann nichts vor, wo du eh nicht kannst. Nur Lese-Zugriff, wir
+              tragen nie was in deinen Kalender ein.
+            </p>
+          </div>
+          <a
+            href="/api/auth/google/start"
+            className="inline-flex items-center justify-center min-h-11 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 whitespace-nowrap"
+          >
+            Jetzt freigeben
+          </a>
+        </div>
+      )}
+
+      {istSyncAktiv && (
+        <div className="mb-5 rounded-md border border-green-200 bg-green-50 p-3 text-xs text-green-900">
+          <span className="font-medium">Google-Kalender-Sync aktiv</span>
+          {gmailConn?.calendar_letzter_sync && (
+            <>
+              {' · '}
+              <span className="text-green-800">
+                zuletzt aktualisiert:{' '}
+                {new Date(gmailConn.calendar_letzter_sync).toLocaleString(
+                  'de-DE',
+                  { timeZone: 'Europe/Berlin' }
+                )}
+              </span>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="order-2 sm:order-1 flex items-center justify-between sm:justify-start gap-4">
