@@ -41,6 +41,11 @@ type EditorState = {
   angebotsnummer: string;
   gueltig_bis: string;
   notiz_intern: string;
+  empfaenger_name: string;
+  empfaenger_firma: string;
+  empfaenger_email: string;
+  empfaenger_adresse: string;
+  empfaenger_plz: string;
 };
 
 const EINHEITEN = ['Stk', 'm', 'm²', 'm³', 'h', 'pauschal'];
@@ -59,13 +64,9 @@ function formatEuro(n: number): string {
 export function AngebotEditor({
   id,
   initial,
-  empfaengerEmail,
-  empfaengerName,
 }: {
   id: string;
   initial: EditorState;
-  empfaengerEmail: string | null;
-  empfaengerName: string | null;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -185,6 +186,86 @@ export function AngebotEditor({
 
   return (
     <div className="space-y-4">
+      {/* Empfänger */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Empfänger</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">
+                Name
+              </label>
+              <Input
+                value={state.empfaenger_name}
+                onChange={(e) =>
+                  setState({ ...state, empfaenger_name: e.target.value })
+                }
+                placeholder="z.B. Max Schmidt"
+                maxLength={200}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">
+                Firma (optional)
+              </label>
+              <Input
+                value={state.empfaenger_firma}
+                onChange={(e) =>
+                  setState({ ...state, empfaenger_firma: e.target.value })
+                }
+                placeholder="z.B. Schmidt Bau GmbH"
+                maxLength={200}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">
+              E-Mail
+              <span className="text-muted-foreground/70"> – pflicht für Versand</span>
+            </label>
+            <Input
+              type="email"
+              value={state.empfaenger_email}
+              onChange={(e) =>
+                setState({ ...state, empfaenger_email: e.target.value })
+              }
+              placeholder="kunde@beispiel.de"
+              maxLength={200}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="text-xs text-muted-foreground mb-1 block">
+                Adresse
+              </label>
+              <Input
+                value={state.empfaenger_adresse}
+                onChange={(e) =>
+                  setState({ ...state, empfaenger_adresse: e.target.value })
+                }
+                placeholder="Straße + Nr."
+                maxLength={200}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">
+                PLZ + Ort
+              </label>
+              <Input
+                value={state.empfaenger_plz}
+                onChange={(e) =>
+                  setState({ ...state, empfaenger_plz: e.target.value })
+                }
+                placeholder="12345 Musterstadt"
+                maxLength={100}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Kopf-Daten */}
       <Card>
         <CardHeader>
@@ -541,7 +622,7 @@ export function AngebotEditor({
               {state.status === 'entwurf' && (
                 <SendenModal
                   id={id}
-                  empfaengerEmail={empfaengerEmail}
+                  empfaengerEmail={state.empfaenger_email || null}
                   defaultBetreff={
                     state.titel
                       ? `Angebot: ${state.titel}`
@@ -550,8 +631,11 @@ export function AngebotEditor({
                       : 'Angebot'
                   }
                   defaultBody={[
-                    empfaengerName
-                      ? `Hallo ${empfaengerName.split(' ').slice(-1)[0] || empfaengerName},`
+                    state.empfaenger_name
+                      ? `Hallo ${
+                          state.empfaenger_name.split(' ').slice(-1)[0] ||
+                          state.empfaenger_name
+                        },`
                       : 'Hallo,',
                     '',
                     state.einleitung ||

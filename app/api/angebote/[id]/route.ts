@@ -26,6 +26,11 @@ const ERLAUBT = new Set([
   'gueltig_bis',
   'notiz_intern',
   'variante',
+  'empfaenger_name',
+  'empfaenger_firma',
+  'empfaenger_email',
+  'empfaenger_adresse',
+  'empfaenger_plz',
 ]);
 
 const GUELTIGE_STATUS = new Set(['entwurf', 'versendet', 'angenommen', 'abgelehnt']);

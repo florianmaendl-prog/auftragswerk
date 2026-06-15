@@ -19,6 +19,11 @@ type AngebotRow = {
   gueltig_bis: string | null;
   notiz_intern: string | null;
   variante: string;
+  empfaenger_name: string | null;
+  empfaenger_firma: string | null;
+  empfaenger_email: string | null;
+  empfaenger_adresse: string | null;
+  empfaenger_plz: string | null;
   anfragen: { von_name: string | null; von_email: string; betreff: string | null } | null;
 };
 
@@ -36,6 +41,8 @@ export default async function AngebotDetail({
       `id, anfrage_id, titel, einleitung, positionen, schlusstext,
        summe_netto, mwst_satz, summe_brutto, status, angebotsnummer,
        gueltig_bis, notiz_intern, variante,
+       empfaenger_name, empfaenger_firma, empfaenger_email,
+       empfaenger_adresse, empfaenger_plz,
        anfragen (von_name, von_email, betreff)`
     )
     .eq('id', id)
@@ -68,8 +75,6 @@ export default async function AngebotDetail({
 
       <AngebotEditor
         id={angebot.id}
-        empfaengerEmail={angebot.anfragen?.von_email ?? null}
-        empfaengerName={angebot.anfragen?.von_name ?? null}
         initial={{
           titel: angebot.titel ?? '',
           einleitung: angebot.einleitung ?? '',
@@ -82,6 +87,11 @@ export default async function AngebotDetail({
           angebotsnummer: angebot.angebotsnummer ?? '',
           gueltig_bis: angebot.gueltig_bis ?? '',
           notiz_intern: angebot.notiz_intern ?? '',
+          empfaenger_name: angebot.empfaenger_name ?? '',
+          empfaenger_firma: angebot.empfaenger_firma ?? '',
+          empfaenger_email: angebot.empfaenger_email ?? '',
+          empfaenger_adresse: angebot.empfaenger_adresse ?? '',
+          empfaenger_plz: angebot.empfaenger_plz ?? '',
         }}
       />
     </div>

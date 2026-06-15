@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase-server';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/brand/empty-state';
 import { File02Icon } from '@hugeicons/core-free-icons';
+import { NeuesAngebotButton } from './neues-angebot-button';
 
 type AngebotRow = {
   id: string;
@@ -15,6 +16,9 @@ type AngebotRow = {
   gueltig_bis: string | null;
   updated_at: string;
   anfrage_id: string | null;
+  empfaenger_name: string | null;
+  empfaenger_email: string | null;
+  empfaenger_firma: string | null;
   anfragen: { von_name: string | null; von_email: string; betreff: string | null } | null;
 };
 
@@ -58,6 +62,7 @@ export default async function AngeboteListe() {
     .select(
       `id, titel, status, summe_netto, summe_brutto, angebotsnummer,
        versendet_am, gueltig_bis, updated_at, anfrage_id,
+       empfaenger_name, empfaenger_email, empfaenger_firma,
        anfragen (von_name, von_email, betreff)`
     )
     .order('updated_at', { ascending: false })
@@ -67,14 +72,17 @@ export default async function AngeboteListe() {
 
   return (
     <div className="container mx-auto py-6 sm:py-8 px-4 sm:px-6 max-w-5xl">
-      <div className="mb-6">
-        <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1">
-          Angebote
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          Aus Anfragen automatisch erstellte Angebots-Entwürfe. Jeden Preis
-          setzt du frei – die KI macht nur Vorschläge.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1">
+            Angebote
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Aus Anfragen automatisch erstellte Entwürfe – oder frei aus dem
+            Stand. Jeden Preis setzt du selbst.
+          </p>
+        </div>
+        <NeuesAngebotButton />
       </div>
 
       {rows.length === 0 ? (
@@ -82,13 +90,18 @@ export default async function AngeboteListe() {
           icon={File02Icon}
           tone="default"
           title="Noch keine Angebote"
-          description={'Öffne eine Anfrage und klick „Angebot erstellen", dann baut die KI dir den Vorschlag.'}
+          description={'Klick oben rechts auf „Neues Angebot" für ein leeres Angebot – oder öffne eine Anfrage und nutz „Angebot erstellen" für einen KI-Vorschlag.'}
         />
       ) : (
         <div className="space-y-2">
           {rows.map((a) => {
             const kunde =
-              a.anfragen?.von_name || a.anfragen?.von_email || '(Kunde unbekannt)';
+              a.empfaenger_name ||
+              a.empfaenger_firma ||
+              a.empfaenger_email ||
+              a.anfragen?.von_name ||
+              a.anfragen?.von_email ||
+              '(noch kein Empfänger)';
             return (
               <Link
                 key={a.id}

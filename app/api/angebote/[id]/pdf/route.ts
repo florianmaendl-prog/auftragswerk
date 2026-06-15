@@ -36,6 +36,8 @@ export async function GET(
       `id, anfrage_id, titel, einleitung, positionen, schlusstext,
        summe_netto, mwst_satz, summe_brutto, angebotsnummer, gueltig_bis,
        betrieb_id, created_at,
+       empfaenger_name, empfaenger_firma, empfaenger_email,
+       empfaenger_adresse, empfaenger_plz,
        anfragen (von_name, von_email)`
     )
     .eq('id', id)
@@ -63,13 +65,16 @@ export async function GET(
     logoUrl = signed?.signedUrl ?? null;
   }
 
-  // Kunden-Daten: erst kunden-Tabelle, sonst aus Anfrage
+  // Empfänger: am Angebot direkt gespeichert hat Vorrang (Owner kann
+  // im Editor frei editieren, auch für Angebote ohne Anfrage). Fallback
+  // nur wenn am Angebot leer: kunden-Tabelle → Anfrage.
   type AnfrageJoin = { von_name: string | null; von_email: string } | null;
   const anfrageRaw = angebot.anfragen as unknown;
   const anfrageJoined: AnfrageJoin = Array.isArray(anfrageRaw)
     ? ((anfrageRaw as AnfrageJoin[])[0] ?? null)
     : (anfrageRaw as AnfrageJoin);
-  let kunde: AngebotPdfProps['kunde'] = {
+
+  let fallbackKunde: AngebotPdfProps['kunde'] = {
     name: anfrageJoined?.von_name ?? null,
     email: anfrageJoined?.von_email ?? null,
   };
@@ -81,8 +86,8 @@ export async function GET(
       .eq('email', anfrageJoined.von_email)
       .maybeSingle();
     if (kundeRow) {
-      kunde = {
-        name: kundeRow.name || kunde.name,
+      fallbackKunde = {
+        name: kundeRow.name || fallbackKunde.name,
         firma: kundeRow.firma,
         adresse: kundeRow.adresse,
         plz: kundeRow.plz,
@@ -90,6 +95,14 @@ export async function GET(
       };
     }
   }
+
+  const kunde: AngebotPdfProps['kunde'] = {
+    name: angebot.empfaenger_name || fallbackKunde.name,
+    firma: angebot.empfaenger_firma ?? fallbackKunde.firma ?? null,
+    adresse: angebot.empfaenger_adresse ?? fallbackKunde.adresse ?? null,
+    plz: angebot.empfaenger_plz ?? fallbackKunde.plz ?? null,
+    email: angebot.empfaenger_email || fallbackKunde.email,
+  };
 
   const props: AngebotPdfProps = {
     betrieb: {

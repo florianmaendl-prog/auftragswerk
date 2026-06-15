@@ -57,6 +57,8 @@ export async function POST(
       `id, anfrage_id, titel, einleitung, positionen, schlusstext,
        summe_netto, mwst_satz, summe_brutto, angebotsnummer, gueltig_bis,
        betrieb_id, status, created_at,
+       empfaenger_name, empfaenger_firma, empfaenger_email,
+       empfaenger_adresse, empfaenger_plz,
        anfragen (von_name, von_email)`
     )
     .eq('id', id)
@@ -71,9 +73,18 @@ export async function POST(
     ? ((anfrageRaw as AnfrageJoin[])[0] ?? null)
     : (anfrageRaw as AnfrageJoin);
 
-  if (!anfrageJoined?.von_email) {
+  // Empfänger am Angebot hat Vorrang, fällt zurück auf Anfrage
+  const empfaengerEmail = (
+    angebot.empfaenger_email ||
+    anfrageJoined?.von_email ||
+    ''
+  ).trim();
+  const empfaengerName =
+    angebot.empfaenger_name || anfrageJoined?.von_name || null;
+
+  if (!empfaengerEmail) {
     return NextResponse.json(
-      { error: 'Keine Empfänger-Email gefunden (keine Anfrage am Angebot)' },
+      { error: 'Keine Empfänger-Email am Angebot gesetzt' },
       { status: 400 }
     );
   }
@@ -115,12 +126,14 @@ export async function POST(
     logoUrl = signed?.signedUrl ?? null;
   }
 
-  // Kunden-Daten aus kunden-Tabelle wenn vorhanden
+  // Kunden-Zeile in kunden-Tabelle (für Archivierung der PDF). Lookup
+  // läuft auf die finale Empfänger-Email am Angebot, nicht auf
+  // anfragen.von_email – Owner darf Empfänger frei umstellen.
   const { data: kundeRow } = await supabaseAdmin
     .from('kunden')
     .select('id, name, firma, adresse, plz')
     .eq('betrieb_id', angebot.betrieb_id)
-    .eq('email', anfrageJoined.von_email)
+    .eq('email', empfaengerEmail)
     .maybeSingle();
 
   const pdfProps: AngebotPdfProps = {
@@ -133,11 +146,12 @@ export async function POST(
       logo_url: logoUrl,
     },
     kunde: {
-      name: kundeRow?.name ?? anfrageJoined.von_name ?? null,
-      firma: kundeRow?.firma ?? null,
-      adresse: kundeRow?.adresse ?? null,
-      plz: kundeRow?.plz ?? null,
-      email: anfrageJoined.von_email,
+      name:
+        angebot.empfaenger_name || kundeRow?.name || empfaengerName || null,
+      firma: angebot.empfaenger_firma ?? kundeRow?.firma ?? null,
+      adresse: angebot.empfaenger_adresse ?? kundeRow?.adresse ?? null,
+      plz: angebot.empfaenger_plz ?? kundeRow?.plz ?? null,
+      email: empfaengerEmail,
     },
     angebot: {
       angebotsnummer: angebot.angebotsnummer ?? null,
@@ -222,10 +236,13 @@ export async function POST(
   let sendOk = false;
   let sendError: string | null = null;
 
+  const toName =
+    angebot.empfaenger_name || kundeRow?.name || empfaengerName || undefined;
+
   if (useMicrosoft) {
     const r = await sendeViaMicrosoft(angebot.betrieb_id, {
-      to: anfrageJoined.von_email,
-      toName: kundeRow?.name ?? anfrageJoined.von_name ?? undefined,
+      to: empfaengerEmail,
+      toName,
       fromEmail,
       fromName,
       subject: betreff,
@@ -240,8 +257,8 @@ export async function POST(
     sendError = r.error ?? null;
   } else if (useGmail) {
     const r = await sendeViaGmail(angebot.betrieb_id, {
-      to: anfrageJoined.von_email,
-      toName: kundeRow?.name ?? anfrageJoined.von_name ?? undefined,
+      to: empfaengerEmail,
+      toName,
       fromEmail,
       fromName,
       subject: betreff,
@@ -256,8 +273,8 @@ export async function POST(
     sendError = r.error ?? null;
   } else {
     const r = await sendMail({
-      to: anfrageJoined.von_email,
-      toName: kundeRow?.name ?? anfrageJoined.von_name ?? undefined,
+      to: empfaengerEmail,
+      toName,
       fromEmail,
       fromName,
       subject: betreff,

@@ -10,14 +10,18 @@ import {
 /**
  * GET  /api/angebote                → Liste aller Angebote des Betriebs
  * POST /api/angebote                → neues Angebot anlegen
- *     Body: { anfrage_id?: string, ki_generieren?: boolean }
+ *     Body: {
+ *       anfrage_id?: string,
+ *       ki_generieren?: boolean,
+ *       empfaenger?: { name?, firma?, email?, adresse?, plz? }
+ *     }
  *
  * Wenn anfrage_id + ki_generieren=true: KI baut Vorschlag aus der
- * Kunden-Anfrage + den Bausteinen/Materialien des Betriebs. Owner
- * setzt danach im Editor jeden Preis frei und ändert was er braucht.
+ * Kunden-Anfrage + den Bausteinen/Materialien des Betriebs. Empfänger
+ * wird aus anfragen.von_email + kunden-Stammdaten vorbefüllt.
  *
- * Ohne ki_generieren: leeres Angebot anlegen, Owner baut Positionen
- * manuell.
+ * Ohne anfrage_id: leeres Angebot, Empfänger komplett frei (Telefon-
+ * Anfrage, Laufkundschaft). Owner baut Positionen manuell im Editor.
  */
 
 async function getBetriebId(): Promise<string | null> {
@@ -68,7 +72,8 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null);
   const anfrageId: string | null = body?.anfrage_id ?? null;
-  const kiGenerieren: boolean = body?.ki_generieren !== false;
+  // KI-Generierung nur sinnvoll wenn eine Anfrage als Kontext da ist
+  const kiGenerieren: boolean = anfrageId ? body?.ki_generieren !== false : false;
 
   // Wenn KI-Generierung gewünscht UND eine Anfrage da: alles parallel laden
   let initial: {
@@ -86,6 +91,53 @@ export async function POST(req: NextRequest) {
     summe_netto: 0,
     summe_brutto: 0,
   };
+
+  // Empfänger – default leer, optional aus Body übersteuert,
+  // bei vorhandener Anfrage aus Anfrage + kunden-Stammdaten vorbefüllt.
+  const empfaengerBody = (body?.empfaenger ?? {}) as {
+    name?: string;
+    firma?: string;
+    email?: string;
+    adresse?: string;
+    plz?: string;
+  };
+  const empfaenger: {
+    name: string | null;
+    firma: string | null;
+    email: string | null;
+    adresse: string | null;
+    plz: string | null;
+  } = {
+    name: empfaengerBody.name?.trim() || null,
+    firma: empfaengerBody.firma?.trim() || null,
+    email: empfaengerBody.email?.trim() || null,
+    adresse: empfaengerBody.adresse?.trim() || null,
+    plz: empfaengerBody.plz?.trim() || null,
+  };
+
+  if (anfrageId) {
+    // Anfrage + ggf. kunden-Zeile holen, um Empfänger sinnvoll vorzubefüllen
+    const { data: anfrageRow } = await supabaseAdmin
+      .from('anfragen')
+      .select('von_name, von_email')
+      .eq('id', anfrageId)
+      .eq('betrieb_id', betriebId)
+      .single();
+    if (anfrageRow?.von_email) {
+      const { data: kundeRow } = await supabaseAdmin
+        .from('kunden')
+        .select('name, firma, adresse, plz')
+        .eq('betrieb_id', betriebId)
+        .eq('email', anfrageRow.von_email)
+        .maybeSingle();
+      empfaenger.email = empfaenger.email || anfrageRow.von_email;
+      empfaenger.name =
+        empfaenger.name || kundeRow?.name || anfrageRow.von_name || null;
+      empfaenger.firma = empfaenger.firma || kundeRow?.firma || null;
+      empfaenger.adresse = empfaenger.adresse || kundeRow?.adresse || null;
+      empfaenger.plz = empfaenger.plz || kundeRow?.plz || null;
+    }
+  }
 
   if (anfrageId && kiGenerieren) {
     const [{ data: anfrage }, { data: betrieb }, { data: bausteine }, { data: materialien }] =
@@ -164,6 +216,11 @@ export async function POST(req: NextRequest) {
       summe_brutto: initial.summe_brutto,
       mwst_satz: 19,
       status: 'entwurf',
+      empfaenger_name: empfaenger.name,
+      empfaenger_firma: empfaenger.firma,
+      empfaenger_email: empfaenger.email,
+      empfaenger_adresse: empfaenger.adresse,
+      empfaenger_plz: empfaenger.plz,
     })
     .select('id')
     .single();
