@@ -8,6 +8,7 @@ const ERLAUBTE_FELDER = [
   'branche',
   'region',
   'mindestauftragswert',
+  'stundensatz',
   'was_wir_machen',
   'was_wir_nicht_machen',
   'wichtige_kunden',
@@ -36,7 +37,7 @@ export async function GET(
   const { data, error } = await supabase
     .from('betriebe')
     .select(
-      'id, name, inhaber, branche, inbound_email, region, mindestauftragswert, was_wir_machen, was_wir_nicht_machen, wichtige_kunden, signatur, ton_beispiele, vermeiden, gebiete'
+      'id, name, inhaber, branche, inbound_email, region, mindestauftragswert, stundensatz, was_wir_machen, was_wir_nicht_machen, wichtige_kunden, signatur, ton_beispiele, vermeiden, gebiete'
     )
     .eq('id', id)
     .single();
@@ -98,6 +99,22 @@ export async function PATCH(
     }
 
     // Number-Feld
+    if (feld === 'stundensatz') {
+      if (wert === null || wert === '') {
+        update[feld] = null;
+      } else {
+        const num = Number(wert);
+        if (!Number.isFinite(num) || num < 0) {
+          return NextResponse.json(
+            { error: 'stundensatz muss eine positive Zahl sein' },
+            { status: 400 }
+          );
+        }
+        update[feld] = num;
+      }
+      continue;
+    }
+
     if (feld === 'mindestauftragswert') {
       if (wert === null || wert === '') {
         update[feld] = null;

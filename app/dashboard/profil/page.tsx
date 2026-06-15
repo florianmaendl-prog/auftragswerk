@@ -4,6 +4,8 @@ import { ProfilForm } from './profil-form';
 import { EmailKontoCard } from './email-konto-card';
 import { MailEmpfangCard } from './mail-empfang-card';
 import { TagRegelnCard } from './tag-regeln-card';
+import { BausteineCard } from './bausteine-card';
+import { MaterialpreiseCard } from './materialpreise-card';
 
 export default async function ProfilPage() {
   const supabase = await createClient();
@@ -42,7 +44,7 @@ export default async function ProfilPage() {
     supabase
       .from('betriebe')
       .select(
-        'id, name, inhaber, branche, inbound_email, region, mindestauftragswert, was_wir_machen, was_wir_nicht_machen, wichtige_kunden, signatur, ton_beispiele, vermeiden, gebiete'
+        'id, name, inhaber, branche, inbound_email, region, mindestauftragswert, stundensatz, was_wir_machen, was_wir_nicht_machen, wichtige_kunden, signatur, ton_beispiele, vermeiden, gebiete'
       )
       .eq('id', profile.betrieb_id)
       .single(),
@@ -121,6 +123,7 @@ export default async function ProfilPage() {
           inbound_email: betrieb.inbound_email || '',
           region: betrieb.region || '',
           mindestauftragswert: betrieb.mindestauftragswert,
+          stundensatz: betrieb.stundensatz,
           was_wir_machen: betrieb.was_wir_machen || [],
           was_wir_nicht_machen: betrieb.was_wir_nicht_machen || [],
           wichtige_kunden: betrieb.wichtige_kunden || [],
@@ -130,6 +133,11 @@ export default async function ProfilPage() {
           gebiete: Array.isArray(betrieb.gebiete) ? betrieb.gebiete : [],
         }}
       />
+
+      <div className="mt-6 space-y-4">
+        <BausteineCard />
+        <MaterialpreiseCard />
+      </div>
     </div>
   );
 }

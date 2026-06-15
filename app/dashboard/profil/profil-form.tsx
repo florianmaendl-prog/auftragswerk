@@ -25,6 +25,7 @@ type ProfilData = {
   inbound_email: string;
   region: string;
   mindestauftragswert: number | null;
+  stundensatz: number | null;
   was_wir_machen: string[];
   was_wir_nicht_machen: string[];
   wichtige_kunden: string[];
@@ -184,6 +185,29 @@ export function ProfilForm({
             <p className="text-xs text-muted-foreground mt-1">
               Gilt überall – wenn du unten Regionen einträgst, gewinnt der
               Wert pro Region.
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="stundensatz">Stundensatz (€)</Label>
+            <Input
+              id="stundensatz"
+              type="number"
+              min={0}
+              step={1}
+              value={data.stundensatz ?? ''}
+              onChange={(e) =>
+                setData({
+                  ...data,
+                  stundensatz:
+                    e.target.value === '' ? null : Number(e.target.value),
+                })
+              }
+              placeholder="z.B. 85"
+              className="mt-1.5"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Basis für die Arbeitszeit-Kalkulation in Angeboten (Säule 2).
             </p>
           </div>
         </CardContent>
