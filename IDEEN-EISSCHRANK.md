@@ -120,11 +120,18 @@ bauen.
 
 ### Signatur — Rich-Text + Logo
 - Heute: Plain-Text-Textarea
-- Wunsch: Fett/Größe/Spalten/Logo-Upload mit CID-Embedding
-- ~1-2 Tage Bauzeit (TipTap-Editor + HTML-Send-Pfad in lib/postmark/gmail
-  + Storage-Upload für Logo + CID-Embed)
-- HTML-Signaturen brechen oft (Mobile-Clients, Reply-Threads)
-- **Trigger:** mindestens 2 Pilots sagen „muss professioneller aussehen"
+- Wunsch: Fett/Größe/Spalten/Logo-Upload mit CID-Embedding (wie Outlook
+  „Logo einfach drunter"). Owner-Wunsch konkret: „kann man sein Logo in
+  die Signatur packen wie bei Outlook drunter?"
+- Bauzeit: HTML-Send-Pfad in ALLEN drei Versand-Routes umstellen
+  (lib/postmark, lib/gmail, lib/microsoft) + Storage-Upload für Logo
+  + CID-Embed (multipart/related) + Mobile-Test über 5+ Mail-Clients
+  (HTML-Signaturen brechen notorisch in Reply-Threads)
+- **Trigger-Status:**
+  - Florian (Owner) hat es selbst angefragt — 1 Stimme
+  - Wartet auf Max-Bestätigung als 2. Stimme („sieht 90er aus" o.ä.)
+- **Trigger zum Bau:** mindestens 1 Pilot zusätzlich zu Florian sagt
+  explizit „muss professioneller aussehen / Logo fehlt"
 
 ### Custom-Ordner / Custom-Tags
 - Owner-definierte Tags: „Kammer", „Lieferanten", „Persönlich-wichtig"
