@@ -9,6 +9,7 @@ import { DetailActions } from './detail-actions';
 import { PasstDochButton } from './passt-doch-button';
 import { NachfassButton } from './nachfass-button';
 import { NotizEditor } from './notiz-editor';
+import { TagEditor } from './tag-editor';
 import { ReplyEditor } from './reply-editor';
 import { TerminCard, type Termin } from './termin-card';
 import { KategorieBadge } from '@/components/brand/kategorie-badge';
@@ -625,6 +626,16 @@ export default async function AnfrageDetailPage({
           <NotizEditor
             anfrageId={anfrage.id}
             initialNotiz={(anfrage as { notiz?: string | null }).notiz ?? null}
+          />
+
+          {/* Owner-Tags (Welle P3): manuell setzen + Auto-Tags via tag_regeln */}
+          <TagEditor
+            anfrageId={anfrage.id}
+            initialTags={
+              Array.isArray((anfrage as { tags?: string[] | null }).tags)
+                ? ((anfrage as { tags?: string[] | null }).tags as string[])
+                : []
+            }
           />
 
           {/* Loading-Hint: Anfrage gerade eingegangen, KI arbeitet aber noch

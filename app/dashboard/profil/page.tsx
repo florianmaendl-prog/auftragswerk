@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { ProfilForm } from './profil-form';
 import { EmailKontoCard } from './email-konto-card';
 import { MailEmpfangCard } from './mail-empfang-card';
+import { TagRegelnCard } from './tag-regeln-card';
 
 export default async function ProfilPage() {
   const supabase = await createClient();
@@ -106,6 +107,7 @@ export default async function ProfilPage() {
           }
         />
         <MailEmpfangCard inboundEmail={betrieb.inbound_email || null} />
+        <TagRegelnCard />
       </div>
 
       <ProfilForm

@@ -18,6 +18,7 @@ type AnfrageWithJoins = {
   von_email: string;
   status: string;
   created_at: string;
+  tags: string[] | null;
   analysen: Array<{
     kategorie: string;
     gewerk_match: string | null;
@@ -316,12 +317,13 @@ function confidenceBadge(confidence: number | null) {
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; q?: string }>;
+  searchParams: Promise<{ tab?: string; q?: string; tag?: string }>;
 }) {
   const params = await searchParams;
   const activeTabId = (TABS.find((t) => t.id === params.tab)?.id ?? 'freigabe') as TabId;
   const activeTab = TABS.find((t) => t.id === activeTabId)!;
   const suchterm = (params.q ?? '').trim().toLowerCase();
+  const aktiverTag = (params.tag ?? '').trim();
 
   const supabase = await createClient();
 
@@ -335,6 +337,7 @@ export default async function InboxPage({
       von_email,
       status,
       created_at,
+      tags,
       analysen (kategorie, gewerk_match, confidence),
       entwuerfe (id, status, versendet_am, was_edited)
     `
@@ -431,6 +434,11 @@ export default async function InboxPage({
         (a.von_email ?? '')
       ).toLowerCase();
       return hay.includes(suchterm);
+    })
+    .filter((a) => {
+      // Tag-Filter: wenn ?tag=X gesetzt, nur Anfragen mit diesem Tag
+      if (!aktiverTag) return true;
+      return (a.tags ?? []).includes(aktiverTag);
     });
 
   // Browser-Tab-Title-Counter: zählt nur Tabs die echte Owner-Arbeit sind
@@ -460,6 +468,27 @@ export default async function InboxPage({
       <div className="mb-5 max-w-md">
         <InboxSuche />
       </div>
+
+      {aktiverTag && (
+        <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/[0.04] px-3 py-2 text-sm">
+          <span className="text-muted-foreground">Gefiltert nach Tag:</span>
+          <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">
+            {aktiverTag}
+          </span>
+          <Link
+            href={(() => {
+              const sp = new URLSearchParams();
+              if (params.tab) sp.set('tab', params.tab);
+              if (params.q) sp.set('q', params.q);
+              const qs = sp.toString();
+              return qs ? `/dashboard?${qs}` : '/dashboard';
+            })()}
+            className="ml-auto text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+          >
+            Filter entfernen
+          </Link>
+        </div>
+      )}
 
       {/* AKTIVITÄTS-KARTE – nur Fakten, keine erfundenen Zeit-Schätzungen.
           Owner-Pushback Tag 20: "X Stunden gespart" wäre Bullshit-Kalkulation,
@@ -689,6 +718,22 @@ export default async function InboxPage({
                             >
                               wartet seit {stale} Tagen
                             </span>
+                          </>
+                        )}
+                        {(anfrage.tags ?? []).length > 0 && (
+                          <>
+                            <span>·</span>
+                            <div className="inline-flex flex-wrap gap-1">
+                              {(anfrage.tags ?? []).map((t) => (
+                                <span
+                                  key={t}
+                                  className="inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[11px] font-medium"
+                                  title={`Tag: ${t}`}
+                                >
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
                           </>
                         )}
                       </div>

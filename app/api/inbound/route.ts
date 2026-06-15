@@ -5,6 +5,7 @@ import { klassifiziereAnfrage } from '@/lib/klassifikation';
 import { generiereEntwurf, type ThreadNachricht } from '@/lib/entwurf';
 import { ladeAnhaengeFuerKI } from '@/lib/bilder';
 import { ladeKundenHistorie } from '@/lib/kunden-historie';
+import { getTagsForSender } from '@/lib/tags';
 import { speichereAnhang, verlinkeAnhang, type AnhangInput } from '@/lib/anhaenge';
 import { getFreieSlots } from '@/lib/verfuegbarkeit';
 
@@ -481,6 +482,26 @@ export async function POST(req: NextRequest) {
     console.log(
       `✓ Klassifikation: ${klassRes.klassifikation?.kategorie} (Reply: ${istReply})`
     );
+
+    // SCHRITT 2.5: Tag-Auto-Setting via tag_regeln (Welle P3).
+    //   Owner kann Sender-Pattern → Tag-Regeln pflegen. Nach Klassifikation
+    //   matchen wir den Sender und tragen passende Tags in die Anfrage ein.
+    //   Fail-safe: bei Fehler nur loggen, kein Block der Pipeline.
+    try {
+      const autoTags = await getTagsForSender(betrieb.id, vonEmail);
+      if (autoTags.length > 0) {
+        await supabaseAdmin
+          .from('anfragen')
+          .update({ tags: autoTags })
+          .eq('id', anfrageId);
+        console.log(`🏷️  Tags auto-gesetzt: ${autoTags.join(', ')}`);
+      }
+    } catch (err) {
+      console.warn(
+        'Tag-Auto-Set fehlgeschlagen (nicht-blockend):',
+        err instanceof Error ? err.message : err
+      );
+    }
 
     // SCHRITT 3: Premium-Routing
     //
