@@ -97,7 +97,7 @@ export function GmailConnectionCard({
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <HugeiconsIcon icon={MailIcon} size={18} strokeWidth={1.5} />
-          E-Mail-Konto
+          Gmail / Google Workspace
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
