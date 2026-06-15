@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase-server';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { KategorieBadge } from '@/components/brand/kategorie-badge';
+import { KundenNotiz } from './kunden-notiz';
+import { KundenDateien } from './kunden-dateien';
 
 type AnalyseRow = {
   kategorie: string | null;
@@ -26,6 +28,16 @@ type AnfrageRow = {
   analysen: AnalyseRow[] | null;
 };
 
+type KundenDatei = {
+  id: string;
+  dateiname: string;
+  content_type: string | null;
+  groesse_bytes: number | null;
+  quelle: 'inbound_anhang' | 'manuell_upload';
+  anfrage_id: string | null;
+  created_at: string;
+};
+
 function timeAgo(date: string): string {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
   if (seconds < 60) return 'gerade eben';
@@ -38,7 +50,6 @@ function timeAgo(date: string): string {
   return new Date(date).toLocaleDateString('de-DE');
 }
 
-
 export default async function KundeDetailPage({
   params,
 }: {
@@ -48,52 +59,81 @@ export default async function KundeDetailPage({
   const email = decodeURIComponent(emailParam);
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from('anfragen')
-    .select(
-      `id, betreff, von_name, status, created_at,
-       analysen (kategorie, zusammenfassung, gewerk_match, extrahierter_name, extrahierte_firma, extrahierte_telefon, extrahierte_adresse, extrahierte_plz, extrahierte_position, kunde_typ)`
-    )
-    .eq('von_email', email)
-    .is('geloescht_am', null)
-    .order('created_at', { ascending: false });
 
-  const alleRows = (data as AnfrageRow[]) || [];
+  // Mini-CRM-Kunde laden (Welle P5), parallel Anfragen-Liste für Historie
+  const [{ data: kundeData }, { data: anfragenData }] = await Promise.all([
+    supabase
+      .from('kunden')
+      .select(
+        'id, name, firma, position, telefon, adresse, plz, kunde_typ, notizen, created_at'
+      )
+      .eq('email', email)
+      .maybeSingle(),
+    supabase
+      .from('anfragen')
+      .select(
+        `id, betreff, von_name, status, created_at,
+         analysen (kategorie, zusammenfassung, gewerk_match, extrahierter_name, extrahierte_firma, extrahierte_telefon, extrahierte_adresse, extrahierte_plz, extrahierte_position, kunde_typ)`
+      )
+      .eq('von_email', email)
+      .is('geloescht_am', null)
+      .order('created_at', { ascending: false }),
+  ]);
 
-  // Nur Anfragen mit Kundenanfrage-Klassifikation zeigen – Werbe-/Rechnungs-
-  // Mails desselben Absenders gehören nicht in seine Kundenhistorie.
+  const alleRows = (anfragenData as AnfrageRow[]) || [];
+  // Nur Anfragen mit Kundenanfrage-Klassifikation – Werbe-/Rechnungs-
+  // Mails desselben Absenders gehören nicht in die Kundenhistorie.
   const rows = alleRows.filter((a) =>
     (a.analysen || []).some((an) => an.kategorie === 'kundenanfrage')
   );
 
-  if (rows.length === 0) {
+  // Wenn weder Kunden-Datensatz noch passende Anfragen → 404
+  if (!kundeData && rows.length === 0) {
     notFound();
   }
 
-  // Kontaktdaten "best-of" sammeln: pro Feld den jüngsten nicht-leeren Wert
-  // aus allen Kundenanfrage-Analysen. Sonst würde eine jüngere Mail ohne
-  // Signatur ältere, vollständigere Daten überschreiben.
+  // Daten konsolidieren: Mini-CRM-Eintrag hat Vorrang (Owner-Edits),
+  // Fallback auf "best-of" aus Analysen wenn das Feld leer ist.
   const kundenAnalysen = rows
     .flatMap((a) => a.analysen ?? [])
     .filter((an) => an.kategorie === 'kundenanfrage');
-  const erstesNichtLeer = <K extends keyof AnalyseRow>(feld: K) =>
+  const ausAnalyse = <K extends keyof AnalyseRow>(feld: K) =>
     kundenAnalysen.find((an) => an[feld] && String(an[feld]).trim().length > 0)?.[feld] ?? null;
 
   const displayName =
-    (erstesNichtLeer('extrahierter_name') as string | null) ||
+    kundeData?.name ||
+    (ausAnalyse('extrahierter_name') as string | null) ||
     rows[0]?.von_name ||
     email;
-  const firma = erstesNichtLeer('extrahierte_firma') as string | null;
-  const telefon = erstesNichtLeer('extrahierte_telefon') as string | null;
-  const adresse = erstesNichtLeer('extrahierte_adresse') as string | null;
-  const plz = erstesNichtLeer('extrahierte_plz') as string | null;
-  const position = erstesNichtLeer('extrahierte_position') as string | null;
-  const kundeTyp = erstesNichtLeer('kunde_typ') as string | null;
+  const firma =
+    kundeData?.firma || (ausAnalyse('extrahierte_firma') as string | null);
+  const telefon =
+    kundeData?.telefon || (ausAnalyse('extrahierte_telefon') as string | null);
+  const adresse =
+    kundeData?.adresse || (ausAnalyse('extrahierte_adresse') as string | null);
+  const plz = kundeData?.plz || (ausAnalyse('extrahierte_plz') as string | null);
+  const position =
+    kundeData?.position || (ausAnalyse('extrahierte_position') as string | null);
+  const kundeTyp =
+    kundeData?.kunde_typ || (ausAnalyse('kunde_typ') as string | null);
 
   const adresseFull = [adresse, plz].filter(Boolean).join(', ');
   const mapsHref = adresseFull
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(adresseFull)}`
     : null;
+
+  // Dateien am Kunden (nur wenn kunde_id vorhanden)
+  let dateien: KundenDatei[] = [];
+  if (kundeData?.id) {
+    const { data: dateienData } = await supabase
+      .from('kunden_dateien')
+      .select(
+        'id, dateiname, content_type, groesse_bytes, quelle, anfrage_id, created_at'
+      )
+      .eq('kunde_id', kundeData.id)
+      .order('created_at', { ascending: false });
+    dateien = (dateienData as KundenDatei[]) || [];
+  }
 
   return (
     <div className="container mx-auto py-6 px-4 sm:px-6 max-w-5xl">
@@ -125,9 +165,6 @@ export default async function KundeDetailPage({
         </div>
       </div>
 
-      {/* Kontaktdaten-Block – klickbar damit Owner direkt anrufen / Maps öffnen kann.
-          Alle Felder kommen aus der KI-Extraktion (jüngster nicht-leerer Wert pro
-          Feld). Mailto immer da (=Absender), Rest nur wenn vorhanden. */}
       <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <KontaktZeile label="E-Mail" value={email} href={`mailto:${email}`} />
         {telefon && (
@@ -147,15 +184,44 @@ export default async function KundeDetailPage({
         )}
       </div>
 
-      <div className="space-y-2">
-        {rows.map((a) => {
-          const analyse = a.analysen?.[0];
-          return (
-            <Link key={a.id} href={`/dashboard/anfragen/${a.id}`} className="block">
-              <Card className="hover:bg-accent/40 transition-colors">
-                <CardContent className="py-4 space-y-1">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        {kundeData?.id && (
+          <KundenNotiz
+            kundeId={kundeData.id}
+            initialNotiz={kundeData.notizen ?? null}
+          />
+        )}
+        {kundeData?.id && (
+          <KundenDateien kundeId={kundeData.id} initialDateien={dateien} />
+        )}
+        {!kundeData?.id && (
+          <Card className="lg:col-span-2 border-dashed">
+            <CardContent className="py-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Notizen + Dateien werden ab der nächsten eingehenden Mail
+                dieses Kunden verfügbar.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Anfragen-Historie</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {rows.map((a) => {
+            const analyse = a.analysen?.[0];
+            return (
+              <Link
+                key={a.id}
+                href={`/dashboard/anfragen/${a.id}`}
+                className="block"
+              >
+                <div className="rounded-md border border-input bg-background hover:bg-accent/40 transition-colors p-3 space-y-1">
                   <div className="flex items-center justify-between gap-4">
-                    <p className="font-medium truncate flex-1 min-w-0">
+                    <p className="font-medium truncate flex-1 min-w-0 text-sm">
                       {a.betreff || '(kein Betreff)'}
                     </p>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -176,12 +242,12 @@ export default async function KundeDetailPage({
                   <p className="text-xs text-muted-foreground">
                     Status: <span className="font-medium">{a.status}</span>
                   </p>
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })}
-      </div>
+                </div>
+              </Link>
+            );
+          })}
+        </CardContent>
+      </Card>
     </div>
   );
 }

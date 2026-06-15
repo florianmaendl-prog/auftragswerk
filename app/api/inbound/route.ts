@@ -6,6 +6,7 @@ import { generiereEntwurf, type ThreadNachricht } from '@/lib/entwurf';
 import { ladeAnhaengeFuerKI } from '@/lib/bilder';
 import { ladeKundenHistorie } from '@/lib/kunden-historie';
 import { getTagsForSender } from '@/lib/tags';
+import { syncKundeFromAnalyse, verlinkeAnhaengeZuKunde } from '@/lib/kunden-sync';
 import { speichereAnhang, verlinkeAnhang, type AnhangInput } from '@/lib/anhaenge';
 import { getFreieSlots } from '@/lib/verfuegbarkeit';
 
@@ -593,6 +594,39 @@ export async function POST(req: NextRequest) {
         entwurfStatus = 'fehlgeschlagen';
         neuerStatus = 'manuell_pruefen';
       } else {
+        // Mini-CRM-Sync (Welle P5): Kunde anlegen/ergänzen + Inbound-
+        // Anhänge an den Kunden verlinken. Nur für Kundenanfragen, sonst
+        // würden Newsletter/Werbe-Sender als "Kunden" landen.
+        try {
+          const kundeId = await syncKundeFromAnalyse({
+            betriebId: betrieb.id,
+            vonEmail,
+            vonName,
+            analyse: {
+              extrahierter_name: klassifikation.extrahierter_name,
+              extrahierte_firma: klassifikation.extrahierte_firma,
+              extrahierte_position: klassifikation.extrahierte_position,
+              extrahierte_telefon: klassifikation.extrahierte_telefon,
+              extrahierte_adresse: klassifikation.extrahierte_adresse,
+              extrahierte_plz: klassifikation.extrahierte_plz,
+              kunde_typ: klassifikation.kunde_typ,
+            },
+          });
+          if (kundeId && neueNachricht) {
+            await verlinkeAnhaengeZuKunde({
+              betriebId: betrieb.id,
+              kundeId,
+              nachrichtId: neueNachricht.id,
+              anfrageId,
+            });
+          }
+        } catch (err) {
+          console.warn(
+            'kunden-sync fehlgeschlagen (nicht-blockend):',
+            err instanceof Error ? err.message : err
+          );
+        }
+
         // Bei Replies den kompletten Thread laden, damit die KI auf die LETZTE
         // Kunden-Nachricht reagieren kann statt blind die Ursprungs-Anfrage
         // nochmal zu beantworten.
