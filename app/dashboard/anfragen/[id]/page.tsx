@@ -8,6 +8,7 @@ import { AntwortBereich } from './antwort-bereich';
 import { DetailActions } from './detail-actions';
 import { PasstDochButton } from './passt-doch-button';
 import { NachfassButton } from './nachfass-button';
+import { AngebotErstellenButton } from './angebot-erstellen-button';
 import { NotizEditor } from './notiz-editor';
 import { TagEditor } from './tag-editor';
 import { ReplyEditor } from './reply-editor';
@@ -333,6 +334,13 @@ export default async function AnfrageDetailPage({
             <PasstDochButton anfrageId={anfrage.id} />
           </div>
         )}
+
+      {/* Angebot-Erstellen-Button: für jede Kundenanfrage sichtbar */}
+      {klass?.kategorie === 'kundenanfrage' && (
+        <div className="mb-6 flex">
+          <AngebotErstellenButton anfrageId={anfrage.id} />
+        </div>
+      )}
 
       {/* Nachfass-Banner: bei status=versendet mit letzter ausgehender Mail
           >7 Tage her. Closes the loop des Stale-Indikators in der Inbox. */}

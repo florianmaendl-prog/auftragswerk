@@ -18,6 +18,7 @@ import {
   WrenchIcon,
   Delete02Icon,
   Menu02Icon,
+  File02Icon,
 } from '@hugeicons/core-free-icons';
 
 type NavItem = {
@@ -28,6 +29,7 @@ type NavItem = {
 
 const mainNavItems: NavItem[] = [
   { href: '/dashboard', label: 'Inbox', icon: InboxIcon },
+  { href: '/dashboard/angebote', label: 'Angebote', icon: File02Icon },
   { href: '/dashboard/kunden', label: 'Kunden', icon: UserGroupIcon },
   // Termine = Liste konkreter Termin-Slots (Zeit-fokussiert) → Calendar+Uhr
   { href: '/dashboard/termine', label: 'Termine', icon: TimeScheduleIcon },
