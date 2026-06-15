@@ -511,7 +511,7 @@ export function AngebotEditor({
                 ? `Gespeichert ${savedAt.toLocaleTimeString('de-DE')}`
                 : 'Wird beim Klick auf „Speichern" gespeichert.'}
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -520,6 +520,11 @@ export function AngebotEditor({
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
               >
                 Löschen
+              </Button>
+              <Button asChild variant="outline" disabled={saving}>
+                <a href={`/api/angebote/${id}/pdf`} target="_blank" rel="noopener noreferrer">
+                  PDF
+                </a>
               </Button>
               <Button onClick={() => save()} disabled={saving}>
                 {saving ? 'Speichern…' : 'Speichern'}
