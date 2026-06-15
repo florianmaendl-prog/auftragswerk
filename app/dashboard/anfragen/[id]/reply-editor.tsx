@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { DiktatButton } from '@/components/ui/diktat-button';
 import { fileToBase64Payload, formatBytes, validateAttachments } from '@/lib/files';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
@@ -211,7 +212,11 @@ export function ReplyEditor({
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-3 pt-2 border-t">
+        <div className="flex items-center justify-between gap-3 pt-2 border-t flex-wrap">
+          <DiktatButton
+            disabled={sending}
+            onText={(t) => setBody((prev) => prev + t)}
+          />
           <Button onClick={handleSend} disabled={!kannSenden}>
             {sending ? 'Wird gesendet ...' : 'Senden'}
           </Button>

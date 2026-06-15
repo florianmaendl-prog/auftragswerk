@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { AnfrageQuickMenu } from './anfrage-quick-menu';
 import { InboxRefreshButton } from './inbox-refresh-button';
 import { InboxSuche } from './inbox-suche';
+import { InboxSort } from './inbox-sort';
 import { InboxTabTitle } from './inbox-tab-title';
 import { KategorieBadge } from '@/components/brand/kategorie-badge';
 import { EmptyState } from '@/components/brand/empty-state';
@@ -23,6 +24,8 @@ type AnfrageWithJoins = {
     kategorie: string;
     gewerk_match: string | null;
     confidence: number | null;
+    dringlichkeit: string | null;
+    wert_indikator: string | null;
   }> | null;
   entwuerfe: Array<{
     id: string;
@@ -317,13 +320,19 @@ function confidenceBadge(confidence: number | null) {
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; q?: string; tag?: string }>;
+  searchParams: Promise<{ tab?: string; q?: string; tag?: string; sort?: string }>;
 }) {
   const params = await searchParams;
   const activeTabId = (TABS.find((t) => t.id === params.tab)?.id ?? 'freigabe') as TabId;
   const activeTab = TABS.find((t) => t.id === activeTabId)!;
   const suchterm = (params.q ?? '').trim().toLowerCase();
   const aktiverTag = (params.tag ?? '').trim();
+  const sortMode: 'datum' | 'dringlichkeit' | 'wert' | 'kategorie' =
+    params.sort === 'dringlichkeit' ||
+    params.sort === 'wert' ||
+    params.sort === 'kategorie'
+      ? params.sort
+      : 'datum';
 
   const supabase = await createClient();
 
@@ -338,7 +347,7 @@ export default async function InboxPage({
       status,
       created_at,
       tags,
-      analysen (kategorie, gewerk_match, confidence),
+      analysen (kategorie, gewerk_match, confidence, dringlichkeit, wert_indikator),
       entwuerfe (id, status, versendet_am, was_edited)
     `
     )
@@ -441,6 +450,46 @@ export default async function InboxPage({
       return (a.tags ?? []).includes(aktiverTag);
     });
 
+  // Sortierung – Datum ist Default (created_at, neueste oben, kommt schon
+  // aus der Query). Bei Owner-Wahl client-side neu ordnen, weil die KI-
+  // Werte (Dringlichkeit/Wert) Join-Daten sind und Postgres-Multi-Spalten-
+  // Sort auf Joins ist nicht trivial.
+  if (sortMode !== 'datum') {
+    const dringRang: Record<string, number> = { hoch: 3, mittel: 2, niedrig: 1 };
+    const wertRang: Record<string, number> = {
+      gross: 3,
+      mittel: 2,
+      klein: 1,
+      unklar: 0,
+    };
+    const kategorieRang: Record<string, number> = {
+      kundenanfrage: 5,
+      innung_behoerde: 4,
+      rechnung: 3,
+      bestellung_versand: 2,
+      sonstiges: 1,
+      werbung: 0,
+    };
+    filtered.sort((a, b) => {
+      const aklass = a.analysen?.[0];
+      const bklass = b.analysen?.[0];
+      if (sortMode === 'dringlichkeit') {
+        const aVal = dringRang[aklass?.dringlichkeit ?? ''] ?? 0;
+        const bVal = dringRang[bklass?.dringlichkeit ?? ''] ?? 0;
+        return bVal - aVal;
+      }
+      if (sortMode === 'wert') {
+        const aVal = wertRang[aklass?.wert_indikator ?? ''] ?? -1;
+        const bVal = wertRang[bklass?.wert_indikator ?? ''] ?? -1;
+        return bVal - aVal;
+      }
+      // kategorie
+      const aVal = kategorieRang[aklass?.kategorie ?? ''] ?? -1;
+      const bVal = kategorieRang[bklass?.kategorie ?? ''] ?? -1;
+      return bVal - aVal;
+    });
+  }
+
   // Browser-Tab-Title-Counter: zählt nur Tabs die echte Owner-Arbeit sind
   // (Freigabe + Manuell prüfen + Kunde geantwortet). Versendet / Info /
   // Kammer / Erledigt / Aussortiert sind kein "to-do" – sollen nicht im
@@ -464,9 +513,12 @@ export default async function InboxPage({
         <InboxRefreshButton />
       </div>
 
-      {/* Suche – debounced, schreibt ?q= in die URL */}
-      <div className="mb-5 max-w-md">
-        <InboxSuche />
+      {/* Suche + Sort: nebeneinander auf Desktop, gestapelt auf Mobile */}
+      <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="max-w-md w-full">
+          <InboxSuche />
+        </div>
+        <InboxSort />
       </div>
 
       {aktiverTag && (
