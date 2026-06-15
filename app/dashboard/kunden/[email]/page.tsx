@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { KategorieBadge } from '@/components/brand/kategorie-badge';
 import { KundenNotiz } from './kunden-notiz';
 import { KundenDateien } from './kunden-dateien';
+import { syncKundeFromAnalyse } from '@/lib/kunden-sync';
 
 type AnalyseRow = {
   kategorie: string | null;
@@ -92,6 +93,54 @@ export default async function KundeDetailPage({
     notFound();
   }
 
+  // Backfill für Bestandsdaten: wenn keine kunden-Zeile da, aber Anfragen,
+  // dann lazy-create mit den Daten aus der besten verfügbaren Analyse.
+  // Sonst hätten Owner für VOR der Mini-CRM-Migration (P5) eingegangene
+  // Kunden keine Notiz-/Datei-Sektion.
+  let kundeDataMutable = kundeData;
+  if (!kundeDataMutable && rows.length > 0) {
+    const erste = rows
+      .flatMap((a) => a.analysen ?? [])
+      .find((an) => an.kategorie === 'kundenanfrage');
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { data: ownProfile } = user
+      ? await supabase
+          .from('profiles')
+          .select('betrieb_id')
+          .eq('id', user.id)
+          .single()
+      : { data: null };
+    const betriebIdForBackfill = ownProfile?.betrieb_id as string | undefined;
+    if (betriebIdForBackfill) {
+      const id = await syncKundeFromAnalyse({
+        betriebId: betriebIdForBackfill,
+        vonEmail: email,
+        vonName: rows[0]?.von_name ?? null,
+        analyse: {
+          extrahierter_name: erste?.extrahierter_name ?? null,
+          extrahierte_firma: erste?.extrahierte_firma ?? null,
+          extrahierte_position: erste?.extrahierte_position ?? null,
+          extrahierte_telefon: erste?.extrahierte_telefon ?? null,
+          extrahierte_adresse: erste?.extrahierte_adresse ?? null,
+          extrahierte_plz: erste?.extrahierte_plz ?? null,
+          kunde_typ: erste?.kunde_typ ?? null,
+        },
+      });
+      if (id) {
+        const { data: neu } = await supabase
+          .from('kunden')
+          .select(
+            'id, name, firma, position, telefon, adresse, plz, kunde_typ, notizen, created_at'
+          )
+          .eq('id', id)
+          .maybeSingle();
+        kundeDataMutable = neu;
+      }
+    }
+  }
+
   // Daten konsolidieren: Mini-CRM-Eintrag hat Vorrang (Owner-Edits),
   // Fallback auf "best-of" aus Analysen wenn das Feld leer ist.
   const kundenAnalysen = rows
@@ -101,21 +150,21 @@ export default async function KundeDetailPage({
     kundenAnalysen.find((an) => an[feld] && String(an[feld]).trim().length > 0)?.[feld] ?? null;
 
   const displayName =
-    kundeData?.name ||
+    kundeDataMutable?.name ||
     (ausAnalyse('extrahierter_name') as string | null) ||
     rows[0]?.von_name ||
     email;
   const firma =
-    kundeData?.firma || (ausAnalyse('extrahierte_firma') as string | null);
+    kundeDataMutable?.firma || (ausAnalyse('extrahierte_firma') as string | null);
   const telefon =
-    kundeData?.telefon || (ausAnalyse('extrahierte_telefon') as string | null);
+    kundeDataMutable?.telefon || (ausAnalyse('extrahierte_telefon') as string | null);
   const adresse =
-    kundeData?.adresse || (ausAnalyse('extrahierte_adresse') as string | null);
-  const plz = kundeData?.plz || (ausAnalyse('extrahierte_plz') as string | null);
+    kundeDataMutable?.adresse || (ausAnalyse('extrahierte_adresse') as string | null);
+  const plz = kundeDataMutable?.plz || (ausAnalyse('extrahierte_plz') as string | null);
   const position =
-    kundeData?.position || (ausAnalyse('extrahierte_position') as string | null);
+    kundeDataMutable?.position || (ausAnalyse('extrahierte_position') as string | null);
   const kundeTyp =
-    kundeData?.kunde_typ || (ausAnalyse('kunde_typ') as string | null);
+    kundeDataMutable?.kunde_typ || (ausAnalyse('kunde_typ') as string | null);
 
   const adresseFull = [adresse, plz].filter(Boolean).join(', ');
   const mapsHref = adresseFull
@@ -124,13 +173,13 @@ export default async function KundeDetailPage({
 
   // Dateien am Kunden (nur wenn kunde_id vorhanden)
   let dateien: KundenDatei[] = [];
-  if (kundeData?.id) {
+  if (kundeDataMutable?.id) {
     const { data: dateienData } = await supabase
       .from('kunden_dateien')
       .select(
         'id, dateiname, content_type, groesse_bytes, quelle, anfrage_id, created_at'
       )
-      .eq('kunde_id', kundeData.id)
+      .eq('kunde_id', kundeDataMutable.id)
       .order('created_at', { ascending: false });
     dateien = (dateienData as KundenDatei[]) || [];
   }
@@ -185,16 +234,16 @@ export default async function KundeDetailPage({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        {kundeData?.id && (
+        {kundeDataMutable?.id && (
           <KundenNotiz
-            kundeId={kundeData.id}
-            initialNotiz={kundeData.notizen ?? null}
+            kundeId={kundeDataMutable.id}
+            initialNotiz={kundeDataMutable.notizen ?? null}
           />
         )}
-        {kundeData?.id && (
-          <KundenDateien kundeId={kundeData.id} initialDateien={dateien} />
+        {kundeDataMutable?.id && (
+          <KundenDateien kundeId={kundeDataMutable.id} initialDateien={dateien} />
         )}
-        {!kundeData?.id && (
+        {!kundeDataMutable?.id && (
           <Card className="lg:col-span-2 border-dashed">
             <CardContent className="py-6 text-center">
               <p className="text-sm text-muted-foreground">
