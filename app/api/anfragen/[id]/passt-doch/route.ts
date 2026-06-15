@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { generiereEntwurf } from '@/lib/entwurf';
-import { ladeBilderFuerKI } from '@/lib/bilder';
+import { ladeAnhaengeFuerKI } from '@/lib/bilder';
 import { ladeKundenHistorie } from '@/lib/kunden-historie';
 
 /**
@@ -100,9 +100,9 @@ export async function POST(
     .limit(1)
     .single();
 
-  const [bilder, kundenHistorie] = await Promise.all([
+  const [visionAnhaenge, kundenHistorie] = await Promise.all([
     letzteEingang
-      ? ladeBilderFuerKI(letzteEingang.id).catch(() => [])
+      ? ladeAnhaengeFuerKI(letzteEingang.id).catch(() => [])
       : Promise.resolve([]),
     ladeKundenHistorie(betrieb.id, anfrage.von_email, anfrageId).catch(
       () => []
@@ -128,7 +128,7 @@ export async function POST(
     betrieb,
     undefined, // Konversation: bei "passt doch" wollen wir frischen Entwurf, keinen Reply-Pfad
     undefined, // freie Slots optional – nicht jetzt nachladen
-    bilder,
+    visionAnhaenge,
     kundenHistorie,
     true // ownerBestaetigtPassend – Override für Sonnet damit eine echte Zusage rauskommt
   );

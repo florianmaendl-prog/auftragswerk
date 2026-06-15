@@ -29,6 +29,7 @@ export function AntwortBereich({
   empfaengerName,
   urspruenglicherBetreff,
   kiBildAnzahl,
+  kiPdfAnzahl,
 }: {
   entwurf: {
     id: string;
@@ -43,6 +44,7 @@ export function AntwortBereich({
   empfaengerName: string | null;
   urspruenglicherBetreff: string;
   kiBildAnzahl?: number;
+  kiPdfAnzahl?: number;
 }) {
   const [modus, setModus] = useState<'ki' | 'selbst'>('ki');
 
@@ -101,6 +103,7 @@ export function AntwortBereich({
           anfrageId={anfrageId}
           empfaenger={empfaenger}
           kiBildAnzahl={kiBildAnzahl}
+          kiPdfAnzahl={kiPdfAnzahl}
         />
       ) : (
         <ReplyEditor

@@ -1,7 +1,7 @@
 import { supabaseAdmin } from './supabase';
 import { callClaude, type UserContentBlock } from './claude';
 import { cleanMail } from './mail-cleaner';
-import type { KiBild } from './bilder';
+import type { KiAnhang } from './bilder';
 import type { KundenHistorieEintrag } from './kunden-historie';
 
 type Anfrage = {
@@ -453,7 +453,7 @@ export async function generiereEntwurf(
   betrieb: Betrieb,
   konversation?: ThreadNachricht[],
   freieSlots?: string[],
-  bilder?: KiBild[],
+  visionAnhaenge?: KiAnhang[],
   kundenHistorie?: KundenHistorieEintrag[],
   ownerBestaetigtPassend?: boolean,
   nachfassModus?: boolean
@@ -481,26 +481,37 @@ export async function generiereEntwurf(
     );
   }
 
-  // Vision V1: wenn Bilder mitgesendet wurden, bauen wir einen Multi-Block-
-  // Content (image-Blocks ZUERST, dann Text – Anthropic-Empfehlung). Sonst
-  // klassischer Text-only Pfad.
+  // Vision-Pfad: wenn Bilder oder PDFs mitgesendet wurden, bauen wir
+  // einen Multi-Block-Content (visuelle Blocks ZUERST, dann Text –
+  // Anthropic-Empfehlung). Sonst klassischer Text-only Pfad.
   let userContent: UserContentBlock[] | undefined;
-  if (bilder && bilder.length > 0) {
+  if (visionAnhaenge && visionAnhaenge.length > 0) {
+    const bilderAnzahl = visionAnhaenge.filter((a) => a.kind === 'image').length;
+    const pdfAnzahl = visionAnhaenge.filter((a) => a.kind === 'document').length;
     console.log(
-      `Vision: ${bilder.length} Bild(er) an Entwurf-KI (anfrage=${anfrage.id})`
+      `Vision: ${bilderAnzahl} Bild(er) + ${pdfAnzahl} PDF(s) an Entwurf-KI (anfrage=${anfrage.id})`
     );
     userContent = [
-      ...bilder.map(
-        (b) =>
-          ({
+      ...visionAnhaenge.map((a): UserContentBlock => {
+        if (a.kind === 'image') {
+          return {
             type: 'image' as const,
             source: {
               type: 'base64' as const,
-              media_type: b.mediaType,
-              data: b.base64,
+              media_type: a.mediaType,
+              data: a.base64,
             },
-          })
-      ),
+          };
+        }
+        return {
+          type: 'document' as const,
+          source: {
+            type: 'base64' as const,
+            media_type: a.mediaType,
+            data: a.base64,
+          },
+        };
+      }),
       { type: 'text' as const, text: userMessage },
     ];
   }

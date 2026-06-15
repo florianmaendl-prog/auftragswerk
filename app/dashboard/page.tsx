@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { AnfrageQuickMenu } from './anfrage-quick-menu';
 import { InboxRefreshButton } from './inbox-refresh-button';
 import { InboxSuche } from './inbox-suche';
+import { InboxTabTitle } from './inbox-tab-title';
 import { KategorieBadge } from '@/components/brand/kategorie-badge';
 import { EmptyState } from '@/components/brand/empty-state';
 import { InboxIcon } from '@hugeicons/core-free-icons';
@@ -56,6 +57,7 @@ type TabId =
   | 'manuell'
   | 'gespraech'
   | 'versendet'
+  | 'kammer'
   | 'info'
   | 'erledigt'
   | 'aussortiert';
@@ -65,6 +67,10 @@ type TabConfig = {
   label: string;
   statuses: string[];
   description: string;
+  /** Wenn gesetzt: Anfrage muss zusätzlich diese KI-Kategorie haben. */
+  nurKategorien?: string[];
+  /** Wenn gesetzt: Anfragen mit diesen KI-Kategorien werden ausgeschlossen. */
+  ohneKategorien?: string[];
 };
 
 /**
@@ -100,10 +106,18 @@ const TABS: TabConfig[] = [
     description: 'Mail raus – warten auf Kunden-Antwort',
   },
   {
+    id: 'kammer',
+    label: 'Kammer / Verband',
+    statuses: ['info'],
+    nurKategorien: ['innung_behoerde'],
+    description: 'Innung, Handwerkskammer, Behörden – getrennt vom Info-Rauschen',
+  },
+  {
     id: 'info',
     label: 'Info',
     statuses: ['info'],
-    description: 'Rechnungen, Bestellungen, Innung, Anwalt – nur zur Kenntnis',
+    ohneKategorien: ['innung_behoerde'],
+    description: 'Rechnungen, Bestellungen, Anwalt – nur zur Kenntnis',
   },
   {
     id: 'erledigt',
@@ -376,17 +390,35 @@ export default async function InboxPage({
     ]);
   const stats = computeStats(items, terminCountWoche ?? 0, terminCountMonat ?? 0);
 
+  // Tab-Match: status muss passen, plus optional Kategorie-Filter
+  // (nurKategorien für Kammer-Tab, ohneKategorien für Info-Tab damit
+  // Innung dort nicht doppelt erscheint).
+  function matchesTab(
+    a: { status: string; analysen?: Array<{ kategorie: string }> | null },
+    tab: TabConfig
+  ): boolean {
+    if (!tab.statuses.includes(a.status)) return false;
+    const kategorie = a.analysen?.[0]?.kategorie;
+    if (tab.nurKategorien && (!kategorie || !tab.nurKategorien.includes(kategorie))) {
+      return false;
+    }
+    if (tab.ohneKategorien && kategorie && tab.ohneKategorien.includes(kategorie)) {
+      return false;
+    }
+    return true;
+  }
+
   // Counts pro Tab
   const counts: Record<TabId, number> = TABS.reduce(
     (acc, tab) => {
-      acc[tab.id] = items.filter((a) => tab.statuses.includes(a.status)).length;
+      acc[tab.id] = items.filter((a) => matchesTab(a, tab)).length;
       return acc;
     },
     {} as Record<TabId, number>
   );
 
   const filtered = items
-    .filter((a) => activeTab.statuses.includes(a.status))
+    .filter((a) => matchesTab(a, activeTab))
     .filter((a) => {
       // Volltext-Filter: Betreff / Von-Name / Von-Email matchen (case-insensitive).
       // Wenn kein Suchterm → alles durchlassen.
@@ -401,8 +433,15 @@ export default async function InboxPage({
       return hay.includes(suchterm);
     });
 
+  // Browser-Tab-Title-Counter: zählt nur Tabs die echte Owner-Arbeit sind
+  // (Freigabe + Manuell prüfen + Kunde geantwortet). Versendet / Info /
+  // Kammer / Erledigt / Aussortiert sind kein "to-do" – sollen nicht im
+  // Counter erscheinen.
+  const offenForTitle = counts.freigabe + counts.manuell + counts.gespraech;
+
   return (
     <div className="container mx-auto py-6 sm:py-8 px-4 sm:px-6 max-w-5xl">
+      <InboxTabTitle offen={offenForTitle} />
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 className="font-heading text-3xl font-bold uppercase tracking-wide mb-1">

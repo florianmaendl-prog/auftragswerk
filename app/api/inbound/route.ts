@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { cleanMail, extractBody } from '@/lib/mail-cleaner';
 import { klassifiziereAnfrage } from '@/lib/klassifikation';
 import { generiereEntwurf, type ThreadNachricht } from '@/lib/entwurf';
-import { ladeBilderFuerKI } from '@/lib/bilder';
+import { ladeAnhaengeFuerKI } from '@/lib/bilder';
 import { ladeKundenHistorie } from '@/lib/kunden-historie';
 import { speichereAnhang, verlinkeAnhang, type AnhangInput } from '@/lib/anhaenge';
 import { getFreieSlots } from '@/lib/verfuegbarkeit';
@@ -607,12 +607,12 @@ export async function POST(req: NextRequest) {
         // Bei Erst-Anfragen die gerade eingegangene Mail, bei Replies die
         // letzte eingehende. Wir nehmen schlicht neueNachricht.id – das ist
         // bei beiden Fällen die Nachricht, die wir gerade eingespeichert
-        // haben. Wenn keine Bilder dabei sind, returnt der Helper leeres
-        // Array und der Vision-Pfad in generiereEntwurf wird übersprungen.
-        const bilderPromise = neueNachricht
-          ? ladeBilderFuerKI(neueNachricht.id).catch((err) => {
+        // haben (Bilder + PDFs). Wenn nichts dabei ist, returnt der Helper
+        // leeres Array und der Vision-Pfad in generiereEntwurf wird übersprungen.
+        const visionAnhaengePromise = neueNachricht
+          ? ladeAnhaengeFuerKI(neueNachricht.id).catch((err) => {
               console.error(
-                'Vision: Bilder-Loading fehlgeschlagen (nicht-blockend):',
+                'Vision: Anhang-Loading fehlgeschlagen (nicht-blockend):',
                 err instanceof Error ? err.message : err
               );
               return [];
@@ -634,8 +634,8 @@ export async function POST(req: NextRequest) {
           return [];
         });
 
-        const [bilder, kundenHistorie] = await Promise.all([
-          bilderPromise,
+        const [visionAnhaenge, kundenHistorie] = await Promise.all([
+          visionAnhaengePromise,
           historiePromise,
         ]);
 
@@ -651,7 +651,7 @@ export async function POST(req: NextRequest) {
           betrieb,
           konversation,
           freieSlots,
-          bilder,
+          visionAnhaenge,
           kundenHistorie
         );
 

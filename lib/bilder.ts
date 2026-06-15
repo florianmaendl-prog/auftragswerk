@@ -1,36 +1,37 @@
 /**
- * Bilder-Loader für die Entwurfs-KI (Vision V1, Tag 19).
+ * Vision-Anhang-Loader für die Entwurfs-KI.
  *
- * Lädt jpg/png/webp/gif-Anhänge der aktuellen Nachricht aus dem Storage-
- * Bucket und gibt sie base64-kodiert zurück, damit der lib/entwurf.ts
- * sie als image-Blocks an Claude Sonnet 4.6 weiterreichen kann.
+ * Lädt visuell verarbeitbare Anhänge der aktuellen Nachricht aus dem
+ * Storage-Bucket und gibt sie base64-kodiert zurück:
+ *   - jpg/png/webp/gif → image-Blocks (Vision V1, Tag 19)
+ *   - application/pdf  → document-Blocks (PDF-Vision, Welle P1).
+ *     Claude liest PDFs nativ inkl. Layout/Maße/Zeichnungen, kein OCR
+ *     nötig. Wow-Move bei Bauplänen + Aufmaßen.
  *
- * Limits in V1 (defensiv, später nachschärfbar wenn Real-Daten zeigen
- * dass mehr gebraucht wird):
- *   - max 5 Bilder pro Anfrage – mehr ergibt selten neuen Erkenntnis-Wert
- *     und kostet Tokens (~1.6k pro Megapixel nach Anthropic-internem
- *     Resizing auf 1568×1568)
- *   - max 5 MB pro Bild – Anthropic-Hard-Limit; größere skippen wir
- *   - Nicht-Bild-MIME-Types (PDF, Office, Text) werden ignoriert –
- *     die landen weiter im Text-Body via Mail-Cleaner
+ * Limits V2 (P1):
+ *   - max 5 Anhänge gesamt (Mix Bild+PDF)
+ *   - Bilder: max 5 MB (Anthropic-Hard-Limit)
+ *   - PDFs: max 20 MB (defensiv unter Anthropic-32MB-Limit)
+ *   - Nicht-visuelle MIME-Types (Office, Text) bleiben ignoriert
  *
- * Sortierung: kleinste zuerst – falls wir an die 5er-Schranke stoßen,
- * landen die kleinsten (typisch: schnell vom Handy gemachten Schnapp-
- * schüsse) sicher drin, riesige Studio-Fotos werden ggf. geskippt.
+ * Sortierung: kleinste zuerst – Handy-Schnappschüsse + kleine Pläne
+ * sicher drin, riesige Files können geskippt werden.
  */
 
 import { supabaseAdmin } from './supabase';
 
-const MAX_BILDER_PRO_ANFRAGE = 5;
-const MAX_BYTES_PRO_BILD = 5 * 1024 * 1024;
+const MAX_ANHAENGE_PRO_ANFRAGE = 5;
+const MAX_BYTES_BILD = 5 * 1024 * 1024;
+const MAX_BYTES_PDF = 20 * 1024 * 1024;
 
-const ERLAUBTE_MIME_TYPES = new Set([
+const ERLAUBTE_BILD_MIMES = new Set([
   'image/jpeg',
   'image/jpg',
   'image/png',
   'image/webp',
   'image/gif',
 ]);
+const ERLAUBTE_PDF_MIMES = new Set(['application/pdf']);
 
 export type KiBildMediaType =
   | 'image/jpeg'
@@ -38,25 +39,40 @@ export type KiBildMediaType =
   | 'image/webp'
   | 'image/gif';
 
-export type KiBild = {
-  mediaType: KiBildMediaType;
-  base64: string;
-  dateiname: string;
-};
+export type KiAnhang =
+  | {
+      kind: 'image';
+      mediaType: KiBildMediaType;
+      base64: string;
+      dateiname: string;
+    }
+  | {
+      kind: 'document';
+      mediaType: 'application/pdf';
+      base64: string;
+      dateiname: string;
+    };
 
-function normalizeMime(raw: string): KiBildMediaType | null {
+/**
+ * Legacy-Type-Alias – manche Aufrufer (Diagnose-View etc.) erwarten
+ * noch den alten Namen. Nur image-Variante exportiert weil PDF erst
+ * mit P1 dazukommt.
+ */
+export type KiBild = Extract<KiAnhang, { kind: 'image' }>;
+
+function normalizeBildMime(raw: string): KiBildMediaType | null {
   const lower = raw.toLowerCase();
-  if (!ERLAUBTE_MIME_TYPES.has(lower)) return null;
+  if (!ERLAUBTE_BILD_MIMES.has(lower)) return null;
   if (lower === 'image/jpg') return 'image/jpeg';
   return lower as KiBildMediaType;
 }
 
 /**
- * Lädt Bild-Anhänge einer Nachricht und liefert sie als base64-Strings
- * zurück. Wenn keine Bilder vorhanden sind, return [] – Caller muss
+ * Lädt Vision-fähige Anhänge (Bilder + PDFs) einer Nachricht und liefert
+ * sie als base64-Strings zurück. Bei leer return [] – Caller muss
  * Vision-Pfad dann skippen.
  */
-export async function ladeBilderFuerKI(nachrichtId: string): Promise<KiBild[]> {
+export async function ladeAnhaengeFuerKI(nachrichtId: string): Promise<KiAnhang[]> {
   const { data: anhaenge, error } = await supabaseAdmin
     .from('anhaenge')
     .select('storage_path, dateiname, content_type, groesse_bytes')
@@ -69,16 +85,19 @@ export async function ladeBilderFuerKI(nachrichtId: string): Promise<KiBild[]> {
   }
   if (!anhaenge || anhaenge.length === 0) return [];
 
-  const bilder: KiBild[] = [];
+  const result: KiAnhang[] = [];
   for (const a of anhaenge) {
-    if (bilder.length >= MAX_BILDER_PRO_ANFRAGE) break;
+    if (result.length >= MAX_ANHAENGE_PRO_ANFRAGE) break;
 
-    const mime = normalizeMime(a.content_type ?? '');
-    if (!mime) continue;
+    const mime = (a.content_type ?? '').toLowerCase();
+    const istBild = !!normalizeBildMime(mime);
+    const istPdf = ERLAUBTE_PDF_MIMES.has(mime);
+    if (!istBild && !istPdf) continue;
 
-    if (typeof a.groesse_bytes === 'number' && a.groesse_bytes > MAX_BYTES_PRO_BILD) {
+    const limit = istPdf ? MAX_BYTES_PDF : MAX_BYTES_BILD;
+    if (typeof a.groesse_bytes === 'number' && a.groesse_bytes > limit) {
       console.log(
-        `Vision: Bild zu groß (${a.dateiname}, ${a.groesse_bytes} bytes) – geskippt`
+        `Vision: Anhang zu groß (${a.dateiname}, ${a.groesse_bytes} bytes, limit ${limit}) – geskippt`
       );
       continue;
     }
@@ -95,29 +114,51 @@ export async function ladeBilderFuerKI(nachrichtId: string): Promise<KiBild[]> {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-
-    // Doppel-Check Größe nach Download (groesse_bytes kann NULL sein bei
-    // Edge-Proxy-importierten Anhängen)
-    if (arrayBuffer.byteLength > MAX_BYTES_PRO_BILD) {
+    if (arrayBuffer.byteLength > limit) {
       console.log(
-        `Vision: Bild zu groß nach Download (${a.dateiname}, ${arrayBuffer.byteLength}) – geskippt`
+        `Vision: Anhang zu groß nach Download (${a.dateiname}, ${arrayBuffer.byteLength}) – geskippt`
       );
       continue;
     }
 
     const base64 = Buffer.from(arrayBuffer).toString('base64');
-    bilder.push({
-      mediaType: mime,
-      base64,
-      dateiname: a.dateiname ?? 'unbenannt',
-    });
+    const dateiname = a.dateiname ?? 'unbenannt';
+
+    if (istPdf) {
+      result.push({
+        kind: 'document',
+        mediaType: 'application/pdf',
+        base64,
+        dateiname,
+      });
+    } else {
+      const bildMime = normalizeBildMime(mime)!;
+      result.push({
+        kind: 'image',
+        mediaType: bildMime,
+        base64,
+        dateiname,
+      });
+    }
   }
 
-  if (bilder.length > 0) {
+  if (result.length > 0) {
+    const bilder = result.filter((r) => r.kind === 'image').length;
+    const pdfs = result.filter((r) => r.kind === 'document').length;
     console.log(
-      `Vision: ${bilder.length} Bild(er) für KI geladen (nachricht=${nachrichtId})`
+      `Vision: ${bilder} Bild(er) + ${pdfs} PDF(s) für KI geladen (nachricht=${nachrichtId})`
     );
   }
 
-  return bilder;
+  return result;
+}
+
+/**
+ * Legacy-Wrapper für Aufrufer die noch den alten Namen + Bild-only-
+ * Verhalten erwarten. Filtert PDFs raus.
+ * @deprecated Nutze ladeAnhaengeFuerKI für Mix Bild+PDF.
+ */
+export async function ladeBilderFuerKI(nachrichtId: string): Promise<KiBild[]> {
+  const alle = await ladeAnhaengeFuerKI(nachrichtId);
+  return alle.filter((a): a is KiBild => a.kind === 'image');
 }

@@ -32,16 +32,18 @@ export default function EntwurfEditor({
   anfrageId,
   empfaenger,
   kiBildAnzahl,
+  kiPdfAnzahl,
 }: {
   entwurf: Entwurf;
   anfrageId: string;
   empfaenger: string;
   /**
-   * Anzahl Bild-Anhänge die der KI beim Erstellen des Entwurfs zur
-   * Verfügung standen. >0 → Vision-Pfad lief, Badge wird gezeigt.
+   * Anzahl Bild- und PDF-Anhänge die der KI beim Erstellen des Entwurfs
+   * zur Verfügung standen. >0 → Vision-Pfad lief, Badge wird gezeigt.
    * Aus Server-Component berechnet (letzte eingehende Nachricht).
    */
   kiBildAnzahl?: number;
+  kiPdfAnzahl?: number;
 }) {
   const router = useRouter();
   const [betreff, setBetreff] = useState(entwurf.betreff_vorschlag);
@@ -139,7 +141,7 @@ export default function EntwurfEditor({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {kiBildAnzahl !== undefined && kiBildAnzahl > 0 && (
+        {((kiBildAnzahl ?? 0) + (kiPdfAnzahl ?? 0)) > 0 && (
           <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/[0.04] px-3 py-2 text-xs">
             <HugeiconsIcon
               icon={Image02Icon}
@@ -150,7 +152,16 @@ export default function EntwurfEditor({
             <span className="text-foreground/85">
               Die KI hat{' '}
               <strong>
-                {kiBildAnzahl} {kiBildAnzahl === 1 ? 'Bild' : 'Bilder'}
+                {[
+                  kiBildAnzahl && kiBildAnzahl > 0
+                    ? `${kiBildAnzahl} ${kiBildAnzahl === 1 ? 'Bild' : 'Bilder'}`
+                    : null,
+                  kiPdfAnzahl && kiPdfAnzahl > 0
+                    ? `${kiPdfAnzahl} ${kiPdfAnzahl === 1 ? 'PDF' : 'PDFs'}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' + ')}
               </strong>{' '}
               vom Kunden gesehen.
             </span>

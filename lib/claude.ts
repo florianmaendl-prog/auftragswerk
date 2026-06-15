@@ -35,6 +35,17 @@ export type UserContentBlock =
         media_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
         data: string;
       };
+    }
+  | {
+      // PDF-Vision: Claude (Sonnet/Opus 3.5+) versteht PDFs nativ.
+      // KI "sieht" Layout, Tabellen, Zeichnungen, Maße – nicht nur Text.
+      // Hard-Limits (Anthropic): 32 MB pro PDF, max 100 Seiten pro Request.
+      type: 'document';
+      source: {
+        type: 'base64';
+        media_type: 'application/pdf';
+        data: string;
+      };
     };
 
 export interface ClaudeCallOptions {
