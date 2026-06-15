@@ -15,6 +15,7 @@ import {
   ArrowUp01Icon,
   ArrowDown01Icon,
 } from '@hugeicons/core-free-icons';
+import { SendenModal } from './senden-modal';
 
 type Position = {
   pos: number;
@@ -58,9 +59,13 @@ function formatEuro(n: number): string {
 export function AngebotEditor({
   id,
   initial,
+  empfaengerEmail,
+  empfaengerName,
 }: {
   id: string;
   initial: EditorState;
+  empfaengerEmail: string | null;
+  empfaengerName: string | null;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -526,9 +531,37 @@ export function AngebotEditor({
                   PDF
                 </a>
               </Button>
-              <Button onClick={() => save()} disabled={saving}>
+              <Button
+                onClick={() => save()}
+                disabled={saving}
+                variant={state.status === 'entwurf' ? 'outline' : 'default'}
+              >
                 {saving ? 'Speichern…' : 'Speichern'}
               </Button>
+              {state.status === 'entwurf' && (
+                <SendenModal
+                  id={id}
+                  empfaengerEmail={empfaengerEmail}
+                  defaultBetreff={
+                    state.titel
+                      ? `Angebot: ${state.titel}`
+                      : state.angebotsnummer
+                      ? `Angebot ${state.angebotsnummer}`
+                      : 'Angebot'
+                  }
+                  defaultBody={[
+                    empfaengerName
+                      ? `Hallo ${empfaengerName.split(' ').slice(-1)[0] || empfaengerName},`
+                      : 'Hallo,',
+                    '',
+                    state.einleitung ||
+                      'anbei das Angebot wie besprochen. Bei Fragen melde dich gern.',
+                    '',
+                    'Beste Grüße',
+                  ].join('\n')}
+                  disabled={saving}
+                />
+              )}
             </div>
           </div>
         </CardContent>

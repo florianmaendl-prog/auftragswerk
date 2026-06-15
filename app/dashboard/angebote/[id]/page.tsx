@@ -68,6 +68,8 @@ export default async function AngebotDetail({
 
       <AngebotEditor
         id={angebot.id}
+        empfaengerEmail={angebot.anfragen?.von_email ?? null}
+        empfaengerName={angebot.anfragen?.von_name ?? null}
         initial={{
           titel: angebot.titel ?? '',
           einleitung: angebot.einleitung ?? '',

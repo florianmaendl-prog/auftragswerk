@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/wochen-report",
       "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/cron/angebote-nachfass",
+      "schedule": "0 10 * * 1"
     }
   ]
 }
