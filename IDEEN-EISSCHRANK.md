@@ -287,6 +287,28 @@ Wenn Säule 2 (Angebote) läuft, kann KI aus Owners EIGENEN Vergangenheits-Angeb
 - Bidirektionaler Sync
 - **Trigger:** Max sagt „Verfügbarkeit pflegen ist nervig"
 
+### Mini-CRM mit Datei-Ablage am Kunden
+- Aus Max-Feedback Tag 21: viele Handwerker schreiben Rechnungen
+  noch in Word, haben keinen sauberen Kundenstamm. Vision: Datei-Ablage
+  (Angebote, Rechnungen, Schriftverkehr) am Kunden, automatische
+  Verknüpfung von Mail-Anhängen mit dem richtigen Kunden, optional
+  Projekt-Ordner.
+- Heute: Kunden-„Profil" ist dynamische Aggregation aus `analysen`,
+  keine eigene `kunden`-Tabelle. Datei-Ablage bräuchte: `kunden`-Tabelle
+  + `kunden_dateien`-Tabelle + Storage-Bucket + UI für Upload/Liste
+  + automatische Zuordnung aus Inbound-Anhängen pro Email-Match.
+- **Scope-Falle:** wird leicht zum ERP-Versuch. Sauber halten = nur
+  Datei-Ablage + Mail-Zuordnung, KEINE Rechnungs-Erstellung, KEINE
+  Projekt-Hierarchie (zumindest V1).
+- **DSGVO:** zusätzliche Dokument-Speicherung in AV-Vertrag/DPA
+  mit Owner abdecken bevor live.
+- **Trigger zum Bau:**
+  - ≥2 Pilots fragen explizit nach „Datei am Kunden ablegen"-Funktion, ODER
+  - Säule 2 (Angebots-Editor) startet → Mini-CRM wird Add-on damit
+    Angebote/Rechnungen automatisch im Kundenprofil landen
+- Verkaufsargument falls gebaut: „professioneller Kundenstamm, der
+  sich größtenteils automatisch füllt".
+
 ---
 
 ## Was NICHT in den Eisschrank gehört

@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Auftragswerk
 
-## Getting Started
+Premium-Mail-Assistenz für Handwerksbetriebe. Liest Kundenanfragen, schreibt Antwort-Entwürfe im Owner-Ton, schlägt Termine vor — Owner gibt jede Mail per Klick frei.
 
-First, run the development server:
+Stack: Next.js (App Router) + Supabase (Postgres + Auth + Storage) + Anthropic Claude (Sonnet + Haiku) + Postmark (Inbound/Outbound) + Vercel.
+
+---
+
+## Source-of-Truth-Dateien
+
+Vor jedem Sprint kurz lesen:
+
+- [STRATEGIE.md](STRATEGIE.md) — was JETZT, was geparkt, was gestrichen. Filter-Regeln.
+- [BACKLOG.md](BACKLOG.md) — Tag-für-Tag-Historie, jüngster Stand oben.
+- [INVENTUR.md](INVENTUR.md) — System-Snapshot, Iron Rules, Tabellen, Files.
+- [IDEEN-EISSCHRANK.md](IDEEN-EISSCHRANK.md) — geparkte Ideen mit Triggern.
+- `AGENTS.md` / `CLAUDE.md` — Konventionen für Claude-Code-Sessions.
+
+---
+
+## Branch- und Deploy-Workflow
+
+**Production = `main`.** Pushes auf `main` deployen automatisch auf [auftragswerk.app](https://auftragswerk.app) (Vercel).
+
+**Änderungen vor Live testen:**
+
+1. Feature-Branch von `main` abzweigen: `git checkout -b fix/<thema>` oder `feat/<thema>`.
+2. Pushen — Vercel baut automatisch eine **Preview-URL** pro Push (Form: `auftragswerk-git-<branch>-<scope>.vercel.app`).
+3. Auf der Preview-URL klicken/testen. Wenn ok → in `main` mergen.
+4. DB-Migrationen liegen versioniert in `supabase/migrations/`. Lokal/Preview testen, dann auf Production-DB ausführen.
+
+**Warum kein separates Staging-Supabase?** Bei aktuell 1 Pilot ist eine zweite DB-Instanz Overkill (Wartung + Kosten). Preview-Deployments + saubere Migrationen reichen. Falls bei Pilot #3+ Migrations-Pain auftaucht → separates Staging hochziehen.
+
+**Niemals:** direkt auf `main` pushen ohne lokales Testen; Hooks mit `--no-verify` überspringen; force-push auf `main`.
+
+---
+
+## Lokal entwickeln
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Läuft auf `http://localhost:3000`. ENV-Vars aus `.env.local` (Supabase, Anthropic, Postmark, Google OAuth, TOKEN_ENCRYPTION_KEY).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Debug-Scripts
 
-## Learn More
+Unter `scripts/`, mit Service-Role-Key gegen die Production-DB:
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npx tsx --env-file=.env.local scripts/check-edits.ts     # Edit-Diff-Stand
+npx tsx --env-file=.env.local scripts/check-versand.ts   # Versand-Aktivität
+```
