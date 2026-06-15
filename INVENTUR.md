@@ -1,6 +1,124 @@
 # Auftragswerk – System-Inventur
 
-> **Stand: 7.6.2026 spät abends (Tag 20 – Aktivitäts-Karte, Reply-Editor-Gleichstellung, Branding-Audit)**
+> **Stand: 15.6.2026 (Premium-Foundation P1–P5 + Säule 2 komplett mit Empfänger-Felder)**
+>
+> Eine Woche Vollgas-Push: 6-stufige Premium-Foundation-Welle (P1-P6,
+> wobei P6 Calendar-Sync wieder rückgebaut wurde) + komplette Säule 2
+> (Angebote) mit Generator + Editor + PDF + Versand + Nachfass + leere
+> Angebote ohne Anfrage.
+>
+> ## Neu in der Codebase seit Tag 20
+>
+> 1. **Welle P1**: Top-Level `Kammer/Verband`-Tab, Browser-Tab-Counter,
+>    PDF-Vision (Claude `document`-Block) – KI liest jetzt auch PDF-
+>    Anhänge nativ, nicht nur Bilder.
+> 2. **Welle P2**: HTML-Send mit Signatur + Logo via CID-Embedding in
+>    allen 3 Routes (Postmark/Gmail/Microsoft), Logo-Upload-Backend,
+>    Email-Preview-Modal im Entwurf-Editor.
+> 3. **Welle P3**: Custom-Tags (`anfragen.tags` TEXT[] mit GIN-Index)
+>    + Sender→Tag-Regeln + Auto-Apply im Inbound-Hook, Inbox-Sortierung
+>    (Datum/Dringlichkeit/Wert/Kategorie mit URL-State), Diktat via
+>    Web Speech API.
+> 4. **Welle P4**: Vercel-Cron-Infrastruktur ([vercel.json](vercel.json))
+>    mit `CRON_SECRET`-Auth, `termine-reminder` (tägl. 7 Uhr),
+>    `wochen-report` (Mo 8 Uhr), `angebote-nachfass` (Mo 10 Uhr),
+>    iCal-Export pro Termin ([lib/ical.ts](lib/ical.ts)).
+> 5. **Welle P5**: Mini-CRM V1 mit Tabellen `kunden` (UNIQUE per
+>    Betrieb auf email) + `kunden_dateien` + Storage-Bucket
+>    `kunden_dateien`, Inbound-Auto-Anlage + Datei-Verknüpfung,
+>    Kunden-Detail-Page mit Notiz-Auto-Save + Datei-Liste.
+> 6. **Welle P6 RÜCKGEBAUT** (Google-Calendar-Sync) – Migration
+>    `kalender_busy_slots` bleibt drin, aber OAuth-Scope `calendar.readonly`,
+>    Cron `calendar-sync` und UI-Banner sind raus. Grund: gebaut ohne
+>    dass der Eisschrank-Trigger gefallen war + Google-App-Verification
+>    wäre Wochen-Prozess für sensitive scope.
+> 7. **Säule 2 (Angebote) komplett**:
+>    - Migration `20260522_saeule2_foundation.sql` mit 3 Tabellen
+>      (`angebot_bausteine`, `material_preise`, `angebote` JSONB-positionen)
+>      + `betriebe.stundensatz`.
+>    - RLS-Nachzieh-Migration
+>      [supabase/migrations/20260616_saeule2_rls.sql](supabase/migrations/20260616_saeule2_rls.sql).
+>    - [lib/angebot.ts](lib/angebot.ts) – Generator (Sonnet, `jsonrepair`-
+>      Fallback) + `berechneSummen` (Netto + Brutto).
+>    - [lib/angebot-pdf.tsx](lib/angebot-pdf.tsx) – `@react-pdf/renderer`-
+>      Brief mit Stammdaten-Header + Logo, Empfänger-Block, Positionen-
+>      Tabelle, Summen, Schluss. Iron Rule: KEIN Auftragswerk-Branding
+>      im Footer.
+>    - Routes:
+>      [app/api/angebote/route.ts](app/api/angebote/route.ts) (GET/POST),
+>      [app/api/angebote/[id]/route.ts](app/api/angebote/[id]/route.ts)
+>      (PATCH/DELETE),
+>      [app/api/angebote/[id]/pdf/route.ts](app/api/angebote/[id]/pdf/route.ts),
+>      [app/api/angebote/[id]/senden/route.ts](app/api/angebote/[id]/senden/route.ts)
+>      (4-stufige Provider-Hierarchie).
+>    - Editor:
+>      [app/dashboard/angebote/[id]/angebot-editor.tsx](app/dashboard/angebote/[id]/angebot-editor.tsx) –
+>      Card-Layout mit Empfänger / Kopf-Daten / Positionen / Summen / Actions,
+>      Live-Summen via useMemo, KI-Schätzpreis-Hinweis sichtbar wenn Owner
+>      ändert.
+>    - Liste:
+>      [app/dashboard/angebote/page.tsx](app/dashboard/angebote/page.tsx) +
+>      [app/dashboard/angebote/neues-angebot-button.tsx](app/dashboard/angebote/neues-angebot-button.tsx).
+>    - Profil-Cards für Bausteine + Materialpreise:
+>      [app/dashboard/profil/bausteine-card.tsx](app/dashboard/profil/bausteine-card.tsx),
+>      [app/dashboard/profil/materialpreise-card.tsx](app/dashboard/profil/materialpreise-card.tsx).
+> 8. **S2.5 – Empfänger-Felder am Angebot direkt** (heute):
+>    Migration
+>    [supabase/migrations/20260616_angebote_empfaenger.sql](supabase/migrations/20260616_angebote_empfaenger.sql)
+>    mit 5 Spalten (`empfaenger_name`, `empfaenger_firma`,
+>    `empfaenger_email`, `empfaenger_adresse`, `empfaenger_plz`).
+>    Leeres Angebot via "+ Neues Angebot"-Button auf Liste möglich.
+>    PDF + Versand bevorzugen `angebot.empfaenger_*`, fallen nur zurück
+>    auf Anfrage/kunden wenn am Angebot leer.
+>
+> ## Iron Rules (heute hinzugekommen)
+>
+> - **Säule 2 PDF / Mail an Endkunde zeigt NIE Auftragswerk-Branding.**
+>   Footer enthält ausschließlich Betrieb-Name + sender_email. Begründet
+>   in [lib/angebot-pdf.tsx](lib/angebot-pdf.tsx).
+> - **KI-Angebot-Generator darf NIE automatisch versenden.** System-Prompt
+>   in [lib/angebot.ts](lib/angebot.ts) ist explizit. Owner bestätigt
+>   jeden Versand per Hand im Modal.
+> - **KI-Angebot-Generator gibt KI-Schätzpreise frei, Owner setzt jeden
+>   Preis selbst.** Editor zeigt KI-Vorschlag als Hinweis-Text neben dem
+>   Input, falls Owner den Preis ändert.
+> - **Empfänger am Angebot ist die Source of Truth, nicht die Anfrage.**
+>   PDF + Versand bevorzugen `angebot.empfaenger_*` (Owner darf
+>   Telefon-Kunde frei eintragen). Anfrage-/kunden-Tabelle nur Fallback
+>   wenn am Angebot leer.
+> - **Premium-Look = keine Emojis.** Weder UI noch Server-Logs noch
+>   System-Prompts. Statt 📅 → HugeiconsIcon Calendar03Icon.
+> - **Eine Säule nach der anderen.** Nach Säulen-Abschluss STOPPEN, auf
+>   Owner-Test-Feedback warten, NICHT die nächste andiskutieren
+>   (Memory: `feedback-eine-saeule-nach-der-anderen`).
+> - **Eisschrank-Trigger müssen explizit fallen vor Bau.** Welle P6 wurde
+>   gebaut ohne expliziten Trigger ("Max sagt Verfügbarkeit pflegen ist
+>   nervig"), Owner-Pushback berechtigt, kompletter Rückbau
+>   (Memory: `feedback-antizipation-statt-disziplin`).
+>
+> ## Cron-Jobs aktiv (Vercel)
+>
+> - `/api/cron/termine-reminder` – `0 7 * * *` (tägl. 7 Uhr UTC)
+> - `/api/cron/wochen-report` – `0 8 * * 1` (Mo 8 Uhr UTC)
+> - `/api/cron/angebote-nachfass` – `0 10 * * 1` (Mo 10 Uhr UTC)
+>
+> `CRON_SECRET` ist in Vercel-Env gesetzt (Owner-bestätigt am 13.6.).
+>
+> ## Was als Nächstes vor Test-Run / vor Säule 3
+>
+> 1. Migration `20260616_angebote_empfaenger.sql` in Supabase SQL Editor
+>    laufen lassen, sonst wirft jeder POST/Select auf `empfaenger_*`
+>    einen Fehler.
+> 2. Falls noch nicht geschehen: `20260616_saeule2_rls.sql` (RLS-Policies
+>    für `angebot_bausteine`, `material_preise`, `angebote`).
+> 3. Säule 2 in echter Nutzung testen: leeres Angebot anlegen, Empfänger
+>    eintippen, Position dazu, PDF generieren, Versand-Modal prüfen,
+>    Status-Übergang auf `versendet` validieren.
+> 4. Säule 3 wartet auf explizites Owner-"los".
+>
+> ---
+>
+> **Vorheriger Stand:** **7.6.2026 spät abends (Tag 20 – Aktivitäts-Karte, Reply-Editor-Gleichstellung, Branding-Audit)**
 >
 > Marathon-Tag nach Aktivitäts-Karten-Push. Vier Items durch:
 >

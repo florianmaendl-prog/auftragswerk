@@ -1,6 +1,194 @@
 # Auftragswerk – Backlog
 
-> **Stand: 7.6.2026 spät abends (Tag 20 – ehrliche Aktivitäts-Karte, Reply-Editor-Gleichstellung, Branding-Audit)**
+> **Stand: 15.6.2026 (Premium-Foundation P1–P6 durch + Säule 2 komplett + Empfänger-Felder am Angebot)**
+>
+> Eine Woche Vollgas-Push nach Tag-20-Stand. Vision war "vor 30
+> Handwerksmeistern bestehen" – nicht "läuft bei einem". Daraus
+> entstanden zwei Wellen.
+>
+> ## Premium-Foundation (Wellen P1–P5, P6 wieder raus)
+>
+> - **Welle P1 – Quick Wow-Wins** ([Commit `ab0a42f`](.))
+>   - 8. Top-Level-Tab `Kammer/Verband` für KI-Kategorie `innung_behoerde`
+>     in [app/dashboard/page.tsx](app/dashboard/page.tsx)
+>   - Browser-Tab-Counter `Auftragswerk (N)` mit N = Freigabe-Inbox
+>   - PDF-Vision: Anthropic-`document`-Block, Claude liest PDF-Anhänge
+>     nativ (Baupläne, Aufmaß-Skizzen). [lib/bilder.ts](lib/bilder.ts),
+>     [lib/claude.ts](lib/claude.ts), [lib/entwurf.ts](lib/entwurf.ts).
+>
+> - **Welle P2 – Signatur Premium (HTML + Logo + Preview)**
+>   ([Commits `4bfd345`, `16171f6`, `26b672c`](.))
+>   - Logo-Upload-Backend + Storage-Bucket `logos` + Profil-UI
+>     ([app/dashboard/profil/profil-form.tsx](app/dashboard/profil/profil-form.tsx)).
+>   - HTML-Send-Pfad in allen 3 Routes: [lib/postmark.ts](lib/postmark.ts),
+>     [lib/gmail.ts](lib/gmail.ts), [lib/microsoft.ts](lib/microsoft.ts).
+>     `multipart/related` mit Logo via CID-Embedding (inline, kein Attachment).
+>   - Email-Preview-Modal im Entwurf-Editor – Owner sieht exakt was beim
+>     Kunden ankommt inkl. Signatur + Logo
+>     ([app/dashboard/anfragen/[id]/entwurf-editor.tsx](app/dashboard/anfragen/[id]/entwurf-editor.tsx)).
+>
+> - **Welle P3 – Custom-Tags + Inbox-Sortierung + Diktat**
+>   ([Commits `7ff74f9`, `5707839`](.))
+>   - `tags TEXT[]` + GIN-Index auf anfragen, eigene Tag-Sets pro Betrieb,
+>     Sender→Tag-Regeln mit Auto-Apply im Inbound-Hook.
+>   - Inbox-Sortierung (Datum/Dringlichkeit/Wert/Kategorie) mit URL-State.
+>   - Diktat via Web Speech API (deutsch, gratis, kein STT-Server) im
+>     Reply- + Entwurf-Editor. Fallback hidden wenn Browser nicht supportet.
+>
+> - **Welle P4 – Termin-Premium + Cron-Infrastruktur**
+>   ([Commit `f1111f7`](.))
+>   - Vercel-Cron-Setup mit `CRON_SECRET`-Auth ([vercel.json](vercel.json)).
+>   - `app/api/cron/termine-reminder` – tägl. 7 Uhr Mail an Owner mit
+>     heutigen Terminen.
+>   - `app/api/cron/wochen-report` – Mo 8 Uhr Wochen-Zusammenfassung
+>     (Anfragen rein / Antworten raus / Termine fest), bewusst ehrliche
+>     Counts ohne erfundene "X Stunden gespart"-Schätzungen.
+>   - iCal-Export pro Termin ([lib/ical.ts](lib/ical.ts)) + Reschedule-Modul.
+>
+> - **Welle P5 – Mini-CRM V1 (Datei-Ablage + Notizen am Kunden)**
+>   ([Commit `0e316dc`](.))
+>   - Tabellen `kunden` (UNIQUE per Betrieb auf email) + `kunden_dateien`
+>     + Storage-Bucket `kunden_dateien` (privat, service-role).
+>   - Inbound-Pfad lege bei `kategorie=kundenanfrage` automatisch
+>     kunden-Zeile + Anhänge in kunden_dateien an.
+>   - Kunden-Detail-Page mit Datei-Liste (Signed-URL 5min) + Notizen-Auto-Save.
+>   - Aggregation in Kunden-Liste ersetzt durch direkten Read aus
+>     kunden-Tabelle ([app/dashboard/kunden/page.tsx](app/dashboard/kunden/page.tsx)).
+>
+> - **Welle P6 – Google-Calendar-Sync RÜCKGEBAUT** ([Commit `91c2734`](.))
+>   - Gebaut ohne dass der explizite Eisschrank-Trigger ("Max sagt
+>     Verfügbarkeit pflegen ist nervig") gefallen war. Owner-Pushback
+>     berechtigt, plus Google Cloud verlangt App-Verification für
+>     `calendar.readonly` (Wochen-Prozess, sensible-scope-Review).
+>   - Migration `kalender_busy_slots` bleibt drin (kostet nix), aber
+>     OAuth-Scope, Cron und UI sind raus. iCal-Export aus Welle P4 deckt
+>     den Praxis-Bedarf "Termin in Google importieren" ab.
+>   - Lehre dokumentiert: bei größeren Brocken MUSS der Eisschrank-Trigger
+>     explizit geprüft werden (siehe Memory `feedback-antizipation-statt-disziplin`).
+>
+> ## Brand-Audit (alle Emojis raus) – Commit `38271e6`
+>
+> Owner-Feedback "premium look keine Emojis !" nach Screenshot mit 📅 im
+> Kalender-Button. Konsequenz: alle Emojis in UI + Logs raus, durch
+> HugeiconsIcon-Komponenten ersetzt. Auch in Server-Logs, Toast-Strings
+> und system-Prompts. Premium-Look konsistent.
+>
+> ## Säule 2 – Angebote (vollständig)
+>
+> Owner-Push: "is das aber finish säule eins ich will das tool perfekt
+> haben vor innung heißt säule 2 3 4 fehlen doch komplett was mit dir".
+> Plan war komplette Angebots-Säule mit KI-Generator aus Bausteinen +
+> Materialpreise + PDF-Export + Versand + Nachfass-Cron.
+>
+> - **S2.1 – Foundation** ([Commit `797721a`](.))
+>   - Migration `20260522_saeule2_foundation.sql` (3 Tabellen):
+>     `betriebe.stundensatz`, `angebot_bausteine` (Bezeichnung +
+>     Material-Kosten + Arbeitszeit + Kalkulations-Faktor),
+>     `material_preise` (Lieferant-Preise pro Material), `angebote`
+>     (status, positionen JSONB, mwst_satz, summe_netto/brutto,
+>     angebotsnummer, gueltig_bis, notiz_intern).
+>   - RLS nachträglich gesetzt:
+>     [supabase/migrations/20260616_saeule2_rls.sql](supabase/migrations/20260616_saeule2_rls.sql).
+>   - Profil-Cards für Bausteine + Materialpreise:
+>     [app/dashboard/profil/bausteine-card.tsx](app/dashboard/profil/bausteine-card.tsx),
+>     [app/dashboard/profil/materialpreise-card.tsx](app/dashboard/profil/materialpreise-card.tsx).
+>
+> - **S2.2 – Generator + Editor + Nav** ([Commit `b931618`](.))
+>   - [lib/angebot.ts](lib/angebot.ts) – `generiereAngebotsVorschlag` mit
+>     Sonnet, system-prompt EXPLIZIT "KEIN automatischer Versand", `jsonrepair`-
+>     Fallback, `berechneSummen` für Netto + Brutto aus Positionen + MwSt.
+>   - Editor:
+>     [app/dashboard/angebote/[id]/angebot-editor.tsx](app/dashboard/angebote/[id]/angebot-editor.tsx) –
+>     Card-Layout (Kopf-Daten + Positionen + Summen + Actions), Add/Edit/
+>     Delete/Move-Up/Down auf Positionen, useMemo für Live-Summen, KI-Schätzpreis-
+>     Hinweis sichtbar wenn Owner Preis ändert.
+>   - "+ Angebot erstellen"-Button auf Anfrage-Detail
+>     ([app/dashboard/anfragen/[id]/angebot-erstellen-button.tsx](app/dashboard/anfragen/[id]/angebot-erstellen-button.tsx)).
+>   - Sidebar-Nav: "Angebote" mit File02-Icon
+>     ([app/dashboard/dashboard-shell.tsx](app/dashboard/dashboard-shell.tsx)).
+>
+> - **S2.3 – PDF-Export (Premium Brief-Layout)** ([Commit `0b1bf47`](.))
+>   - [lib/angebot-pdf.tsx](lib/angebot-pdf.tsx) – `@react-pdf/renderer` 4.5,
+>     A4-Brief mit Stammdaten-Header links + Logo rechts, Empfänger-Block,
+>     Meta-Row (Nummer + Datum + Gültigkeit), Titel + Einleitung, Positionen-
+>     Tabelle (Pos / Bezeichnung / Menge / Einzel / Gesamt), Summen rechts,
+>     Schlusstext, Signatur, Footer.
+>   - **Iron Rule**: PDF zeigt KEIN Auftragswerk-Branding – Footer nur
+>     Betrieb-Name + sender_email.
+>   - [app/api/angebote/[id]/pdf/route.ts](app/api/angebote/[id]/pdf/route.ts) –
+>     `runtime = 'nodejs'`, lädt Stamm + Kunden + Logo-Signed-URL (300s TTL),
+>     rendert in Buffer, returnt `application/pdf` mit Download-Filename.
+>
+> - **S2.4 – Versand + Nachfass** ([Commit `8f45cd7`](.))
+>   - [app/api/angebote/[id]/senden/route.ts](app/api/angebote/[id]/senden/route.ts) –
+>     4-stufige Provider-Hierarchie (Microsoft → Gmail → Custom Sender →
+>     Postmark) wie Säule 1, HTML-Body mit Signatur + Logo-CID, PDF im
+>     Anhang, Status auf `versendet` + `versendet_am` gestempelt.
+>   - Mini-CRM-Integration: gesendetes PDF wird in `kunden_dateien`
+>     archiviert (Source-of-Truth bleibt Storage-Bucket).
+>   - `app/api/cron/angebote-nachfass` – Mo 10 Uhr UTC, sucht 14–21
+>     Tage alte `versendet`-Angebote, per-Betrieb gruppierte Sammel-Mail
+>     an Owner mit Link zum Angebot.
+>   - Senden-Modal mit Empfänger (read-only), Betreff, Body, Vorname-
+>     Anrede-Default
+>     ([app/dashboard/angebote/[id]/senden-modal.tsx](app/dashboard/angebote/[id]/senden-modal.tsx)).
+>
+> - **S2.5 – Leere Angebote + Empfänger frei editierbar (heute)**
+>   - Owner-Feedback: "man muss natürlich auch einfach so angebote
+>     erstellen können leer editierbar oder villleicht mit logo und
+>     max adresse fix aber rest komplett einstellbar wenn man schnell
+>     eins machen will". Kunde steht im Laden, Telefon-Anfrage,
+>     Laufkundschaft – nicht jedes Angebot hat eine vorgelagerte Mail.
+>   - Migration
+>     [supabase/migrations/20260616_angebote_empfaenger.sql](supabase/migrations/20260616_angebote_empfaenger.sql)
+>     – 5 Spalten am `angebote`: `empfaenger_name`, `empfaenger_firma`,
+>     `empfaenger_email`, `empfaenger_adresse`, `empfaenger_plz`.
+>   - [app/api/angebote/route.ts](app/api/angebote/route.ts) – POST
+>     akzeptiert Body ohne `anfrage_id`, kein KI-Call wenn keine Anfrage.
+>     Bei Anfrage: Empfänger automatisch aus `anfragen.von_email` +
+>     `kunden`-Stammdaten vorbefüllt, danach komplett frei editierbar.
+>   - [app/api/angebote/[id]/route.ts](app/api/angebote/[id]/route.ts) –
+>     PATCH `ERLAUBT` um alle 5 `empfaenger_*`-Felder erweitert.
+>   - [app/dashboard/angebote/[id]/angebot-editor.tsx](app/dashboard/angebote/[id]/angebot-editor.tsx) –
+>     neue Card "Empfänger" ganz oben mit Name / Firma / E-Mail (Pflicht
+>     für Versand) / Adresse / PLZ+Ort. SendenModal nutzt jetzt
+>     `state.empfaenger_email`, nicht mehr Prop aus Anfrage.
+>   - [app/api/angebote/[id]/pdf/route.ts](app/api/angebote/[id]/pdf/route.ts) +
+>     [app/api/angebote/[id]/senden/route.ts](app/api/angebote/[id]/senden/route.ts)
+>     – `angebot.empfaenger_*` hat Vorrang, Fallback nur wenn am Angebot
+>     leer (Anfrage → kunden-Tabelle).
+>   - "+ Neues Angebot"-Button auf Liste
+>     ([app/dashboard/angebote/neues-angebot-button.tsx](app/dashboard/angebote/neues-angebot-button.tsx) +
+>     [app/dashboard/angebote/page.tsx](app/dashboard/angebote/page.tsx)).
+>     Owner klickt einmal → POST ohne Body → Editor mit leerer Empfänger-
+>     Card und einer leeren Positions-Liste.
+>
+> ## Mini-CRM Lazy-Backfill für Bestandskunden ([Commit `17d43f4`](.))
+>
+> Bug: Bestandskunden (Anfragen vor Welle P5) hatten keine `kunden`-Zeile,
+> also kein Notiz-Feld und keine Datei-Sektion. Fix:
+> [app/dashboard/kunden/[email]/page.tsx](app/dashboard/kunden/[email]/page.tsx)
+> nutzt `syncKundeFromAnalyse` lazy beim Detail-Seitenaufruf, wenn keine
+> kunden-Zeile existiert. Backfill aus Analyse-Daten, Owner sieht alle
+> Felder.
+>
+> ## Was als Nächstes (Owner-Test-Pause vor Säule 3)
+>
+> Owner-Direktive `feedback-eine-saeule-nach-der-anderen`: nach jedem
+> Säulen-Abschluss STOPPEN und auf Test-Feedback warten. Säule 2 ist
+> gepusht, Säule 3 (Material/Projekt-Assistent) wartet bis Owner
+> explizit "los" sagt.
+>
+> **Sofort vor Test-Run nötig:**
+>
+> 1. Migration in Supabase SQL Editor laufen lassen
+>    (`20260616_angebote_empfaenger.sql`).
+> 2. (Optional, falls noch nicht passiert) RLS-Migration für Säule 2
+>    laufen lassen (`20260616_saeule2_rls.sql`).
+>
+> ---
+>
+> **Vorheriger Stand:** **7.6.2026 spät abends (Tag 20 – ehrliche Aktivitäts-Karte, Reply-Editor-Gleichstellung, Branding-Audit)**
 >
 > Marathon-Tag nach kurzem Pause-Stand. Vier Brocken durch:
 >
