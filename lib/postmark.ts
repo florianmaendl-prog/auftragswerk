@@ -35,6 +35,16 @@ export type SendMailOptions = {
     contentBase64: string;
     contentType: string;
   }>;
+  // Inline-Bilder für HTML-Body (z.B. Signatur-Logo). ContentID muss im
+  // HtmlBody als <img src="cid:..."> referenziert sein – Postmark
+  // signalisiert dem Mail-Client per ContentID-Header, dass das Attachment
+  // inline statt als Anhang gerendert werden soll.
+  inlineAttachments?: Array<{
+    name: string;
+    contentBase64: string;
+    contentType: string;
+    contentId: string; // ohne <>, z.B. "auftragswerk-logo"
+  }>;
   // Postmark-spezifisch
   tag?: string;
   metadata?: Record<string, string>;
@@ -114,12 +124,28 @@ export async function sendMail(opts: SendMailOptions): Promise<SendMailResult> {
   if (opts.tag) payload.Tag = opts.tag;
   if (opts.metadata) payload.Metadata = opts.metadata;
   if (headers.length > 0) payload.Headers = headers;
+  const alleAttachments: Array<Record<string, string>> = [];
   if (opts.attachments && opts.attachments.length > 0) {
-    payload.Attachments = opts.attachments.map((a) => ({
-      Name: a.name,
-      Content: a.contentBase64,
-      ContentType: a.contentType,
-    }));
+    for (const a of opts.attachments) {
+      alleAttachments.push({
+        Name: a.name,
+        Content: a.contentBase64,
+        ContentType: a.contentType,
+      });
+    }
+  }
+  if (opts.inlineAttachments && opts.inlineAttachments.length > 0) {
+    for (const a of opts.inlineAttachments) {
+      alleAttachments.push({
+        Name: a.name,
+        Content: a.contentBase64,
+        ContentType: a.contentType,
+        ContentID: `cid:${a.contentId}`,
+      });
+    }
+  }
+  if (alleAttachments.length > 0) {
+    payload.Attachments = alleAttachments;
   }
 
   try {

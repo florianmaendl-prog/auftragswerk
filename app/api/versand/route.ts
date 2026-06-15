@@ -5,6 +5,7 @@ import { sendMail } from '@/lib/postmark';
 import { sendeViaGmail } from '@/lib/gmail';
 import { sendeViaMicrosoft } from '@/lib/microsoft';
 import { speichereAnhang, type AnhangInput } from '@/lib/anhaenge';
+import { buildSignaturHtml } from '@/lib/signatur';
 
 export const maxDuration = 30;
 
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
     // 3. Entwurf holen (RLS prüft Zugriff)
     const { data: entwurf, error: entwurfError } = await supabase
       .from('entwuerfe')
-      .select('id, anfrage_id, betrieb_id, betreff_vorschlag, body_text, text_original, status')
+      .select('id, anfrage_id, betrieb_id, betreff_vorschlag, body_text, body_text_ohne_signatur, text_original, status')
       .eq('id', entwurfId)
       .single();
 
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
       await Promise.all([
         supabaseAdmin
           .from('betriebe')
-          .select('inbound_email, name, sender_email, sender_name, sender_verified')
+          .select('inbound_email, name, sender_email, sender_name, sender_verified, signatur')
           .eq('id', entwurf.betrieb_id)
           .single(),
         supabaseAdmin
@@ -210,7 +211,39 @@ export async function POST(req: NextRequest) {
       || undefined;
     const replyToName = betrieb?.name || fromName;
 
-    // 10. Mail versenden – Provider-Hierarchie:
+    // 10. HTML-Body mit Signatur + Logo (Welle P2). Plain-Text-Pfad bleibt
+    //     entwurf.body_text (enthält Signatur als Plain). HTML-Pfad nimmt
+    //     den Body OHNE Signatur (body_text_ohne_signatur) und baut Signatur
+    //     + Logo selbst via buildSignaturHtml zusammen → Owner-Logo erscheint
+    //     unter dem Namen wie bei Outlook.
+    const entwurfRaw = entwurf as {
+      body_text: string;
+      body_text_ohne_signatur?: string | null;
+    };
+    const bodyOhneSignatur =
+      entwurfRaw.body_text_ohne_signatur ?? entwurfRaw.body_text;
+    const { bodyHtml, inlineAttachment } = await buildSignaturHtml({
+      betriebId: entwurf.betrieb_id,
+      bodyText: bodyOhneSignatur,
+      signaturPlain: betrieb?.signatur ?? null,
+    });
+    const inlineAttachments = inlineAttachment
+      ? [
+          {
+            name:
+              'logo.' +
+              (inlineAttachment.contentType.split('/')[1] || 'png').replace(
+                'svg+xml',
+                'svg'
+              ),
+            contentBase64: inlineAttachment.contentBase64,
+            contentType: inlineAttachment.contentType,
+            contentId: inlineAttachment.contentId,
+          },
+        ]
+      : undefined;
+
+    // 11. Mail versenden – Provider-Hierarchie:
     //     Microsoft → Gmail → Postmark. Bei dauerhaftem 4xx-Fehler eines
     //     OAuth-Providers (status auf 'fehler' gesetzt) → Fallback auf
     //     Postmark, damit Versand nicht hängen bleibt.
@@ -223,11 +256,13 @@ export async function POST(req: NextRequest) {
         fromName,
         subject: entwurf.betreff_vorschlag,
         bodyText: entwurf.body_text,
+        bodyHtml,
         replyTo: replyToAddress,
         replyToName: replyToName,
         inReplyTo: letzteEingangsnachricht?.message_id || undefined,
         references: references.length > 0 ? references : undefined,
         attachments: anhaenge.length > 0 ? anhaenge : undefined,
+        inlineAttachments,
       });
 
       if (msResult.success) {
@@ -252,6 +287,7 @@ export async function POST(req: NextRequest) {
           fromName: fallbackName,
           subject: entwurf.betreff_vorschlag,
           bodyText: entwurf.body_text,
+          bodyHtml,
           replyTo: replyToAddress,
           replyToName: replyToName,
           inReplyTo: letzteEingangsnachricht?.message_id || undefined,
@@ -264,6 +300,7 @@ export async function POST(req: NextRequest) {
             microsoft_fallback: 'true',
           },
           attachments: anhaenge.length > 0 ? anhaenge : undefined,
+          inlineAttachments,
         });
       } else {
         sendResult = { success: false, error: msResult.error };
@@ -276,11 +313,13 @@ export async function POST(req: NextRequest) {
         fromName,
         subject: entwurf.betreff_vorschlag,
         bodyText: entwurf.body_text,
+        bodyHtml,
         replyTo: replyToAddress,
         replyToName: replyToName,
         inReplyTo: letzteEingangsnachricht?.message_id || undefined,
         references: references.length > 0 ? references : undefined,
         attachments: anhaenge.length > 0 ? anhaenge : undefined,
+        inlineAttachments,
       });
 
       if (gmailResult.success) {
@@ -307,6 +346,7 @@ export async function POST(req: NextRequest) {
           fromName: fallbackName,
           subject: entwurf.betreff_vorschlag,
           bodyText: entwurf.body_text,
+          bodyHtml,
           replyTo: replyToAddress,
           replyToName: replyToName,
           inReplyTo: letzteEingangsnachricht?.message_id || undefined,
@@ -319,6 +359,7 @@ export async function POST(req: NextRequest) {
             gmail_fallback: 'true',
           },
           attachments: anhaenge.length > 0 ? anhaenge : undefined,
+          inlineAttachments,
         });
       } else {
         // Transienter Fehler → kein Fallback, Aufrufer sieht Error
@@ -335,6 +376,7 @@ export async function POST(req: NextRequest) {
         fromName: fromName,
         subject: entwurf.betreff_vorschlag,
         bodyText: entwurf.body_text,
+        bodyHtml,
         replyTo: replyToAddress,
         replyToName: replyToName,
         inReplyTo: letzteEingangsnachricht?.message_id || undefined,
@@ -346,6 +388,7 @@ export async function POST(req: NextRequest) {
           betrieb_id: entwurf.betrieb_id,
         },
         attachments: anhaenge.length > 0 ? anhaenge : undefined,
+        inlineAttachments,
       });
     }
 

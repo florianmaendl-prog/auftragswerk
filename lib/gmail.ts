@@ -29,12 +29,21 @@ export type GmailSendOptions = {
   replyToName?: string;
   subject: string;
   bodyText: string;
+  /** Optional HTML-Body (multipart/alternative). Wenn weggelassen, geht nur text/plain raus. */
+  bodyHtml?: string;
   inReplyTo?: string;
   references?: string[];
   attachments?: Array<{
     name: string;
     contentBase64: string;
     contentType: string;
+  }>;
+  /** Inline-Bilder fürs HTML (z.B. Signatur-Logo via cid:...). */
+  inlineAttachments?: Array<{
+    name: string;
+    contentBase64: string;
+    contentType: string;
+    contentId: string;
   }>;
 };
 
@@ -253,12 +262,18 @@ export async function sendeViaGmail(
 }
 
 /**
- * Baut eine RFC822-Mail-Quellzeichenfolge. Mit Anhängen via multipart/mixed,
- * ohne Anhänge als einfache text/plain. Threading-Header (In-Reply-To,
- * References) werden gesetzt wenn vorhanden.
+ * Baut eine RFC822-Mail-Quellzeichenfolge. MIME-Struktur dynamisch je
+ * nach Body- und Anhang-Kombination:
  *
- * References werden auf max 10 IDs gekappt (wie lib/postmark.ts), damit SMTP-
- * Server lange Header nicht ablehnen.
+ *   nur text/plain                      → text/plain (direkt)
+ *   text + html, kein Logo, kein Anhang → multipart/alternative
+ *   text + html + Inline-Logo           → multipart/alternative
+ *                                          > text/plain
+ *                                          > multipart/related (html + Logo)
+ *   + normale Anhänge                   → multipart/mixed außenrum
+ *
+ * Threading-Header (In-Reply-To, References) werden gesetzt wenn vorhanden.
+ * References werden auf max 10 IDs gekappt (wie lib/postmark.ts).
  */
 function buildRfc822(opts: GmailSendOptions & {
   ownMessageId: string;
@@ -270,7 +285,7 @@ function buildRfc822(opts: GmailSendOptions & {
     ? `${encodeHeaderValue(opts.toName)} <${opts.to}>`
     : opts.to;
 
-  const headers: string[] = [
+  const topHeaders: string[] = [
     `From: ${fromHeader}`,
     `To: ${toHeader}`,
     `Subject: ${encodeHeaderValue(opts.subject)}`,
@@ -282,62 +297,158 @@ function buildRfc822(opts: GmailSendOptions & {
     const replyHeader = opts.replyToName
       ? `${encodeHeaderValue(opts.replyToName)} <${opts.replyTo}>`
       : opts.replyTo;
-    headers.push(`Reply-To: ${replyHeader}`);
+    topHeaders.push(`Reply-To: ${replyHeader}`);
   }
 
   if (opts.inReplyTo) {
-    headers.push(`In-Reply-To: ${opts.inReplyTo}`);
+    topHeaders.push(`In-Reply-To: ${opts.inReplyTo}`);
   }
   if (opts.references && opts.references.length > 0) {
     const capped =
       opts.references.length > 10
         ? [opts.references[0], ...opts.references.slice(-9)]
         : opts.references;
-    headers.push(`References: ${capped.join(' ')}`);
+    topHeaders.push(`References: ${capped.join(' ')}`);
   }
 
-  const hasAttachments = opts.attachments && opts.attachments.length > 0;
+  const hasInlineLogo = !!(opts.inlineAttachments && opts.inlineAttachments.length > 0);
+  const hasAttachments = !!(opts.attachments && opts.attachments.length > 0);
 
+  // 1) Inner-most: Body-Part (text-only ODER multipart/alternative)
+  const bodyPart = buildBodyPart({
+    bodyText: opts.bodyText,
+    bodyHtml: opts.bodyHtml,
+    inlineAttachments: hasInlineLogo ? opts.inlineAttachments : undefined,
+  });
+
+  // Wenn keine externen Anhänge: Body-Part wird Top-Level
   if (!hasAttachments) {
-    headers.push('Content-Type: text/plain; charset="UTF-8"');
-    headers.push('Content-Transfer-Encoding: 7bit');
-    return `${headers.join('\r\n')}\r\n\r\n${opts.bodyText}`;
+    return `${topHeaders.join('\r\n')}\r\n${bodyPart.headerLine}\r\n\r\n${bodyPart.body}`;
   }
 
-  // multipart/mixed mit eindeutiger Boundary
-  const boundary = `--auftragswerk-${randomUUID()}`;
-  headers.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
+  // 2) Externe Anhänge: multipart/mixed außen rum
+  const mixedBoundary = `--auftragswerk-mixed-${randomUUID()}`;
+  topHeaders.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
 
   const parts: string[] = [];
-  // 1) Text-Body
   parts.push(
-    [
-      `--${boundary}`,
-      'Content-Type: text/plain; charset="UTF-8"',
-      'Content-Transfer-Encoding: 7bit',
-      '',
-      opts.bodyText,
-    ].join('\r\n')
+    `--${mixedBoundary}\r\n${bodyPart.headerLine}\r\n\r\n${bodyPart.body}`
   );
 
-  // 2) Anhänge
   for (const att of opts.attachments!) {
     const safeName = encodeHeaderValue(att.name || 'datei');
     parts.push(
       [
-        `--${boundary}`,
+        `--${mixedBoundary}`,
         `Content-Type: ${att.contentType || 'application/octet-stream'}; name="${safeName}"`,
         'Content-Transfer-Encoding: base64',
         `Content-Disposition: attachment; filename="${safeName}"`,
         '',
-        // base64 in 76-Zeichen-Zeilen splitten (RFC 2045)
         att.contentBase64.replace(/(.{76})/g, '$1\r\n'),
       ].join('\r\n')
     );
   }
-  parts.push(`--${boundary}--`);
+  parts.push(`--${mixedBoundary}--`);
 
-  return `${headers.join('\r\n')}\r\n\r\n${parts.join('\r\n')}`;
+  return `${topHeaders.join('\r\n')}\r\n\r\n${parts.join('\r\n')}`;
+}
+
+/**
+ * Baut den inneren Body-Part: text/plain, multipart/alternative oder
+ * multipart/alternative > multipart/related je nach Optionen.
+ * Returns headerLine (Content-Type) + body string.
+ */
+function buildBodyPart(opts: {
+  bodyText: string;
+  bodyHtml?: string;
+  inlineAttachments?: Array<{
+    name: string;
+    contentBase64: string;
+    contentType: string;
+    contentId: string;
+  }>;
+}): { headerLine: string; body: string } {
+  // Reine text/plain
+  if (!opts.bodyHtml) {
+    return {
+      headerLine: 'Content-Type: text/plain; charset="UTF-8"\r\nContent-Transfer-Encoding: 7bit',
+      body: opts.bodyText,
+    };
+  }
+
+  // HTML-Variante – HTML-Teil kann selbst multipart/related sein (mit Logo)
+  const htmlPart = buildHtmlPart(opts.bodyHtml, opts.inlineAttachments);
+
+  // multipart/alternative > text/plain + (html oder multipart/related)
+  const altBoundary = `--auftragswerk-alt-${randomUUID()}`;
+  const body = [
+    `--${altBoundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    opts.bodyText,
+    `--${altBoundary}`,
+    htmlPart.headerLine,
+    '',
+    htmlPart.body,
+    `--${altBoundary}--`,
+  ].join('\r\n');
+
+  return {
+    headerLine: `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+    body,
+  };
+}
+
+function buildHtmlPart(
+  bodyHtml: string,
+  inlineAttachments?: Array<{
+    name: string;
+    contentBase64: string;
+    contentType: string;
+    contentId: string;
+  }>
+): { headerLine: string; body: string } {
+  // Ohne Inline-Bilder: einfach text/html
+  if (!inlineAttachments || inlineAttachments.length === 0) {
+    return {
+      headerLine: 'Content-Type: text/html; charset="UTF-8"\r\nContent-Transfer-Encoding: 7bit',
+      body: bodyHtml,
+    };
+  }
+
+  // Mit Inline-Bildern: multipart/related > text/html + Bilder
+  const relBoundary = `--auftragswerk-rel-${randomUUID()}`;
+  const parts: string[] = [];
+  parts.push(
+    [
+      `--${relBoundary}`,
+      'Content-Type: text/html; charset="UTF-8"',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      bodyHtml,
+    ].join('\r\n')
+  );
+
+  for (const att of inlineAttachments) {
+    parts.push(
+      [
+        `--${relBoundary}`,
+        `Content-Type: ${att.contentType}`,
+        'Content-Transfer-Encoding: base64',
+        `Content-ID: <${att.contentId}>`,
+        `Content-Disposition: inline; filename="${att.name}"`,
+        '',
+        att.contentBase64.replace(/(.{76})/g, '$1\r\n'),
+      ].join('\r\n')
+    );
+  }
+  parts.push(`--${relBoundary}--`);
+
+  return {
+    headerLine: `Content-Type: multipart/related; boundary="${relBoundary}"; type="text/html"`,
+    body: parts.join('\r\n'),
+  };
 }
 
 /**

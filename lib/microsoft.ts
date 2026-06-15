@@ -32,12 +32,21 @@ export type MicrosoftSendOptions = {
   replyToName?: string;
   subject: string;
   bodyText: string;
+  /** Optional HTML-Body. Wenn gesetzt, geht body.contentType auf 'HTML' (Premium-Signatur). */
+  bodyHtml?: string;
   inReplyTo?: string;
   references?: string[];
   attachments?: Array<{
     name: string;
     contentBase64: string;
     contentType: string;
+  }>;
+  /** Inline-Bilder für HTML-Body (z.B. Signatur-Logo). Werden mit isInline=true + contentId gesendet. */
+  inlineAttachments?: Array<{
+    name: string;
+    contentBase64: string;
+    contentType: string;
+    contentId: string;
   }>;
 };
 
@@ -270,22 +279,45 @@ function buildGraphSendPayload(
     name: string;
     contentType: string;
     contentBytes: string;
+    isInline?: boolean;
+    contentId?: string;
   };
 
-  const attachments: AttachmentJson[] =
-    opts.attachments?.map((att) => ({
-      '@odata.type': '#microsoft.graph.fileAttachment',
-      name: att.name || 'datei',
-      contentType: att.contentType || 'application/octet-stream',
-      contentBytes: att.contentBase64,
-    })) ?? [];
+  const attachments: AttachmentJson[] = [];
 
+  if (opts.attachments) {
+    for (const att of opts.attachments) {
+      attachments.push({
+        '@odata.type': '#microsoft.graph.fileAttachment',
+        name: att.name || 'datei',
+        contentType: att.contentType || 'application/octet-stream',
+        contentBytes: att.contentBase64,
+      });
+    }
+  }
+
+  // Inline-Bilder (z.B. Signatur-Logo): Microsoft Graph nimmt das gleiche
+  // fileAttachment-Objekt, aber mit isInline=true und contentId. Im
+  // HtmlBody muss <img src="cid:<contentId>"> stehen.
+  if (opts.inlineAttachments) {
+    for (const att of opts.inlineAttachments) {
+      attachments.push({
+        '@odata.type': '#microsoft.graph.fileAttachment',
+        name: att.name || 'logo',
+        contentType: att.contentType,
+        contentBytes: att.contentBase64,
+        isInline: true,
+        contentId: att.contentId,
+      });
+    }
+  }
+
+  // HTML-Body wenn vorhanden – sonst Plain-Text (alte Variante).
   const message: Record<string, unknown> = {
     subject: opts.subject,
-    body: {
-      contentType: 'Text',
-      content: opts.bodyText,
-    },
+    body: opts.bodyHtml
+      ? { contentType: 'HTML', content: opts.bodyHtml }
+      : { contentType: 'Text', content: opts.bodyText },
     toRecipients: [
       {
         emailAddress: opts.toName
