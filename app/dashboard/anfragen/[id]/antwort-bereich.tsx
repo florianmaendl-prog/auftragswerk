@@ -59,13 +59,18 @@ export function AntwortBereich({
           aria-selected={modus === 'ki'}
           onClick={() => setModus('ki')}
           className={cn(
-            'flex items-center justify-center gap-2 rounded px-3 py-2 font-medium transition-colors',
+            'flex items-center justify-center gap-1.5 rounded px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium transition-colors',
             modus === 'ki'
               ? 'bg-background text-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          <HugeiconsIcon icon={AiMagicIcon} size={14} strokeWidth={1.5} />
+          <HugeiconsIcon
+            icon={AiMagicIcon}
+            size={14}
+            strokeWidth={1.5}
+            className="hidden sm:inline"
+          />
           KI-Entwurf nutzen
         </button>
         <button
@@ -74,13 +79,18 @@ export function AntwortBereich({
           aria-selected={modus === 'selbst'}
           onClick={() => setModus('selbst')}
           className={cn(
-            'flex items-center justify-center gap-2 rounded px-3 py-2 font-medium transition-colors',
+            'flex items-center justify-center gap-1.5 rounded px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium transition-colors',
             modus === 'selbst'
               ? 'bg-background text-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          <HugeiconsIcon icon={MailEdit01Icon} size={14} strokeWidth={1.5} />
+          <HugeiconsIcon
+            icon={MailEdit01Icon}
+            size={14}
+            strokeWidth={1.5}
+            className="hidden sm:inline"
+          />
           Selbst schreiben
         </button>
       </div>

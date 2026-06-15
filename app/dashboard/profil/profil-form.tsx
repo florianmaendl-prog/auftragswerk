@@ -591,9 +591,9 @@ function GebieteEditor({
         )}
 
         {items.length > 0 && (
-          <div className="space-y-2">
-            {/* Header-Zeile */}
-            <div className="grid grid-cols-[80px_1fr_110px_64px] gap-2 px-1 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+          <div className="space-y-3 sm:space-y-2">
+            {/* Header-Zeile – nur Desktop, Mobile nutzt Placeholder */}
+            <div className="hidden sm:grid grid-cols-[80px_1fr_110px_64px] gap-2 px-1 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
               <span>PLZ</span>
               <span>Region</span>
               <span>Ab € lohnt's</span>
@@ -603,7 +603,7 @@ function GebieteEditor({
             {items.map((g, idx) => (
               <div
                 key={idx}
-                className="grid grid-cols-[80px_1fr_110px_64px] gap-2 items-center"
+                className="flex flex-col gap-2 rounded-md border border-input bg-muted/20 p-2 sm:flex-none sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:grid sm:grid-cols-[80px_1fr_110px_64px] sm:items-center"
               >
                 <Input
                   value={g.plz_muster}

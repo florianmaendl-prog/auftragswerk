@@ -203,12 +203,12 @@ function KontaktZeile({
       href={href}
       target={istExtern ? '_blank' : undefined}
       rel={istExtern ? 'noopener noreferrer' : undefined}
-      className="flex flex-col gap-0.5 rounded-md border border-input bg-muted/20 px-3 py-2 text-sm transition-colors hover:bg-muted/40 hover:border-foreground/20"
+      className="flex min-w-0 flex-col gap-0.5 rounded-md border border-input bg-muted/20 px-3 py-2 text-sm transition-colors hover:bg-muted/40 hover:border-foreground/20"
     >
       <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
         {label}
       </span>
-      <span className="text-foreground break-all">{value}</span>
+      <span className="text-foreground break-all min-w-0">{value}</span>
       {externalHint && (
         <span className="text-[11px] text-muted-foreground">{externalHint} →</span>
       )}

@@ -463,7 +463,7 @@ export default async function InboxPage({
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium mb-2">
             Diese Woche
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
               <p className="text-2xl font-bold text-foreground leading-none">
                 {stats.wocheAnfragen}
@@ -564,7 +564,7 @@ export default async function InboxPage({
                 key={tab.id}
                 href={`/dashboard?tab=${tab.id}`}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
+                  'flex items-center gap-1.5 px-2.5 sm:px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
                   isActive
                     ? 'border-primary text-primary font-semibold'
                     : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'

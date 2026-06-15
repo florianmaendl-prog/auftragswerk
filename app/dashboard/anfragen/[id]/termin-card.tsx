@@ -430,7 +430,7 @@ export function TerminCard({
               Bis zu 3 Slots vorschlagen (Datum + Uhrzeit, Ort optional):
             </p>
             {slots.map((slot, i) => (
-              <div key={i} className="grid grid-cols-[1fr_1fr] gap-2">
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr] gap-2">
                 <Input
                   type="datetime-local"
                   value={slot.datum}

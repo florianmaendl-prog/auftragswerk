@@ -69,7 +69,7 @@ export default async function Home() {
             dir einen Antwortentwurf in deinem Ton und schlägt gleich
             freie Termine vor. Du liest kurz drüber, klickst auf Senden – fertig.
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-3 justify-center items-center">
             <Button asChild size="lg" className="w-full sm:w-auto gap-2">
               <Link href="/registrieren">
                 Account erstellen

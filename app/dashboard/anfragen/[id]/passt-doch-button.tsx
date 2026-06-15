@@ -83,7 +83,7 @@ export function PasstDochButton({ anfrageId }: { anfrageId: string }) {
         onClick={handleClick}
         disabled={busy}
         size="sm"
-        className={cn('gap-1.5 flex-shrink-0 w-full sm:w-auto')}
+        className={cn('gap-1.5 flex-shrink-0 w-full sm:w-auto min-h-11')}
       >
         <HugeiconsIcon
           icon={busy ? Sparkles : CheckmarkCircle02Icon}

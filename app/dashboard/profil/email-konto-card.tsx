@@ -265,11 +265,11 @@ export function EmailKontoCard({
               Verbinde dein Mail-Konto. Deine Antworten gehen dann aus deiner
               gewohnten Mail-Adresse raus – wie immer. Ein Klick, fertig.
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Button asChild className="w-full">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-2">
+              <Button asChild className="w-full min-h-11">
                 <a href="/api/auth/google/start">Mit Gmail verbinden</a>
               </Button>
-              <Button asChild variant="outline" className="w-full">
+              <Button asChild variant="outline" className="w-full min-h-11">
                 <a href="/api/auth/microsoft/start">Mit Outlook verbinden</a>
               </Button>
             </div>
