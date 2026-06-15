@@ -37,12 +37,9 @@ export async function GET() {
   authUrl.searchParams.set('client_id', clientId);
   authUrl.searchParams.set('redirect_uri', redirectUri);
   authUrl.searchParams.set('response_type', 'code');
-  // Scope erweitert um calendar.readonly (Welle P6 – Auto-Verfügbarkeit).
-  // Bewusst nur readonly: wir lesen Free/Busy-Slots, schreiben aber NIE
-  // in den Google-Calendar des Owners (Iron Rule).
   authUrl.searchParams.set(
     'scope',
-    'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.readonly openid email'
+    'https://www.googleapis.com/auth/gmail.send openid email'
   );
   authUrl.searchParams.set('access_type', 'offline');
   authUrl.searchParams.set('prompt', 'consent');

@@ -5,9 +5,23 @@ import { syncGoogleCalendarBusySlots } from '@/lib/google-calendar';
 /**
  * GET /api/cron/calendar-sync
  *
- * Vercel-Cron, schedule "*\/15 * * * *" (alle 15 Min). Iteriert über
- * alle gmail_connections mit calendar_sync_aktiv=true und syncronisiert
- * deren primären Google-Calendar in kalender_busy_slots.
+ * STATUS: DEAKTIVIERT (vercel.json hat keinen Cron-Eintrag mehr).
+ *
+ * Calendar-Sync wurde auf "warten bis Owner-Bedarf" gesetzt – wir hatten
+ * das Feature gebaut bevor ein echter Pilot „Verfügbarkeit pflegen ist
+ * nervig" gesagt hat (Eisschrank-Trigger nicht gefallen). Plus: Google
+ * verlangt für calendar.readonly App-Verification (Demo-Video + Privacy-
+ * Policy), das ist Wochen-Prozess und für ein ungetestetes Feature zu
+ * teuer.
+ *
+ * Reaktivieren wenn:
+ *   1. mindestens ein Pilot explizit "Verfügbarkeit nervt" sagt, UND
+ *   2. Google-Verification beantragt + durch ist.
+ * Dann hier in vercel.json wieder eintragen, scope in start-Route
+ * erweitern, banner in kalender/page.tsx aktivieren.
+ *
+ * Lib-Code (lib/google-calendar.ts) + Migration kalender_busy_slots
+ * bleiben drin als Reserve.
  */
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization');

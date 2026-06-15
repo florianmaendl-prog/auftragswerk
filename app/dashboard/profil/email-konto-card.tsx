@@ -171,21 +171,6 @@ export function EmailKontoCard({
                 versendet – Auftragswerk ist für deine Kunden komplett
                 unsichtbar.
               </p>
-              {verbunden.provider === 'gmail' &&
-                verbunden.conn.calendar_sync_aktiv && (
-                  <p className="text-xs text-green-800 mt-1">
-                    Google-Kalender-Sync aktiv – belegte Zeiten werden
-                    automatisch von den Termin-Vorschlägen ausgeblendet.
-                  </p>
-                )}
-              {verbunden.provider === 'gmail' &&
-                !verbunden.conn.calendar_sync_aktiv && (
-                  <p className="text-xs text-green-800 mt-1">
-                    Tipp: unter „Kalender" kannst du zusätzlich deinen
-                    Google-Kalender verbinden, damit belegte Zeiten
-                    automatisch ausgeblendet werden.
-                  </p>
-                )}
             </div>
 
             <div className="rounded-md border border-input bg-muted/30 p-3 text-xs text-foreground/80 space-y-1">
