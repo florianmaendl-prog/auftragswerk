@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { cleanMail } from '@/lib/mail-cleaner';
+import { cleanMail, extractBody } from '@/lib/mail-cleaner';
 import { klassifiziereAnfrage } from '@/lib/klassifikation';
 import { generiereEntwurf, type ThreadNachricht } from '@/lib/entwurf';
 import { ladeBilderFuerKI } from '@/lib/bilder';
@@ -71,7 +71,10 @@ export async function POST(req: NextRequest) {
     const vonEmail = payload.FromFull?.Email || payload.From || 'unbekannt@example.com';
     const vonName = payload.FromFull?.Name || '';
     const betreff = payload.Subject || '(kein Betreff)';
-    const bodyText = payload.TextBody || '';
+    // Body-Extraktion mit HTML-Fallback – Provider wie firemail.de senden
+    // oft nur HtmlBody und leeren TextBody. Ohne Fallback würde body_text
+    // leer in der DB landen → KI klassifiziert blind auf Betreff+Anhänge.
+    const bodyText = extractBody(payload);
     const bodyHtml = payload.HtmlBody || '';
 
     // CRITICAL: bei Forward-Mails (Owner forwarded info@firma.de →

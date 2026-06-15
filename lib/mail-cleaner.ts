@@ -175,6 +175,32 @@ function normalizeWhitespace(text: string): string {
     .trim();
 }
 
+/**
+ * Body-Extraktion mit Fallback-Kette für Postmark-Inbound-Payloads.
+ *
+ * Hintergrund: viele Mail-Provider (firemail.de, Newsletter-Tools, manche
+ * Webmail-Clients) senden Mails NUR mit HtmlBody und leerem TextBody.
+ * Wenn wir naiv `TextBody || ''` lesen, landet ein leerer String in der DB
+ * → KI hat nichts zu lesen → klassifiziert nur auf Betreff + Anhang-Namen.
+ *
+ * Reihenfolge:
+ *   1. TextBody (wenn nicht leer) — von Mail-Client sauber gesetzt, beste Quelle
+ *   2. HtmlBody (wenn nicht leer) — durch htmlToText() konvertiert
+ *   3. '' — echte Header-only-Mail, sehr selten
+ */
+export function extractBody(payload: {
+  TextBody?: string | null;
+  HtmlBody?: string | null;
+}): string {
+  const text = (payload.TextBody ?? '').trim();
+  if (text.length > 0) return text;
+
+  const html = (payload.HtmlBody ?? '').trim();
+  if (html.length > 0) return normalizeWhitespace(htmlToText(html));
+
+  return '';
+}
+
 function htmlToText(html: string): string {
   if (!html) return '';
 
