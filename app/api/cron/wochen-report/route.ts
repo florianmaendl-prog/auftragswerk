@@ -152,7 +152,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  console.log(`📊 wochen-report: ${sent} verschickt, ${skipped} geskippt, ${failed} fail`);
+  console.log(`wochen-report: ${sent} verschickt, ${skipped} geskippt, ${failed} fail`);
   return NextResponse.json({
     success: true,
     sent,

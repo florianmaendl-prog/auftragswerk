@@ -164,6 +164,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  console.log(`📅 termine-reminder: ${sent} verschickt, ${failed} fehlgeschlagen, ${rows.length} gesamt`);
+  console.log(`termine-reminder: ${sent} verschickt, ${failed} fehlgeschlagen, ${rows.length} gesamt`);
   return NextResponse.json({ success: true, sent, failed, total: rows.length });
 }

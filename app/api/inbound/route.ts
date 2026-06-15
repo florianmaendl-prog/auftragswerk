@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     const senderGesperrt = !!gesperrt;
     if (senderGesperrt) {
-      console.log(`🚫 Sender gesperrt: ${vonEmail} – aussortieren ohne KI-Call`);
+      console.log(`Sender gesperrt: ${vonEmail} – aussortieren ohne KI-Call`);
     }
 
     if (existierendeAnfrageId) {
@@ -445,7 +445,7 @@ export async function POST(req: NextRequest) {
     // Gesperrter Sender: keine Klassifikation, kein Entwurf – Anfrage ist
     // schon als 'aussortiert' angelegt, wir sind fertig.
     if (senderGesperrt) {
-      console.log(`🚫 Skip KI für gesperrten Sender ${vonEmail}`);
+      console.log(`Skip KI für gesperrten Sender ${vonEmail}`);
       return NextResponse.json({
         success: true,
         anfrage_id: anfrageId,
@@ -495,7 +495,7 @@ export async function POST(req: NextRequest) {
           .from('anfragen')
           .update({ tags: autoTags })
           .eq('id', anfrageId);
-        console.log(`🏷️  Tags auto-gesetzt: ${autoTags.join(', ')}`);
+        console.log(`Tags auto-gesetzt: ${autoTags.join(', ')}`);
       }
     } catch (err) {
       console.warn(
@@ -650,7 +650,7 @@ export async function POST(req: NextRequest) {
             if (slots.length > 0) {
               freieSlots = slots.map((s) => s.label);
               console.log(
-                `📅 ${slots.length} freie Slots an Entwurf-KI übergeben`
+                `${slots.length} freie Slots an Entwurf-KI übergeben`
               );
             }
           } catch (err) {
@@ -696,7 +696,7 @@ export async function POST(req: NextRequest) {
 
         if (kundenHistorie.length > 0) {
           console.log(
-            `📚 Kunden-Historie: ${kundenHistorie.length} frühere Anfrage(n) von ${vonEmail} an Entwurf-KI übergeben`
+            `Kunden-Historie: ${kundenHistorie.length} frühere Anfrage(n) von ${vonEmail} an Entwurf-KI übergeben`
           );
         }
 

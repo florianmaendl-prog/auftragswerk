@@ -17,6 +17,7 @@ import {
   CheckmarkCircle02Icon,
   Location01Icon,
   Idea01Icon,
+  Calendar03Icon,
 } from '@hugeicons/core-free-icons';
 
 export type Termin = {
@@ -265,10 +266,15 @@ export function TerminCard({
               <a
                 href={`/api/termine/${bestaetigt.id}/ical`}
                 download
-                className="inline-flex items-center gap-1 text-xs text-green-900 underline-offset-2 hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs text-green-900 underline-offset-2 hover:underline"
                 title="Termin in Apple/Google/Outlook Kalender importieren"
               >
-                📅 In Kalender importieren
+                <HugeiconsIcon
+                  icon={Calendar03Icon}
+                  size={12}
+                  strokeWidth={1.5}
+                />
+                In Kalender importieren
               </a>
             </div>
           </div>
