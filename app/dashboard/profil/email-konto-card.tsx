@@ -18,6 +18,8 @@ type GmailConnection = {
   google_email: string;
   status: 'aktiv' | 'fehler' | 'widerrufen';
   letzter_fehler: string | null;
+  calendar_sync_aktiv?: boolean;
+  calendar_letzter_sync?: string | null;
 };
 
 type MicrosoftConnection = {
@@ -169,7 +171,34 @@ export function EmailKontoCard({
                 versendet – Auftragswerk ist für deine Kunden komplett
                 unsichtbar.
               </p>
+              {verbunden.provider === 'gmail' &&
+                verbunden.conn.calendar_sync_aktiv && (
+                  <p className="text-xs text-green-800 mt-1">
+                    Google-Kalender-Sync aktiv – belegte Zeiten werden
+                    automatisch von den Termin-Vorschlägen ausgeblendet.
+                  </p>
+                )}
             </div>
+
+            {verbunden.provider === 'gmail' &&
+              !verbunden.conn.calendar_sync_aktiv && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-2">
+                  <p className="font-medium">
+                    Google-Kalender-Sync verfügbar
+                  </p>
+                  <p>
+                    Lass Auftragswerk deinen Google-Kalender lesen, damit
+                    belegte Zeiten automatisch von den Termin-Vorschlägen
+                    ausgeblendet werden. Nur Lese-Zugriff – wir tragen
+                    nichts in deinen Kalender ein.
+                  </p>
+                  <Button asChild size="sm" variant="outline">
+                    <a href="/api/auth/google/start">
+                      Kalender-Zugriff freigeben
+                    </a>
+                  </Button>
+                </div>
+              )}
 
             <div className="rounded-md border border-input bg-muted/30 p-3 text-xs text-foreground/80 space-y-1">
               <p className="font-medium text-foreground">

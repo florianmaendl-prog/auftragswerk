@@ -106,6 +106,12 @@ export async function GET(req: NextRequest) {
     Date.now() + (tokenResponse.expires_in - 60) * 1000
   ).toISOString();
 
+  // Wenn calendar.readonly im Scope-String steht, aktivieren wir den
+  // Auto-Verfügbarkeits-Sync für diese Verbindung (Welle P6).
+  const calendarSyncAktiv = (tokenResponse.scope ?? '').includes(
+    'calendar.readonly'
+  );
+
   // UPSERT in gmail_connections (UNIQUE betrieb_id → reconnect überschreibt)
   const { error: upsertError } = await supabaseAdmin
     .from('gmail_connections')
@@ -119,6 +125,7 @@ export async function GET(req: NextRequest) {
         scope: tokenResponse.scope,
         status: 'aktiv',
         letzter_fehler: null,
+        calendar_sync_aktiv: calendarSyncAktiv,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'betrieb_id' }

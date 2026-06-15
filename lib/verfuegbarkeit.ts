@@ -99,6 +99,22 @@ export async function getFreieSlots(
   }
   const termine = (termineData as BestaetigterTermin[]) || [];
 
+  // 4. Busy-Slots aus externen Kalendern (Welle P6 – Google-Sync). Werden
+  // wie Termine als belegt behandelt. Fehler still ignorieren – wenn die
+  // Tabelle leer/nicht-existent ist, blockt das keinen Vorschlag.
+  const { data: busyData } = await supabaseAdmin
+    .from('kalender_busy_slots')
+    .select('von, bis')
+    .eq('betrieb_id', betriebId)
+    .lt('von', endIso)
+    .gt('bis', fromIso);
+  const busySlots = ((busyData as Array<{ von: string; bis: string }> | null) ?? []).map(
+    (b) => ({
+      von: new Date(b.von).getTime(),
+      bis: new Date(b.bis).getTime(),
+    })
+  );
+
   const slots: FreierSlot[] = [];
 
   // 4. Pro Tag im Range: Slots aus den Regeln generieren
@@ -139,7 +155,12 @@ export async function getFreieSlots(
           return slotMs < tEnde && slotEnde > tStart;
         });
 
-        if (!istGesperrt && !istBelegt) {
+        // Externer Kalender (Google) busy?
+        const istExternBusy = busySlots.some(
+          (b) => slotMs < b.bis && slotEnde > b.von
+        );
+
+        if (!istGesperrt && !istBelegt && !istExternBusy) {
           slots.push({
             datum_iso: new Date(slotMs).toISOString(),
             label: formatLabel(new Date(slotMs)),

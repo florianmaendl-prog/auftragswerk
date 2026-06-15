@@ -48,7 +48,7 @@ export default async function ProfilPage() {
       .single(),
     supabase
       .from('gmail_connections')
-      .select('google_email, status, letzter_fehler')
+      .select('google_email, status, letzter_fehler, calendar_sync_aktiv, calendar_letzter_sync')
       .eq('betrieb_id', profile.betrieb_id)
       .maybeSingle(),
     supabase
@@ -90,6 +90,8 @@ export default async function ProfilPage() {
                   google_email: gmailConn.google_email,
                   status: gmailConn.status as 'aktiv' | 'fehler' | 'widerrufen',
                   letzter_fehler: gmailConn.letzter_fehler,
+                  calendar_sync_aktiv: gmailConn.calendar_sync_aktiv ?? false,
+                  calendar_letzter_sync: gmailConn.calendar_letzter_sync ?? null,
                 }
               : null
           }
