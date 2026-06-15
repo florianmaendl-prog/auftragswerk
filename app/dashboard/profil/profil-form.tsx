@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
+import { LogoUploader } from './logo-uploader';
 
 export type Gebiet = {
   plz_muster: string;
@@ -232,7 +233,7 @@ export function ProfilForm({
         <CardHeader>
           <CardTitle className="text-base">Signatur</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <Textarea
             value={data.signatur}
             onChange={(e) => setData({ ...data, signatur: e.target.value })}
@@ -241,9 +242,11 @@ export function ProfilForm({
             placeholder={`Mit freundlichen Grüßen\nMax Mustermann\nMustermann Bau\n...`}
             className="font-sans"
           />
-          <p className="text-xs text-muted-foreground mt-2">
-            Wird automatisch unter jeden KI-Entwurf gesetzt.
+          <p className="text-xs text-muted-foreground">
+            Wird automatisch unter jeden KI-Entwurf gesetzt. Logo wird – wenn
+            hochgeladen – darunter eingebettet.
           </p>
+          <LogoUploader />
         </CardContent>
       </Card>
 
