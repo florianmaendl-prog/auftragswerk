@@ -261,6 +261,16 @@ export function TerminCard({
             {bestaetigt.notiz && (
               <p className="text-xs text-green-700 mt-1">{bestaetigt.notiz}</p>
             )}
+            <div className="mt-2 flex flex-wrap gap-2">
+              <a
+                href={`/api/termine/${bestaetigt.id}/ical`}
+                download
+                className="inline-flex items-center gap-1 text-xs text-green-900 underline-offset-2 hover:underline"
+                title="Termin in Apple/Google/Outlook Kalender importieren"
+              >
+                📅 In Kalender importieren
+              </a>
+            </div>
           </div>
         )}
 
