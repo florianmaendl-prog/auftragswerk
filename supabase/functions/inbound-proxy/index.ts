@@ -63,8 +63,29 @@ function istAutorisiert(req: Request): boolean {
   );
 }
 
+/**
+ * Supabase-Storage-konformer Filename. Strenger als naives Slash-Strip:
+ * Storage akzeptiert nur [A-Za-z0-9._-] sauber. Alles andere – inkl.
+ * Leerzeichen, Umlaute, Kommata, Klammern, Apostrophe – führt zu
+ * "Invalid key"-Errors beim Upload. Beispiel-Trigger (real beobachtet):
+ * "Lebenslauf von Agbemor-Brayn, Mandy.pdf".
+ */
 function sanitizeFilename(name: string): string {
-  return (name || 'datei').replace(/[/\\:*?"<>|]/g, '_').slice(0, 200);
+  const raw = name || 'datei';
+  // Umlaute + ß transliterieren bevor wir den Rest hart filtern
+  const transliteriert = raw
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue')
+    .replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue')
+    .replace(/ß/g, 'ss');
+  // Datei-Endung am Stück lassen, Stammnamen sanitisieren
+  const lastDot = transliteriert.lastIndexOf('.');
+  const stamm = lastDot > 0 ? transliteriert.slice(0, lastDot) : transliteriert;
+  const ext = lastDot > 0 ? transliteriert.slice(lastDot) : '';
+  // Alles außer A-Z, a-z, 0-9, . und - durch _ ersetzen
+  const cleanStamm = stamm.replace(/[^A-Za-z0-9._-]/g, '_').replace(/_+/g, '_');
+  const cleanExt = ext.replace(/[^A-Za-z0-9.]/g, '');
+  const result = (cleanStamm + cleanExt).slice(0, 200);
+  return result.length > 0 ? result : 'datei';
 }
 
 function safeMessageId(raw: unknown): string {

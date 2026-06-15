@@ -10,6 +10,28 @@
 import { randomUUID } from 'node:crypto';
 import { supabaseAdmin } from './supabase';
 
+/**
+ * Supabase-Storage-konformer Filename. Storage akzeptiert nur
+ * [A-Za-z0-9._-] sauber – Leerzeichen, Umlaute, Kommata führen zu
+ * "Invalid key"-Upload-Errors. Spiegelt die Sanitize-Logik aus
+ * supabase/functions/inbound-proxy/index.ts (Edge-Funktion in Deno,
+ * eigene Copy weil kein Cross-Import möglich).
+ */
+function sanitizeFilenameForStorage(name: string | null | undefined): string {
+  const raw = name || 'datei';
+  const transliteriert = raw
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue')
+    .replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue')
+    .replace(/ß/g, 'ss');
+  const lastDot = transliteriert.lastIndexOf('.');
+  const stamm = lastDot > 0 ? transliteriert.slice(0, lastDot) : transliteriert;
+  const ext = lastDot > 0 ? transliteriert.slice(lastDot) : '';
+  const cleanStamm = stamm.replace(/[^A-Za-z0-9._-]/g, '_').replace(/_+/g, '_');
+  const cleanExt = ext.replace(/[^A-Za-z0-9.]/g, '');
+  const result = (cleanStamm + cleanExt).slice(0, 200);
+  return result.length > 0 ? result : 'datei';
+}
+
 export type AnhangInput = {
   name: string;
   contentBase64: string;
@@ -36,7 +58,7 @@ export async function speichereAnhang(
   ctx: { nachrichtId: string; anfrageId: string; betriebId: string }
 ): Promise<SpeichereAnhangResult> {
   try {
-    const safeName = (att.name || 'datei').replace(/[/\\:*?"<>|]/g, '_').slice(0, 200);
+    const safeName = sanitizeFilenameForStorage(att.name);
     const path = `${ctx.betriebId}/${ctx.anfrageId}/${randomUUID()}_${safeName}`;
     const buffer = Buffer.from(att.contentBase64, 'base64');
 
