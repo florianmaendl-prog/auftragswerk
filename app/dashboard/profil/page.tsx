@@ -1,8 +1,7 @@
 import { createClient } from '@/lib/supabase-server';
 import { Card } from '@/components/ui/card';
 import { ProfilForm } from './profil-form';
-import { GmailConnectionCard } from './gmail-connection-card';
-import { MicrosoftConnectionCard } from './microsoft-connection-card';
+import { EmailKontoCard } from './email-konto-card';
 import { MailEmpfangCard } from './mail-empfang-card';
 
 export default async function ProfilPage() {
@@ -83,8 +82,8 @@ export default async function ProfilPage() {
       </div>
 
       <div className="mb-6 space-y-4">
-        <GmailConnectionCard
-          initial={
+        <EmailKontoCard
+          gmail={
             gmailConn
               ? {
                   google_email: gmailConn.google_email,
@@ -93,9 +92,7 @@ export default async function ProfilPage() {
                 }
               : null
           }
-        />
-        <MicrosoftConnectionCard
-          initial={
+          microsoft={
             microsoftConn
               ? {
                   microsoft_email: microsoftConn.microsoft_email,
