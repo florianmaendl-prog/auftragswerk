@@ -66,6 +66,21 @@ export default async function KalenderPage({
 
   const supabase = await createClient();
 
+  // betrieb_id für die Gmail-Connection-Query brauchen wir explizit –
+  // RLS reicht in der Praxis nicht, weil Server-Components Caching
+  // anders rendern und maybeSingle() ohne Filter manchmal null liefert.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase
+        .from('profiles')
+        .select('betrieb_id')
+        .eq('id', user.id)
+        .single()
+    : { data: null };
+  const betriebIdForGmail = profile?.betrieb_id as string | null | undefined;
+
   const [regelnRes, sperrenRes, termineRes, gmailConnRes] = await Promise.all([
     supabase
       .from('verfuegbarkeit_regel')
@@ -85,10 +100,15 @@ export default async function KalenderPage({
       .neq('status', 'abgesagt')
       .gte('datum', monday.toISOString())
       .lt('datum', sundayExclusive.toISOString()),
-    supabase
-      .from('gmail_connections')
-      .select('google_email, status, calendar_sync_aktiv, calendar_letzter_sync')
-      .maybeSingle(),
+    betriebIdForGmail
+      ? supabase
+          .from('gmail_connections')
+          .select(
+            'google_email, status, calendar_sync_aktiv, calendar_letzter_sync'
+          )
+          .eq('betrieb_id', betriebIdForGmail)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const regeln = (regelnRes.data as Regel[]) || [];
