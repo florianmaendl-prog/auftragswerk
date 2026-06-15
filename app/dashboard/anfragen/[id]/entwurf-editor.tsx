@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { fileToBase64Payload, formatBytes, validateAttachments } from '@/lib/files';
+import { EmailPreviewButton } from './email-preview-modal';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   FileAttachmentIcon,
@@ -282,6 +283,12 @@ export default function EntwurfEditor({
               strokeWidth={2}
             />
             Mail erfolgreich versendet um {sentAt.toLocaleTimeString('de-DE')}
+          </div>
+        )}
+
+        {!istVersendet && (
+          <div className="flex items-center justify-start pt-2 border-t">
+            <EmailPreviewButton bodyText={body} />
           </div>
         )}
 
