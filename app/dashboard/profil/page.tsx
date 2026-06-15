@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase-server';
 import { Card } from '@/components/ui/card';
 import { ProfilForm } from './profil-form';
 import { GmailConnectionCard } from './gmail-connection-card';
+import { MicrosoftConnectionCard } from './microsoft-connection-card';
 import { MailEmpfangCard } from './mail-empfang-card';
 
 export default async function ProfilPage() {
@@ -33,7 +34,11 @@ export default async function ProfilPage() {
     );
   }
 
-  const [{ data: betrieb, error }, { data: gmailConn }] = await Promise.all([
+  const [
+    { data: betrieb, error },
+    { data: gmailConn },
+    { data: microsoftConn },
+  ] = await Promise.all([
     supabase
       .from('betriebe')
       .select(
@@ -44,6 +49,11 @@ export default async function ProfilPage() {
     supabase
       .from('gmail_connections')
       .select('google_email, status, letzter_fehler')
+      .eq('betrieb_id', profile.betrieb_id)
+      .maybeSingle(),
+    supabase
+      .from('microsoft_connections')
+      .select('microsoft_email, status, letzter_fehler')
       .eq('betrieb_id', profile.betrieb_id)
       .maybeSingle(),
   ]);
@@ -80,6 +90,20 @@ export default async function ProfilPage() {
                   google_email: gmailConn.google_email,
                   status: gmailConn.status as 'aktiv' | 'fehler' | 'widerrufen',
                   letzter_fehler: gmailConn.letzter_fehler,
+                }
+              : null
+          }
+        />
+        <MicrosoftConnectionCard
+          initial={
+            microsoftConn
+              ? {
+                  microsoft_email: microsoftConn.microsoft_email,
+                  status: microsoftConn.status as
+                    | 'aktiv'
+                    | 'fehler'
+                    | 'widerrufen',
+                  letzter_fehler: microsoftConn.letzter_fehler,
                 }
               : null
           }

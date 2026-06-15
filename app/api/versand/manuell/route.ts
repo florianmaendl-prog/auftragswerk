@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendMail } from '@/lib/postmark';
 import { sendeViaGmail } from '@/lib/gmail';
+import { sendeViaMicrosoft } from '@/lib/microsoft';
 import { speichereAnhang, type AnhangInput } from '@/lib/anhaenge';
 
 export const maxDuration = 30;
@@ -89,32 +90,45 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Betrieb + Gmail-Connection parallel holen
-    const [{ data: betrieb }, { data: gmailConn }] = await Promise.all([
-      supabaseAdmin
-        .from('betriebe')
-        .select('inbound_email, name, sender_email, sender_name, sender_verified')
-        .eq('id', anfrage.betrieb_id)
-        .single(),
-      supabaseAdmin
-        .from('gmail_connections')
-        .select('id, google_email, status')
-        .eq('betrieb_id', anfrage.betrieb_id)
-        .eq('status', 'aktiv')
-        .maybeSingle(),
-    ]);
+    // Betrieb + Provider-Connections parallel holen
+    const [{ data: betrieb }, { data: gmailConn }, { data: microsoftConn }] =
+      await Promise.all([
+        supabaseAdmin
+          .from('betriebe')
+          .select('inbound_email, name, sender_email, sender_name, sender_verified')
+          .eq('id', anfrage.betrieb_id)
+          .single(),
+        supabaseAdmin
+          .from('gmail_connections')
+          .select('id, google_email, status')
+          .eq('betrieb_id', anfrage.betrieb_id)
+          .eq('status', 'aktiv')
+          .maybeSingle(),
+        supabaseAdmin
+          .from('microsoft_connections')
+          .select('id, microsoft_email, status')
+          .eq('betrieb_id', anfrage.betrieb_id)
+          .eq('status', 'aktiv')
+          .maybeSingle(),
+      ]);
 
-    // From-Adresse: Gmail → Custom Sender → Postmark-Fallback
-    const useGmail = Boolean(gmailConn?.google_email);
-    const useCustomSender = !useGmail && Boolean(
-      betrieb?.sender_verified && betrieb?.sender_email
-    );
-    const fromEmail = useGmail
+    // From-Adresse: Microsoft → Gmail → Custom Sender → Postmark-Fallback
+    const useMicrosoft = Boolean(microsoftConn?.microsoft_email);
+    const useGmail = !useMicrosoft && Boolean(gmailConn?.google_email);
+    const useCustomSender =
+      !useMicrosoft &&
+      !useGmail &&
+      Boolean(betrieb?.sender_verified && betrieb?.sender_email);
+    const fromEmail = useMicrosoft
+      ? microsoftConn!.microsoft_email
+      : useGmail
       ? gmailConn!.google_email
       : useCustomSender
       ? betrieb!.sender_email!
       : process.env.POSTMARK_FROM_EMAIL || 'info@auftragswerk.app';
-    const fromName = useGmail
+    const fromName = useMicrosoft
+      ? betrieb?.name || 'Auftragswerk'
+      : useGmail
       ? betrieb?.name || 'Auftragswerk'
       : useCustomSender
       ? betrieb!.sender_name || betrieb!.name || 'Auftragswerk'
@@ -152,9 +166,62 @@ export async function POST(req: NextRequest) {
       || undefined;
     const replyToName = betrieb?.name || fromName;
 
-    // Mail versenden – Gmail wenn aktiv, sonst Postmark.
+    // Mail versenden – Provider-Hierarchie wie /api/versand (Microsoft → Gmail → Postmark).
     let sendResult: Awaited<ReturnType<typeof sendMail>>;
-    if (useGmail) {
+    if (useMicrosoft) {
+      const msResult = await sendeViaMicrosoft(anfrage.betrieb_id, {
+        to: anfrage.von_email,
+        toName: anfrage.von_name || undefined,
+        fromEmail,
+        fromName,
+        subject: betreff,
+        bodyText: bodyText,
+        replyTo: replyToAddress,
+        replyToName: replyToName,
+        inReplyTo: letzteEingangsnachricht?.message_id || undefined,
+        references: references.length > 0 ? references : undefined,
+        attachments: anhaenge.length > 0 ? anhaenge : undefined,
+      });
+
+      if (msResult.success) {
+        sendResult = {
+          success: true,
+          messageId: msResult.messageId,
+        };
+      } else if (msResult.shouldFallback) {
+        console.warn(
+          `Microsoft-Send failed (manuell, ${msResult.error}) – Fallback auf Postmark`
+        );
+        const fallbackFrom = useCustomSender
+          ? betrieb!.sender_email!
+          : process.env.POSTMARK_FROM_EMAIL || 'info@auftragswerk.app';
+        const fallbackName = useCustomSender
+          ? betrieb!.sender_name || betrieb!.name || 'Auftragswerk'
+          : process.env.POSTMARK_FROM_NAME || 'Auftragswerk';
+        sendResult = await sendMail({
+          to: anfrage.von_email,
+          toName: anfrage.von_name || undefined,
+          fromEmail: fallbackFrom,
+          fromName: fallbackName,
+          subject: betreff,
+          bodyText: bodyText,
+          replyTo: replyToAddress,
+          replyToName: replyToName,
+          inReplyTo: letzteEingangsnachricht?.message_id || undefined,
+          references: references.length > 0 ? references : undefined,
+          tag: 'manueller_reply-fallback',
+          metadata: {
+            anfrage_id: anfrage.id,
+            betrieb_id: anfrage.betrieb_id,
+            manuell: 'true',
+            microsoft_fallback: 'true',
+          },
+          attachments: anhaenge.length > 0 ? anhaenge : undefined,
+        });
+      } else {
+        sendResult = { success: false, error: msResult.error };
+      }
+    } else if (useGmail) {
       const gmailResult = await sendeViaGmail(anfrage.betrieb_id, {
         to: anfrage.von_email,
         toName: anfrage.von_name || undefined,
