@@ -1,6 +1,84 @@
 # Auftragswerk – Backlog
 
-> **Stand: 5.7.2026 (Sprint 1 auf Branch `sprint-1` – 6 Quick-Fixes vor Max-Besuch)**
+> **Stand: 5.7.2026 abends (Sprint 2 „QA-Pass" auf Branch `sprint-2` – Zuverlässigkeit vor Max-Besuch)**
+>
+> Grundlage: Zukunfts-Katalog vom 3.7. + 8 Max-Audios + Prod-Zustand
+> nach Sprint 1. Sprint 1 hat die sichtbaren Reibungspunkte gefixt.
+> Sprint 2 macht Push-Monitoring, entfernt stille Fehler, erfüllt zwei
+> Max-Audio-Wünsche (Inbox-Kurzfassung + Collapse-Cards).
+>
+> **6 Items durch, TypeScript grün, Full-Build durch, 5 saubere Commits
+> auf Branch `sprint-2`:**
+>
+> - **Item 3 [4005994]** – Diagnose-Skript
+>   [scripts/check-sprint2-diagnose.ts](scripts/check-sprint2-diagnose.ts).
+>   Analog zu bestehenden `scripts/check-*.ts`. Aufschlüsselung
+>   `processing_errors` gruppiert nach Schritt + Top-3-Fehler-Texten pro
+>   Schritt, plus Letzte-24h-Count. Plus `manuell_pruefen`-Anfragen nach
+>   Grund: Eskalation / Klassifikations-Fehler / Entwurfs-Fehler /
+>   Anderer Pipeline-Fehler / Unklar. Der „Unklar"-Bucket bekommt 5
+>   Beispiele mit Betreff-Preview.
+>
+> - **Item 4 [d618b27]** – Fehler-Digest-Cron. Neu:
+>   [app/api/cron/fehler-digest/route.ts](app/api/cron/fehler-digest/route.ts),
+>   schedule `0 8 * * *` (täglich 8 Uhr UTC = 10 Uhr Berlin). Sucht
+>   `processing_errors` der letzten 24h, gruppiert pro Betrieb, sendet
+>   EINE Mail an Owner mit Schritt-Gruppierung + Link zu
+>   `/dashboard/diagnose`. Iron Rule „stille Erfolge, laute Fehler":
+>   0 Fehler → 0 Mail. [vercel.json](vercel.json) ergänzt.
+>
+> - **Item 5 [4b5f058]** – KI-Kurzfassung (max 80 Zeichen) + Inbox-Subline.
+>   Migration
+>   [supabase/migrations/20260705_analysen_kurzfassung.sql](supabase/migrations/20260705_analysen_kurzfassung.sql)
+>   fügt `analysen.kurzfassung TEXT` hinzu. Klassifikations-Prompt in
+>   [lib/klassifikation.ts](lib/klassifikation.ts) um neues JSON-Feld
+>   „kurzfassung" mit Anweisung „max 80 Zeichen, Absender + Anliegen
+>   kompakt". Beispiel: „Metallbau Rapp will Angebot für Edelstahl-
+>   Geländer". Defensiv `slice(0, 100)` beim Insert falls Haiku
+>   überschießt. Inbox-Karte rendert als line-clamp-1-Subline zwischen
+>   Betreff und Meta-Row. Fallback bei Bestandsmails ohne `kurzfassung`:
+>   erste 80 Zeichen der langen `zusammenfassung` mit „…"-Suffix am
+>   letzten Wortende. BONUS: Iron-Rule-14-Sweep – `confidenceBadge`
+>   („KI 75%") auch in der Dashboard-Inbox raus, war ein Sprint-1-Miss.
+>
+> - **Item 6 [0267ee1]** – Einklappbare Info-Cards mit Radix. Aus Max-
+>   Audio: „manche leute erschlägt das, macht minus/plus pro block".
+>   `npm install @radix-ui/react-collapsible`. Neue Komponente
+>   [components/ui/collapsible-card.tsx](components/ui/collapsible-card.tsx)
+>   als Wrapper um `<Card>` mit Chevron-Toggle im Header + Persistenz
+>   pro `cardId` in localStorage. Default offen, kein SSR-Mismatch. Auf
+>   [app/dashboard/anfragen/[id]/page.tsx](app/dashboard/anfragen/[id]/page.tsx)
+>   die zwei großen Server-Cards („Konversation", „KI-Analyse") auf
+>   CollapsibleCard umgestellt. Sub-Card-Komponenten (Termin/Notiz/Tag)
+>   bleiben unangetastet – Refactor wäre eigener Sprint.
+>
+> - **Item 2 [230e80a]** – [QA-PROTOKOLL.md](QA-PROTOKOLL.md) mit 10
+>   Kernflow-Checkliste zum manuellen Abhaken vor Max-Besuch. Signup
+>   (3-Adressen-Test mit Zeitstempel als Input für Item 1), Inbound +
+>   Kurzfassung, Klassifikations-Labels, Entwurf + Vorschau, Versand
+>   (Gmail-Pfad + Reply-To-Check), Nachfass, Angebot komplett, Termine,
+>   Kalender, Kunden-Ablage. Plus 4 Sprint-2-spezifische Verifikationen
+>   (Diagnose-Skript, Fehler-Digest-Cron mit curl-Beispiel, Kurzfassung
+>   sichtbar, Collapse-Cards mit localStorage).
+>
+> - **Item 1 (Owner-Track)** – 5-Tage-Signup-Bug. Code ist sauber
+>   (Trigger `20260601_signup_trigger.sql` hat keine Sleeps/Exceptions).
+>   Bug liegt außerhalb: Supabase-Auth-SMTP-Config oder Postmark Rate-
+>   Limiting. Owner-Aufgaben:
+>   (a) Postmark → Server → Activity → Zeile für verspätete Mail
+>   (b) Supabase-Dashboard → Auth → Emails → SMTP Settings screenshotten,
+>       Min interval NICHT auf 3600s
+>   (c) 3-Adressen-Test (GMX/Gmail/Outlook) mit Zeitstempel
+>
+> **Branch-Setup:** Sprint 2 auf `sprint-2`. Vor Merge:
+> 1. `pg_dump` als Backup (Session-Pooler-Host)
+> 2. Migration `20260705_analysen_kurzfassung.sql` in Supabase
+> 3. Vercel-Preview testen mit QA-PROTOKOLL.md
+> 4. Merge nach main
+>
+> ---
+>
+> **Vorheriger Stand:** **5.7.2026 (Sprint 1 auf Branch `sprint-1` – 6 Quick-Fixes vor Max-Besuch)**
 >
 > Grundlage: Review vom 2.7. (Prod-Daten + Code + UX + 16 Screenshots +
 > 8 Max-Audios). Max-Besuch ~10.7. – bis dahin läuft alles.
