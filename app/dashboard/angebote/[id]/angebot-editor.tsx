@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,9 +71,32 @@ export function AngebotEditor({
   const router = useRouter();
   const confirm = useConfirm();
   const [state, setState] = useState<EditorState>(initial);
+  // Baseline für Dirty-Detection: wird nach jedem erfolgreichen Save
+  // auf den aktuellen State gesetzt, damit "gespeichert" = "sauber" gilt.
+  const [baseline, setBaseline] = useState<EditorState>(initial);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Dirty-Detection über JSON-Vergleich (pragmatisch bei diesem
+  // Datenumfang, kein Perf-Problem).
+  const isDirty = useMemo(
+    () => JSON.stringify(state) !== JSON.stringify(baseline),
+    [state, baseline]
+  );
+
+  // Browser-Warnung bei Tab-Schließen/Reload wenn ungespeicherte Änderungen.
+  // Sidebar-Klicks werden NICHT abgefangen (Next 16 App Router hat keinen
+  // Router-Event-Hook; das wäre eigener UX-Sprint).
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
 
   const { summeNetto, summeBrutto } = useMemo(() => {
     const netto = state.positionen.reduce(
@@ -152,7 +175,10 @@ export function AngebotEditor({
         return false;
       }
       setSavedAt(new Date());
-      if (zusatz) setState((prev) => ({ ...prev, ...zusatz }));
+      const neuerState = { ...state, ...(zusatz ?? {}) };
+      if (zusatz) setState(neuerState);
+      // Baseline für Dirty-Check nachziehen – ab jetzt ist der Editor "sauber".
+      setBaseline(neuerState);
       router.refresh();
       return true;
     } finally {
@@ -592,10 +618,20 @@ export function AngebotEditor({
           )}
 
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-            <p className="text-xs text-muted-foreground">
-              {savedAt
-                ? `Gespeichert ${savedAt.toLocaleTimeString('de-DE')}`
-                : 'Wird beim Klick auf „Speichern" gespeichert.'}
+            <p className="text-xs">
+              {isDirty ? (
+                <span className="text-amber-700 font-medium">
+                  Ungespeicherte Änderungen
+                </span>
+              ) : savedAt ? (
+                <span className="text-muted-foreground">
+                  Gespeichert {savedAt.toLocaleTimeString('de-DE')}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">
+                  Wird beim Klick auf „Speichern" gespeichert.
+                </span>
+              )}
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
