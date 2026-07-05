@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import EntwurfEditor from './entwurf-editor';
 import { AntwortBereich } from './antwort-bereich';
 import { DetailActions } from './detail-actions';
@@ -357,14 +358,12 @@ export default async function AnfrageDetailPage({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* LINKS: Konversation + KI-Analyse */}
         <div className="space-y-4">
-          {/* Konversations-Thread */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                {nachrichten.length > 1 ? 'Konversation' : 'Original-Anfrage'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          {/* Konversations-Thread – einklappbar via CollapsibleCard */}
+          <CollapsibleCard
+            title={nachrichten.length > 1 ? 'Konversation' : 'Original-Anfrage'}
+            cardId="konversation"
+            contentClassName="space-y-4"
+          >
               {nachrichten.length === 0 ? (
                 <pre className="whitespace-pre-wrap text-sm font-sans text-foreground/90 leading-relaxed">
                   {anfrage.body_text}
@@ -465,16 +464,15 @@ export default async function AnfrageDetailPage({
                   </div>
                 ))
               )}
-            </CardContent>
-          </Card>
+          </CollapsibleCard>
 
-          {/* KI-Analyse */}
+          {/* KI-Analyse – einklappbar */}
           {klass && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">KI-Analyse</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+            <CollapsibleCard
+              title="KI-Analyse"
+              cardId="ki-analyse"
+              contentClassName="space-y-3 text-sm"
+            >
                 {klass.zusammenfassung && (
                   <div>
                     <p className="text-muted-foreground text-xs mb-0.5">Zusammenfassung</p>
@@ -600,8 +598,7 @@ export default async function AnfrageDetailPage({
                     <p>{klass.empfohlene_aktion}</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+            </CollapsibleCard>
           )}
         </div>
 

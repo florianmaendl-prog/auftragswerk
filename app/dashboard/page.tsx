@@ -26,6 +26,8 @@ type AnfrageWithJoins = {
     confidence: number | null;
     dringlichkeit: string | null;
     wert_indikator: string | null;
+    kurzfassung: string | null;
+    zusammenfassung: string | null;
   }> | null;
   entwuerfe: Array<{
     id: string;
@@ -300,20 +302,25 @@ function computeStats(
   };
 }
 
-function confidenceBadge(confidence: number | null) {
-  if (confidence === null || confidence >= 0.8) return null;
-  const pct = Math.round(confidence * 100);
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-        'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
-      )}
-      title="KI ist sich nicht sicher – Entwurf bitte besonders prüfen"
-    >
-      KI {pct}%
-    </span>
-  );
+/**
+ * Kompakte Inbox-Subline: bevorzugt die neue kurzfassung (max 80 Zeichen).
+ * Wenn Bestandsmail vor der Migration (kein kurzfassung-Feld): Fallback
+ * auf die ersten 80 Zeichen der langen zusammenfassung mit „…"-Suffix.
+ * Iron Rule „premium-Look" – keine harten Wortabbrüche.
+ */
+function inboxSubline(
+  kurzfassung: string | null | undefined,
+  zusammenfassung: string | null | undefined
+): string | null {
+  const kurz = kurzfassung?.trim();
+  if (kurz) return kurz;
+  const lang = zusammenfassung?.trim();
+  if (!lang) return null;
+  if (lang.length <= 80) return lang;
+  // Beim letzten Wort-Ende vor 80 Zeichen abschneiden statt mitten im Wort
+  const cut = lang.slice(0, 80);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > 40 ? cut.slice(0, lastSpace) : cut) + '…';
 }
 
 
@@ -347,7 +354,7 @@ export default async function InboxPage({
       status,
       created_at,
       tags,
-      analysen (kategorie, gewerk_match, confidence, dringlichkeit, wert_indikator),
+      analysen (kategorie, gewerk_match, confidence, dringlichkeit, wert_indikator, kurzfassung, zusammenfassung),
       entwuerfe (id, status, versendet_am, was_edited)
     `
     )
@@ -755,6 +762,17 @@ export default async function InboxPage({
                         />
                         <h3 className="font-medium truncate">{anfrage.betreff}</h3>
                       </div>
+                      {(() => {
+                        const subline = inboxSubline(
+                          klass?.kurzfassung,
+                          klass?.zusammenfassung
+                        );
+                        return subline ? (
+                          <p className="text-xs text-muted-foreground line-clamp-1 ml-4 mb-1">
+                            {subline}
+                          </p>
+                        ) : null;
+                      })()}
                       <div className="flex items-center gap-2 text-sm text-muted-foreground ml-4 flex-wrap">
                         <span className="truncate">
                           von {anfrage.von_name || anfrage.von_email}
@@ -795,7 +813,6 @@ export default async function InboxPage({
                         kategorie={klass?.kategorie as Parameters<typeof KategorieBadge>[0]['kategorie']}
                         gewerkMatch={klass?.gewerk_match as Parameters<typeof KategorieBadge>[0]['gewerkMatch']}
                       />
-                      {klass && confidenceBadge(klass.confidence)}
                     </div>
                   </div>
                 </Card>

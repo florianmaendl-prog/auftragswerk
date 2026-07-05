@@ -39,6 +39,11 @@ export interface KlassifikationResult {
   kunde_typ: 'privat' | 'architekt' | 'bautraeger' | 'gewerbe' | 'lieferant' | 'unklar' | null;
   dringlichkeit: 'hoch' | 'mittel' | 'niedrig' | null;
   confidence: number;
+  /**
+   * Kurzfassung für die Inbox-Subline (max ~80 Zeichen). Absender + Anliegen
+   * kompakt. Wird ohne UI-Truncate als eine Zeile mit line-clamp-1 gerendert.
+   */
+  kurzfassung: string;
   zusammenfassung: string;
   extrahierter_name: string | null;
   extrahierte_firma: string | null;
@@ -170,7 +175,8 @@ Antworte AUSSCHLIESSLICH mit gültigem JSON, keine Erklärungen, keine Markdown-
   "kunde_typ": "privat" | "architekt" | "bautraeger" | "gewerbe" | "lieferant" | "unklar" | null,
   "dringlichkeit": "hoch" | "mittel" | "niedrig" | null,
   "confidence": 0.95,
-  "zusammenfassung": "Ein-Satz-Zusammenfassung des Anliegens",
+  "kurzfassung": "max 80 Zeichen, Absender + Anliegen kompakt (z.B. 'Metallbau Rapp will Angebot für Edelstahl-Geländer' oder 'Newsletter Hero-Software'). Direkt zur Sache, kein 'der Kunde…', kein Bindestrich-Aufzählen. Wird in der Inbox als Subline unter dem Betreff angezeigt.",
+  "zusammenfassung": "Ein-Satz-Zusammenfassung des Anliegens (länger als kurzfassung, wird nur in der Detail-View gezeigt)",
   "extrahierter_name": "Vorname Nachname" | null,
   "extrahierte_firma": "..." | null,
   "extrahierte_telefon": "..." | null,
@@ -190,6 +196,7 @@ WICHTIG:
 - confidence zwischen 0.0 und 1.0
 - Keine Floskeln, sei präzise und nüchtern
 - Bei Werbung: zusammenfassung kurz halten ("Newsletter zu X", "Werbung für Y")
+- kurzfassung IMMER max 80 Zeichen – lieber prägnant abschneiden als voll ausformulieren. Zähl grob mit.
 - JSON-STRING-REGEL: in allen Text-Werten (zusammenfassung, empfohlene_aktion etc.) für Zitate AUSSCHLIESSLICH die typografischen deutschen Anführungszeichen „..." oder Apostrophe verwenden – NIEMALS gerade ASCII-Quotes ", die brechen den JSON-String. Falls du wirklich eine ASCII-Quote brauchst: als \" escapen.`;
 }
 
@@ -281,6 +288,9 @@ ${mailText}`;
     kunde_typ: klassifikation.kunde_typ,
     dringlichkeit: klassifikation.dringlichkeit,
     confidence: klassifikation.confidence,
+    // Kurzfassung defensiv auf 100 Zeichen kappen falls Haiku über die 80
+    // Zeichen hinausschießt – die Inbox-Karte hätte sonst layout-Sprünge.
+    kurzfassung: klassifikation.kurzfassung?.slice(0, 100) ?? null,
     zusammenfassung: klassifikation.zusammenfassung,
     extrahierter_name: klassifikation.extrahierter_name,
     extrahierte_firma: klassifikation.extrahierte_firma,
