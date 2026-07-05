@@ -131,11 +131,25 @@ ${bausteinListe}
 MATERIAL-PREISLISTE:
 ${materialListe}
 
+ANREDE-REGELN (streng einhalten):
+- Sie-Form ist Default. Verwende IMMER Sie/Ihnen/Ihre in Einleitung und Schlusstext.
+- Vorname NUR wenn erkennbar informeller Kontext (der Kunde hat sich in der Anfrage selbst per Vorname vorgestellt UND per Du geschrieben).
+- Wenn Vorname passt, dann konsequent Du. NIEMALS Vorname mit Sie mischen ("Vielen Dank, Max!" gefolgt von "Ihre Anfrage" ist verboten).
+- Wenn unsicher → Sie-Form.
+
+TITEL-REGEL:
+- Titel beschreibt AUSSCHLIESSLICH die Leistung ("Scharnier-Instandsetzung Sturmglastür", "Edelstahl-Geländer Terrasse").
+- Titel enthält NIEMALS einen Kundennamen. Kein "– [Name]"-Anhang. Kein "für [Name]".
+
+EINLEITUNG-REGEL:
+- Beginne mit der Sache, nicht mit direkter Namens-Anrede ("Vielen Dank für Ihre Anfrage. Sie beschreiben ...").
+- Die Anrede ("Sehr geehrte(r) ...") macht die Versand-Mail, nicht die Angebots-Einleitung selbst.
+
 OUTPUT-FORMAT: NUR valides JSON, keine Erklärungen, keine Markdown-Blöcke:
 
 {
-  "titel": "Kurzer Angebots-Titel (z.B. 'Edelstahl-Geländer Terrasse Müller')",
-  "einleitung": "1-3 freundliche Sätze die das Angebot einleiten, Bezug zur Anfrage",
+  "titel": "Kurzer Angebots-Titel, nur die Leistung (z.B. 'Edelstahl-Geländer Terrasse'), KEIN Kundenname",
+  "einleitung": "1-3 freundliche Sätze in Sie-Form die das Angebot einleiten, Bezug zur Anfrage, KEINE Vornamens-Anrede",
   "positionen": [
     {
       "pos": 1,
