@@ -14,6 +14,14 @@ import { TagEditor } from './tag-editor';
 import { ReplyEditor } from './reply-editor';
 import { TerminCard, type Termin } from './termin-card';
 import { KategorieBadge } from '@/components/brand/kategorie-badge';
+import {
+  KATEGORIE_LABEL,
+  WERT_LABEL,
+  DRINGLICHKEIT_LABEL,
+  GEWERK_MATCH_LABEL,
+  KUNDE_TYP_LABEL,
+  label,
+} from '@/lib/labels';
 import { cn } from '@/lib/utils';
 import { cleanMail } from '@/lib/mail-cleaner';
 import { HugeiconsIcon } from '@hugeicons/react';
@@ -50,22 +58,6 @@ function formatDateTime(date: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
-}
-
-function confidenceBadge(confidence: number | null) {
-  if (confidence === null || confidence >= 0.8) return null;
-  const pct = Math.round(confidence * 100);
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
-        'bg-amber-50 text-amber-700 border-amber-200'
-      )}
-      title="KI ist sich nicht sicher – Entwurf bitte besonders prüfen"
-    >
-      KI {pct}%
-    </span>
-  );
 }
 
 type Nachricht = {
@@ -314,7 +306,6 @@ export default async function AnfrageDetailPage({
                 kategorie={klass?.kategorie as Parameters<typeof KategorieBadge>[0]['kategorie']}
                 gewerkMatch={klass?.gewerk_match as Parameters<typeof KategorieBadge>[0]['gewerkMatch']}
               />
-              {klass && confidenceBadge(klass.confidence)}
             </div>
           </div>
           <div className="flex-shrink-0">
@@ -494,38 +485,30 @@ export default async function AnfrageDetailPage({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t">
                   <div>
                     <p className="text-muted-foreground text-xs">Kategorie</p>
-                    <p className="font-medium">{klass.kategorie}</p>
+                    <p className="font-medium">{label(KATEGORIE_LABEL, klass.kategorie)}</p>
                   </div>
                   {klass.gewerk_match && (
                     <div>
                       <p className="text-muted-foreground text-xs">Gewerk</p>
-                      <p className="font-medium">{klass.gewerk_match}</p>
+                      <p className="font-medium">{label(GEWERK_MATCH_LABEL, klass.gewerk_match)}</p>
                     </div>
                   )}
                   {klass.wert_indikator && (
                     <div>
                       <p className="text-muted-foreground text-xs">Wert</p>
-                      <p className="font-medium">{klass.wert_indikator}</p>
+                      <p className="font-medium">{label(WERT_LABEL, klass.wert_indikator)}</p>
                     </div>
                   )}
                   {klass.kunde_typ && (
                     <div>
                       <p className="text-muted-foreground text-xs">Kunde</p>
-                      <p className="font-medium">{klass.kunde_typ}</p>
+                      <p className="font-medium">{label(KUNDE_TYP_LABEL, klass.kunde_typ)}</p>
                     </div>
                   )}
                   {klass.dringlichkeit && (
                     <div>
                       <p className="text-muted-foreground text-xs">Dringlichkeit</p>
-                      <p className="font-medium">{klass.dringlichkeit}</p>
-                    </div>
-                  )}
-                  {klass.confidence !== null && (
-                    <div>
-                      <p className="text-muted-foreground text-xs">Confidence</p>
-                      <p className="font-medium">
-                        {Math.round((klass.confidence || 0) * 100)}%
-                      </p>
+                      <p className="font-medium">{label(DRINGLICHKEIT_LABEL, klass.dringlichkeit)}</p>
                     </div>
                   )}
                 </div>

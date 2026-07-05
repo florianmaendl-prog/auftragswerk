@@ -1,6 +1,87 @@
 # Auftragswerk – Backlog
 
-> **Stand: 15.6.2026 (Premium-Foundation P1–P6 durch + Säule 2 komplett + Empfänger-Felder am Angebot)**
+> **Stand: 5.7.2026 (Sprint 1 auf Branch `sprint-1` – 6 Quick-Fixes vor Max-Besuch)**
+>
+> Grundlage: Review vom 2.7. (Prod-Daten + Code + UX + 16 Screenshots +
+> 8 Max-Audios). Max-Besuch ~10.7. – bis dahin läuft alles.
+>
+> **Alle 6 Sprint-1-Items durch, TypeScript grün, Full-Build durch, 6 sauber
+> getrennte Commits auf Branch `sprint-1`:**
+>
+> - **Item 0** (Owner) – 3 Migrations in Supabase durch: angebote_empfaenger,
+>   schema_fix (idempotent), saeule2_rls (Sicherheit). Bug „einleitung column
+>   not found" behoben, `angebote`/`angebot_bausteine`/`material_preise`
+>   endlich mit RLS.
+> - **Item 4 [63ee396]** – Jargon-Sweep (Iron Rule 14):
+>   [lib/labels.ts](lib/labels.ts) neu (KATEGORIE/WERT/DRINGLICHKEIT/
+>   GEWERK_MATCH/KUNDE_TYP Klartext-Maps + label-helper mit rohem Fallback).
+>   Model-Badge (`claude-sonnet-4-6`) am Antwort-Entwurf raus. `confidenceBadge`-
+>   function komplett gelöscht (beide Anzeigen: Amber-„KI 75%" auf Titel +
+>   numerische %-Zeile in Analyse-Card). Alle 5 rohen Enums in
+>   [app/dashboard/anfragen/[id]/page.tsx](app/dashboard/anfragen/[id]/page.tsx)
+>   auf `label(MAP, wert)` umgestellt. `empfohlene_aktion`-Prompt in
+>   [lib/klassifikation.ts:182](lib/klassifikation.ts#L182) von dritter Person
+>   („Was sollte der Meister…") auf Du-Form mit konkreten Beispielen.
+> - **Item 5 [98147f4]** – Anrede-Regeln im Angebots-Generator.
+>   [lib/angebot.ts](lib/angebot.ts) System-Prompt um 3 neue Blöcke erweitert:
+>   ANREDE (Sie-Default, niemals Vorname + Sie mischen), TITEL (nur
+>   Leistung, nie Kundenname), EINLEITUNG (mit der Sache anfangen, keine
+>   Namens-Anrede). Fixt den 15.6.-Bug „Vielen Dank für Ihre Anfrage, Flo!"
+>   + „– Flo" im Titel.
+> - **Item 3 [885070d]** – Diktat-Fix. [components/ui/diktat-button.tsx](components/ui/diktat-button.tsx)
+>   komplett überarbeitet: Fehler-Mapping (`not-allowed`/`network`/
+>   `audio-capture` → deutsche Handlungsanweisungen mit macOS-
+>   Systemeinstellungs-Hinweis, 10s Toast). Permission-Pre-Check via
+>   `navigator.permissions.query({name:'microphone'})` in try/catch. Bei
+>   fehlendem Browser-Support: disabled Button mit Tooltip statt
+>   `return null`. Rohe API-Codes nur noch in console.warn.
+> - **Item 2 [c787928]** – Angebotsnummer + Gültig-bis automatisch.
+>   [app/api/angebote/route.ts](app/api/angebote/route.ts) POST setzt
+>   `angebotsnummer` (Format `YYYY-NNN`, Query nach höchster bestehender
+>   Nummer des Jahres +1, gepaddet) + `gueltig_bis` (heute+30 Tage via
+>   `berlinStartOfToday()` aus [lib/datetime.ts](lib/datetime.ts)).
+>   Fixt Text-Daten-Widerspruch (KI-Schlusstext „30 Tage gültig", DB leer).
+> - **Item 6 [c022af9]** – Dirty-Schutz im Angebots-Editor (minimal).
+>   [app/dashboard/angebote/[id]/angebot-editor.tsx](app/dashboard/angebote/[id]/angebot-editor.tsx):
+>   Baseline-State getrennt von State, `isDirty` via JSON-Vergleich in
+>   useMemo. beforeunload-Handler bei dirty. Amber-Text
+>   „Ungespeicherte Änderungen" neben Speichern-Status. Bewusst KEIN
+>   Sidebar-Navigation-Intercept – Next 16 App Router hat keinen
+>   Router-Event-Hook; eigener UX-Sprint. Tab-Close ist 90%-Fall.
+> - **Item 1 [162c566]** – Eventualpositionen (der eigentliche Bug).
+>   Kein Schema-Change nötig (positionen ist JSONB). Neues optionales
+>   Feld `eventualposition?: boolean` in `AngebotPosition`. `berechneSummen`
+>   filtert EP aus summe_netto/brutto raus, gibt zusätzlich
+>   `summe_eventual_netto` zurück. KI-Generator-Prompt bekommt
+>   EVENTUALPOSITIONEN-Block + zweigeteiltes JSON-Beispiel. Editor: EP-
+>   Checkbox pro Position, dezente Amber-Tönung + „EP"-Badge, separate
+>   Summen-Zeile für Eventualpositionen. PDF: „EP"-Marker im Pos-Feld,
+>   Gesamt in Klammern + amber, Legende unter Tabelle, separate EP-Summen-
+>   Zeile unter Brutto. Fixt den 656€-statt-287€-Bug.
+>
+> **Branch-Setup:** Sprint 1 läuft auf Branch `sprint-1`, NICHT auf main.
+> Owner macht vor Merge:
+> 1. `supabase db dump` als Backup (Prod-Rollback-Sicherheit, Supabase Free hat kein PITR)
+> 2. Sichten der 6 Commits
+> 3. Merge nach main → Vercel-Prod-Deploy
+>
+> **Nicht in Sprint 1 (kommt in Sprint 2 „QA-Pass" vor Max-Besuch):**
+> Signup-Mail-5-Tage-Bug fixen (Postmark-Log + Supabase-Auth-SMTP + 3-Adressen-
+> Test), E2E-Durchlauf mit Protokoll, 21 processing_errors + 29
+> manuell_pruefen aufarbeiten, Fehler-Digest-Cron, `analysen.kurzfassung`
+> (max 80 Zeichen) + Inbox-Subline, Collapse-Cards in Anfrage-Detail.
+> Aus Max-Audios klar: „Zuverlässigkeit schlägt Features" – Sprint 2 baut
+> Vertrauen zurück, keine neuen Features.
+>
+> **Aus Max-Audio 3.7. herausgekommen (Eisschrank, klärt sich beim Besuch):**
+> Betriebe mit Betriebssoftware (Streit, TopKontor) wollen Angebotstext
+> zum Kopieren, nicht PDF+Nummer. Potenzieller Säule-2-Pivot oder
+> zweigleisig. **B1 – Angebotstext im Betriebs-Stil** wartet auf 2-3
+> echte Vorlagen von Max beim Besuch.
+>
+> ---
+>
+> **Vorheriger Stand:** **15.6.2026 (Premium-Foundation P1–P6 durch + Säule 2 komplett + Empfänger-Felder am Angebot)**
 >
 > Eine Woche Vollgas-Push nach Tag-20-Stand. Vision war "vor 30
 > Handwerksmeistern bestehen" – nicht "läuft bei einem". Daraus

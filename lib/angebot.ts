@@ -32,6 +32,14 @@ export type AngebotPosition = {
   gesamtpreis_netto: number;
   ki_schaetzpreis?: number; // nur Info, vom Owner zu überschreiben
   baustein_id?: string | null;
+  /**
+   * Eventualposition: fällt nur bei Bedarf an ("falls erforderlich",
+   * "nach Befund"). Zählt NICHT in summe_netto/brutto, wird im Editor
+   * + PDF separat als "nur bei Bedarf"-Summe ausgewiesen.
+   * Fehlender/undefinierter Wert = false (Rückwärtskompat mit
+   * Bestandsangeboten vor Sprint 1.1).
+   */
+  eventualposition?: boolean;
 };
 
 export type AngebotVorschlag = {
@@ -131,11 +139,31 @@ ${bausteinListe}
 MATERIAL-PREISLISTE:
 ${materialListe}
 
+ANREDE-REGELN (streng einhalten):
+- Sie-Form ist Default. Verwende IMMER Sie/Ihnen/Ihre in Einleitung und Schlusstext.
+- Vorname NUR wenn erkennbar informeller Kontext (der Kunde hat sich in der Anfrage selbst per Vorname vorgestellt UND per Du geschrieben).
+- Wenn Vorname passt, dann konsequent Du. NIEMALS Vorname mit Sie mischen ("Vielen Dank, Max!" gefolgt von "Ihre Anfrage" ist verboten).
+- Wenn unsicher → Sie-Form.
+
+TITEL-REGEL:
+- Titel beschreibt AUSSCHLIESSLICH die Leistung ("Scharnier-Instandsetzung Sturmglastür", "Edelstahl-Geländer Terrasse").
+- Titel enthält NIEMALS einen Kundennamen. Kein "– [Name]"-Anhang. Kein "für [Name]".
+
+EINLEITUNG-REGEL:
+- Beginne mit der Sache, nicht mit direkter Namens-Anrede ("Vielen Dank für Ihre Anfrage. Sie beschreiben ...").
+- Die Anrede ("Sehr geehrte(r) ...") macht die Versand-Mail, nicht die Angebots-Einleitung selbst.
+
+EVENTUALPOSITIONEN (wichtig für ehrliche Summen):
+- Positionen die nur unter bestimmten Bedingungen anfallen ("falls erforderlich", "nach Befund", "sofern beschädigt", "bei Bedarf") markierst du mit "eventualposition": true.
+- Sie werden NICHT in die Angebots-Endsumme gerechnet – dem Kunden gegenüber wird die Endsumme sonst unrealistisch hoch, weil "Kann-Positionen" mitgezählt werden.
+- Bezeichnung sollte klar kennzeichnen ("Zusätzliche Verschraubung (bei Bedarf)", "Ersatz Z-Bar (falls Original nicht passt)").
+- Alle Positionen die auf jeden Fall anfallen: "eventualposition": false ODER Feld weglassen.
+
 OUTPUT-FORMAT: NUR valides JSON, keine Erklärungen, keine Markdown-Blöcke:
 
 {
-  "titel": "Kurzer Angebots-Titel (z.B. 'Edelstahl-Geländer Terrasse Müller')",
-  "einleitung": "1-3 freundliche Sätze die das Angebot einleiten, Bezug zur Anfrage",
+  "titel": "Kurzer Angebots-Titel, nur die Leistung (z.B. 'Edelstahl-Geländer Terrasse'), KEIN Kundenname",
+  "einleitung": "1-3 freundliche Sätze in Sie-Form die das Angebot einleiten, Bezug zur Anfrage, KEINE Vornamens-Anrede",
   "positionen": [
     {
       "pos": 1,
@@ -144,7 +172,18 @@ OUTPUT-FORMAT: NUR valides JSON, keine Erklärungen, keine Markdown-Blöcke:
       "menge": 1.0,
       "einheit": "Stk" | "m" | "m²" | "h" | "pauschal",
       "einzelpreis_netto": 250.00,
-      "baustein_id": null
+      "baustein_id": null,
+      "eventualposition": false
+    },
+    {
+      "pos": 2,
+      "bezeichnung": "Zusätzliche Verschraubung (falls erforderlich)",
+      "beschreibung": "Nur bei beschädigten Original-Bohrungen",
+      "menge": 4,
+      "einheit": "Stk",
+      "einzelpreis_netto": 15.00,
+      "baustein_id": null,
+      "eventualposition": true
     }
   ],
   "schlusstext": "Hinweis Gültigkeit (z.B. 30 Tage), Aufmaß-Vorbehalt falls relevant, freundlicher Outro"
@@ -213,6 +252,7 @@ Erstelle den Angebots-Vorschlag.`;
         gesamtpreis_netto: round2(menge * einzel),
         ki_schaetzpreis: einzel,
         baustein_id: p.baustein_id ?? null,
+        eventualposition: p.eventualposition === true,
       };
     }
   );
@@ -240,15 +280,31 @@ function round2(n: number): number {
 
 /**
  * Berechnet Netto- und Brutto-Summe aus einer Positions-Liste + MwSt-Satz.
+ * Eventualpositionen fließen NICHT in summe_netto/brutto, sondern
+ * werden separat als summe_eventual_netto zurückgegeben (für UI/PDF).
  */
 export function berechneSummen(opts: {
   positionen: AngebotPosition[];
   mwst_satz: number;
-}): { summe_netto: number; summe_brutto: number } {
-  const netto = opts.positionen.reduce(
-    (acc, p) => acc + (p.gesamtpreis_netto ?? p.menge * p.einzelpreis_netto),
-    0
-  );
+}): {
+  summe_netto: number;
+  summe_brutto: number;
+  summe_eventual_netto: number;
+} {
+  let netto = 0;
+  let eventual = 0;
+  for (const p of opts.positionen) {
+    const posBetrag = p.gesamtpreis_netto ?? p.menge * p.einzelpreis_netto;
+    if (p.eventualposition) {
+      eventual += posBetrag;
+    } else {
+      netto += posBetrag;
+    }
+  }
   const brutto = netto * (1 + opts.mwst_satz / 100);
-  return { summe_netto: round2(netto), summe_brutto: round2(brutto) };
+  return {
+    summe_netto: round2(netto),
+    summe_brutto: round2(brutto),
+    summe_eventual_netto: round2(eventual),
+  };
 }

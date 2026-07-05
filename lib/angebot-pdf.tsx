@@ -101,6 +101,28 @@ const styles = StyleSheet.create({
   colGesamt: { width: 75, textAlign: 'right', fontWeight: 'bold' },
   positionBezeichnung: { fontWeight: 'bold', marginBottom: 1 },
   positionBeschreibung: { fontSize: 8, color: '#555', lineHeight: 1.3 },
+  epMarker: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: '#92400e',
+  },
+  epGesamt: { color: '#92400e', fontStyle: 'italic' as const },
+  legende: {
+    marginTop: 4,
+    fontSize: 8,
+    color: '#666',
+    fontStyle: 'italic' as const,
+  },
+  summenRowEP: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 3,
+    marginTop: 6,
+    borderTopWidth: 0.5,
+    borderTopColor: '#d97706',
+    fontSize: 9,
+    color: '#92400e',
+  },
   summenBlock: {
     marginTop: 12,
     alignSelf: 'flex-end',
@@ -185,6 +207,16 @@ export function AngebotPdf(props: AngebotPdfProps) {
   const { betrieb, kunde, angebot } = props;
   const mwstBetrag = angebot.summe_brutto - angebot.summe_netto;
 
+  // Eventualpositionen separat ausweisen (zählen nicht in summe_netto/brutto,
+  // die kommen bereits ohne EP aus lib/angebot.ts berechneSummen).
+  const hatEventualpositionen = angebot.positionen.some(
+    (p) => p.eventualposition === true
+  );
+  const summeEventualNetto = angebot.positionen.reduce(
+    (acc, p) => (p.eventualposition ? acc + p.gesamtpreis_netto : acc),
+    0
+  );
+
   // Empfänger-Block: Firma optional über Namen, dann Adresse
   const empfaengerLines: string[] = [];
   if (kunde.firma) empfaengerLines.push(kunde.firma);
@@ -264,7 +296,12 @@ export function AngebotPdf(props: AngebotPdfProps) {
           </View>
           {angebot.positionen.map((p) => (
             <View key={p.pos} style={styles.tableRow as any}>
-              <Text style={styles.colPos as any}>{p.pos}</Text>
+              <View style={styles.colPos as any}>
+                <Text>{p.pos}</Text>
+                {p.eventualposition && (
+                  <Text style={styles.epMarker as any}>EP</Text>
+                )}
+              </View>
               <View style={styles.colBezeichnung as any}>
                 <Text style={styles.positionBezeichnung as any}>
                   {p.bezeichnung}
@@ -281,11 +318,25 @@ export function AngebotPdf(props: AngebotPdfProps) {
               <Text style={styles.colEinzel as any}>
                 {formatEuro(p.einzelpreis_netto)}
               </Text>
-              <Text style={styles.colGesamt as any}>
-                {formatEuro(p.gesamtpreis_netto)}
+              <Text
+                style={
+                  p.eventualposition
+                    ? { ...(styles.colGesamt as any), ...(styles.epGesamt as any) }
+                    : (styles.colGesamt as any)
+                }
+              >
+                {p.eventualposition
+                  ? `(${formatEuro(p.gesamtpreis_netto)})`
+                  : formatEuro(p.gesamtpreis_netto)}
               </Text>
             </View>
           ))}
+          {hatEventualpositionen && (
+            <Text style={styles.legende as any}>
+              EP = Eventualposition, wird nur nach Rücksprache und bei
+              tatsächlichem Bedarf berechnet.
+            </Text>
+          )}
         </View>
 
         {/* Summen */}
@@ -302,6 +353,12 @@ export function AngebotPdf(props: AngebotPdfProps) {
             <Text>Gesamtbetrag brutto</Text>
             <Text>{formatEuro(angebot.summe_brutto)}</Text>
           </View>
+          {summeEventualNetto > 0 && (
+            <View style={styles.summenRowEP as any}>
+              <Text>Eventualpositionen gesamt (nur nach Rücksprache)</Text>
+              <Text>+{formatEuro(summeEventualNetto)}</Text>
+            </View>
+          )}
         </View>
 
         {/* Schlusstext */}

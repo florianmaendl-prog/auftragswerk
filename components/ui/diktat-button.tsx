@@ -15,11 +15,15 @@ import { cn } from '@/lib/utils';
  * Schreibt erkannten Text via Callback in den Editor (= append am Ende).
  * Mobile-relevant – iOS Safari + Android Chrome unterstützen das.
  *
- * Fallback: wenn Browser nicht unterstützt → Button hidden statt Error.
+ * Bei fehlender Browser-Unterstützung: Button sichtbar aber disabled
+ * mit Tooltip. Handwerker soll wissen dass das Feature existiert, statt
+ * dass es einfach fehlt.
+ *
+ * Bei "not-allowed" (Mikro blockiert): verständliche Anleitung mit
+ * konkreten Schritten statt rohem API-Fehlercode.
  */
 
-// Minimaler Typ-Shim für Web Speech API – wird vom TS-Lib nicht standard-mäßig
-// bereitgestellt, je nach Browser ist es webkitSpeechRecognition.
+// Minimaler Typ-Shim für Web Speech API
 type RecognitionLike = {
   lang: string;
   continuous: boolean;
@@ -38,6 +42,23 @@ type RecognitionResultLike = {
   }>;
   resultIndex: number;
 };
+
+const MIKRO_BLOCKIERT_MELDUNG =
+  'Dein Browser blockiert das Mikrofon für diese Seite. Klick auf das Schloss-Symbol links in der Adressleiste und erlaube das Mikrofon. Auf dem Mac zusätzlich prüfen: Systemeinstellungen → Datenschutz → Mikrofon → Browser erlauben.';
+
+function fehlerMeldung(code: string | undefined): string {
+  switch (code) {
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return MIKRO_BLOCKIERT_MELDUNG;
+    case 'network':
+      return 'Die Spracherkennung braucht Internet. Bitte Verbindung prüfen.';
+    case 'audio-capture':
+      return 'Kein Mikrofon gefunden. Ist eins angeschlossen?';
+    default:
+      return 'Diktat hat nicht geklappt. Am zuverlässigsten funktioniert es in Chrome oder Edge.';
+  }
+}
 
 export function DiktatButton({
   onText,
@@ -63,9 +84,48 @@ export function DiktatButton({
     if (Ctor) setSupported(true);
   }, []);
 
-  if (!supported) return null;
+  // Bei fehlendem Browser-Support: sichtbar aber disabled (Handwerker
+  // soll wissen dass es das Feature gibt).
+  if (!supported) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled
+        className={cn('gap-1.5', className)}
+        title="Diktat funktioniert in Chrome, Edge und Safari – dein Browser unterstützt es nicht."
+      >
+        <HugeiconsIcon icon={Mic01Icon} size={14} strokeWidth={1.5} />
+        Diktat
+      </Button>
+    );
+  }
 
-  function start() {
+  async function start() {
+    // Permission-Pre-Check: wenn schon "denied", gar nicht erst starten,
+    // sondern direkt die Anleitung zeigen. Safari kennt den Permission-
+    // Namen manchmal nicht → try/catch.
+    try {
+      const perms = (
+        navigator as unknown as {
+          permissions?: {
+            query: (o: { name: string }) => Promise<{ state: string }>;
+          };
+        }
+      ).permissions;
+      if (perms?.query) {
+        const result = await perms.query({ name: 'microphone' });
+        if (result.state === 'denied') {
+          toast.error(MIKRO_BLOCKIERT_MELDUNG, { duration: 10000 });
+          return;
+        }
+      }
+    } catch {
+      // Permission-API nicht verfügbar → weiter, echter Fehler kommt
+      // dann aus onerror
+    }
+
     const Ctor =
       (window as unknown as { SpeechRecognition?: new () => RecognitionLike })
         .SpeechRecognition ??
@@ -89,7 +149,6 @@ export function DiktatButton({
         }
       }
       if (neuerText) {
-        // Sicherstellen dass am Anfang ein Trennzeichen vorhanden ist
         const trimmed = neuerText.trim();
         if (trimmed) {
           onText(' ' + trimmed);
@@ -100,7 +159,8 @@ export function DiktatButton({
       const ev = evRaw as { error?: string };
       // "no-speech" und "aborted" sind keine echten Fehler – User hat halt nichts gesagt
       if (ev.error && ev.error !== 'no-speech' && ev.error !== 'aborted') {
-        toast.error(`Diktat-Fehler: ${ev.error}`);
+        console.warn('[Diktat] Web Speech API error:', ev.error);
+        toast.error(fehlerMeldung(ev.error), { duration: 10000 });
       }
       setAktiv(false);
     };
@@ -114,7 +174,8 @@ export function DiktatButton({
       recognitionRef.current = rec;
       setAktiv(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Diktat konnte nicht starten');
+      console.warn('[Diktat] Start failed:', err);
+      toast.error(fehlerMeldung(undefined), { duration: 10000 });
       setAktiv(false);
     }
   }

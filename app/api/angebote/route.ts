@@ -6,6 +6,47 @@ import {
   berechneSummen,
   type AngebotPosition,
 } from '@/lib/angebot';
+import { berlinStartOfToday, BETRIEB_TZ } from '@/lib/datetime';
+import { formatInTimeZone } from 'date-fns-tz';
+
+/**
+ * Nächste freie Angebotsnummer pro Betrieb, Format `YYYY-NNN`.
+ * Sucht das größte bestehende `YYYY-NNN` des laufenden Jahres,
+ * addiert 1 und pflastert auf 3 Stellen. Bei Fehler / keinem Match
+ * fällt es auf `YYYY-001` zurück. Kein Lock nötig – Solo-Owner-
+ * Nutzung, Race-Wahrscheinlichkeit vernachlässigbar.
+ */
+async function naechsteAngebotsnummer(betriebId: string): Promise<string> {
+  const jahr = formatInTimeZone(new Date(), BETRIEB_TZ, 'yyyy');
+  const prefix = `${jahr}-`;
+  const { data } = await supabaseAdmin
+    .from('angebote')
+    .select('angebotsnummer')
+    .eq('betrieb_id', betriebId)
+    .like('angebotsnummer', `${prefix}%`)
+    .order('angebotsnummer', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const letzte = data?.angebotsnummer as string | undefined;
+  if (letzte) {
+    const suffix = letzte.slice(prefix.length);
+    const n = parseInt(suffix, 10);
+    if (!isNaN(n) && n > 0) {
+      return `${prefix}${String(n + 1).padStart(3, '0')}`;
+    }
+  }
+  return `${prefix}001`;
+}
+
+/**
+ * Default-Gültig-bis: heute + 30 Tage in Berliner Zeit (matcht die
+ * "30 Tage gültig"-Standardformulierung im KI-Schlusstext).
+ */
+function defaultGueltigBis(): string {
+  const heute = berlinStartOfToday();
+  const plus30 = new Date(heute.getTime() + 30 * 24 * 60 * 60 * 1000);
+  return formatInTimeZone(plus30, BETRIEB_TZ, 'yyyy-MM-dd');
+}
 
 /**
  * GET  /api/angebote                → Liste aller Angebote des Betriebs
@@ -203,6 +244,9 @@ export async function POST(req: NextRequest) {
     };
   }
 
+  const angebotsnummer = await naechsteAngebotsnummer(betriebId);
+  const gueltigBis = defaultGueltigBis();
+
   const { data, error } = await supabaseAdmin
     .from('angebote')
     .insert({
@@ -216,6 +260,8 @@ export async function POST(req: NextRequest) {
       summe_brutto: initial.summe_brutto,
       mwst_satz: 19,
       status: 'entwurf',
+      angebotsnummer,
+      gueltig_bis: gueltigBis,
       empfaenger_name: empfaenger.name,
       empfaenger_firma: empfaenger.firma,
       empfaenger_email: empfaenger.email,
