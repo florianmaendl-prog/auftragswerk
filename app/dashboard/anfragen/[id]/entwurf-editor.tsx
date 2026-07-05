@@ -136,9 +136,6 @@ export default function EntwurfEditor({
           <CardTitle className="text-base">Antwort-Entwurf</CardTitle>
           <div className="flex items-center gap-2">
             {istVersendet && <Badge>versendet</Badge>}
-            <Badge variant="outline" className="text-xs">
-              {entwurf.modell || 'KI'}
-            </Badge>
           </div>
         </div>
       </CardHeader>

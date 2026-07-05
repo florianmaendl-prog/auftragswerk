@@ -179,7 +179,7 @@ Antworte AUSSCHLIESSLICH mit gültigem JSON, keine Erklärungen, keine Markdown-
   "extrahierte_position": "..." | null,
   "fehlende_infos": ["..."],
   "materialbedarf_erkannt": false,
-  "empfohlene_aktion": "Was sollte der Meister als nächstes tun (kurzer Satz)",
+  "empfohlene_aktion": "Was du als nächstes tun solltest (kurzer Satz in Du-Form, direkt an den Inhaber gerichtet, z.B. 'Ruf den Kunden an, um die fehlenden Maße zu klären' oder 'Prüf kurz, ob sich das für dich lohnt – liegt unter deinem Mindestauftragswert')",
   "extrahierter_termin": { "datum_iso": "2026-05-26T10:00:00", "ort": "...", "notiz": "..." } | null,
   "eskalation_erkannt": false,
   "eskalation_grund": null
