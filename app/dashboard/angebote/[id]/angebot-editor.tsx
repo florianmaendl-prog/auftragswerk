@@ -27,6 +27,7 @@ type Position = {
   gesamtpreis_netto: number;
   ki_schaetzpreis?: number;
   baustein_id?: string | null;
+  eventualposition?: boolean;
 };
 
 type EditorState = {
@@ -98,13 +99,23 @@ export function AngebotEditor({
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  const { summeNetto, summeBrutto } = useMemo(() => {
-    const netto = state.positionen.reduce(
-      (acc, p) => acc + p.menge * p.einzelpreis_netto,
-      0
-    );
+  const { summeNetto, summeBrutto, summeEventualNetto } = useMemo(() => {
+    let netto = 0;
+    let eventual = 0;
+    for (const p of state.positionen) {
+      const betrag = p.menge * p.einzelpreis_netto;
+      if (p.eventualposition) {
+        eventual += betrag;
+      } else {
+        netto += betrag;
+      }
+    }
     const brutto = netto * (1 + state.mwst_satz / 100);
-    return { summeNetto: round2(netto), summeBrutto: round2(brutto) };
+    return {
+      summeNetto: round2(netto),
+      summeBrutto: round2(brutto),
+      summeEventualNetto: round2(eventual),
+    };
   }, [state.positionen, state.mwst_satz]);
 
   function updatePosition(idx: number, patch: Partial<Position>) {
@@ -385,12 +396,24 @@ export function AngebotEditor({
           {state.positionen.map((p, idx) => (
             <div
               key={idx}
-              className="rounded-md border border-input bg-muted/20 p-3 space-y-2"
+              className={`rounded-md border p-3 space-y-2 ${
+                p.eventualposition
+                  ? 'border-amber-200 bg-amber-50/40'
+                  : 'border-input bg-muted/20'
+              }`}
             >
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono text-muted-foreground w-6 flex-shrink-0">
                   {p.pos}.
                 </span>
+                {p.eventualposition && (
+                  <span
+                    className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200"
+                    title="Eventualposition – fällt nur bei Bedarf an, zählt nicht in die Endsumme"
+                  >
+                    EP
+                  </span>
+                )}
                 <Input
                   value={p.bezeichnung}
                   onChange={(e) =>
@@ -520,6 +543,17 @@ export function AngebotEditor({
                   </p>
                 </div>
               </div>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground pt-1 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={p.eventualposition === true}
+                  onChange={(e) =>
+                    updatePosition(idx, { eventualposition: e.target.checked })
+                  }
+                  className="h-3.5 w-3.5 rounded border-input"
+                />
+                Nur bei Bedarf (Eventualposition) – zählt nicht in die Endsumme
+              </label>
             </div>
           ))}
 
@@ -559,6 +593,14 @@ export function AngebotEditor({
               <span className="font-medium">Brutto</span>
               <span className="font-bold text-base">{formatEuro(summeBrutto)}</span>
             </div>
+            {summeEventualNetto > 0 && (
+              <div className="flex justify-between pt-2 border-t mt-2 text-xs text-amber-800">
+                <span>Eventualpositionen (nur bei Bedarf, netto)</span>
+                <span className="font-medium">
+                  +{formatEuro(summeEventualNetto)}
+                </span>
+              </div>
+            )}
           </div>
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">

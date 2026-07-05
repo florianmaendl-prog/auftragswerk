@@ -69,7 +69,7 @@ export async function PATCH(
       if (typeof v !== 'string' || !GUELTIGE_STATUS.has(v)) continue;
     }
     if (k === 'positionen' && Array.isArray(v)) {
-      const normiert = (v as AngebotPosition[]).map((p, i) => {
+      const normiert: AngebotPosition[] = (v as AngebotPosition[]).map((p, i) => {
         const menge = Math.max(0, Number(p.menge) || 0);
         const einzel = Math.max(0, Number(p.einzelpreis_netto) || 0);
         return {
@@ -82,10 +82,12 @@ export async function PATCH(
           gesamtpreis_netto: round2(menge * einzel),
           ki_schaetzpreis: p.ki_schaetzpreis,
           baustein_id: p.baustein_id ?? null,
+          eventualposition: p.eventualposition === true,
         };
       });
       update.positionen = normiert;
       const mwst = Number(body.mwst_satz) || 19;
+      // berechneSummen filtert EP-Positionen aus summe_netto/brutto raus
       const summen = berechneSummen({ positionen: normiert, mwst_satz: mwst });
       update.summe_netto = summen.summe_netto;
       update.summe_brutto = summen.summe_brutto;
