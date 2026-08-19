@@ -36,9 +36,9 @@ export default function ImpressumPage() {
             <p>
               Florian Mändl
               <br />
-              [Straße + Hausnummer]
+              Adolf-Kolping-Str. 14
               <br />
-              [PLZ + Ort]
+              85737 Ismaning
               <br />
               Deutschland
             </p>
@@ -76,7 +76,9 @@ export default function ImpressumPage() {
             <p>
               Florian Mändl
               <br />
-              [Anschrift wie oben]
+              Adolf-Kolping-Str. 14
+              <br />
+              85737 Ismaning
             </p>
           </section>
 
@@ -119,11 +121,6 @@ export default function ImpressumPage() {
           </section>
         </div>
 
-        <div className="mt-12 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
-          <strong className="font-medium">Hinweis:</strong> Die mit [Klammern]
-          markierten Felder werden vor dem produktiven Pilot-Einsatz mit den
-          tatsächlichen Adressdaten ergänzt.
-        </div>
       </main>
 
       <Footer />
